@@ -46,7 +46,7 @@ libs: $(STATIC-LIBS)
 
 
 
-$(OBJECTS): $(OBJDIR)/%.o : $(SRCDIR)/%.c
+$(OBJECTS): $(OBJDIR)/%.o : $(SRCDIR)/%.c $(SRCDIR)/%.h
 	@mkdir -p $(dir $@)
 	@$(call build_and_check, $(CC) $(CFLAGS) -c $< -o $@)
 
