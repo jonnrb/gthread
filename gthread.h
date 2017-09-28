@@ -1,8 +1,8 @@
 /**
  * author: JonNRb <jonbetti@gmail.com>
  * license: MIT
- * file: memory_macos.c
- * info: implements macOS specific functionality for green threads.
+ * file: @gthread//gthread.h
+ * info: main exported API (my_pthread.h trivially wraps this)
  */
 
 #ifndef GTHREAD_H_
