@@ -1,0 +1,4 @@
+bazel-*
+obj/
+bin/
+bin-test/

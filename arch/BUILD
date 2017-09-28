@@ -1,0 +1,52 @@
+# author: JonNRb <jonbetti@gmail.com>
+# license: MIT
+# file: @gthread//arch/BUILD
+# info: inline assembly libraries
+
+package(default_visibility = ["//:__subpackages__"])
+
+cc_library(
+    name = "arch",
+    deps = [
+        ":atomic",
+        ":bit_twiddle",
+        ":switch_to",
+    ],
+)
+
+cc_inc_library(
+    name = "atomic",
+    hdrs = ["atomic.h"],
+)
+
+cc_test(
+    name = "atomic_test",
+    srcs = ["atomic_test.c"],
+    deps = [":atomic"],
+)
+
+cc_inc_library(
+    name = "bit_twiddle",
+    hdrs = ["bit_twiddle.h"],
+)
+
+cc_test(
+    name = "bit_twiddle_test",
+    srcs = ["bit_twiddle_test.c"],
+    deps = [":bit_twiddle"],
+)
+
+cc_library(
+    name = "switch_to",
+    srcs = ["switch_to.c"],
+    hdrs = ["switch_to.h"],
+)
+
+cc_test(
+    name = "switch_to_test",
+    srcs = ["switch_to_test.c"],
+    deps = [
+        ":switch_to",
+        "//platform",
+    ],
+)
