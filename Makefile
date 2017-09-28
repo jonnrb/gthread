@@ -46,7 +46,17 @@ libs: $(STATIC-LIBS)
 
 
 
-$(OBJECTS): $(OBJDIR)/%.o : $(SRCDIR)/%.c $(SRCDIR)/%.h
+DEPFILES = $(OBJECTS:.o=.d)
+
+$(DEPFILES): $(OBJDIR)/%.d : $(SRCDIR)/%.c
+	@mkdir -p $(dir $@)
+	@$(CC) -MF $@ -MM -MT $@ -MT $(basename $@).o -I$(SRCDIR) $<
+
+-include $(DEPFILES)
+
+
+
+$(OBJECTS): $(OBJDIR)/%.o : $(SRCDIR)/%.c $(OBJDIR)/%.d
 	@mkdir -p $(dir $@)
 	@$(call build_and_check, $(CC) $(CFLAGS) -c $< -o $@)
 
