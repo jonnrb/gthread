@@ -5,8 +5,8 @@
  * info: implements platform specific functionality
  */
 
-#ifndef PLATFORM_PLATFORM_H_
-#define PLATFORM_PLATFORM_H_
+#ifndef PLATFORM_MEMORY_H_
+#define PLATFORM_MEMORY_H_
 
 #include <stdlib.h>
 
@@ -14,6 +14,12 @@
 
 // minimum stack size (probably page size). also min for guardsize.
 extern const size_t GTHREAD_STACK_MIN;
+
+// wrapper for malloc
+static inline void *gthread_allocate(size_t bytes);
+
+// wrapper for free
+static inline void gthread_free(void *data);
 
 /**
  * if |attrs| is null, defaults are used. if not null, it must specify
@@ -39,4 +45,6 @@ int gthread_free_stack(void *stack_addr, size_t total_stack_size);
  */
 void *gthread_get_stack_base(void *stack_addr, size_t total_stack_size);
 
-#endif  // PLATFORM_PLATFORM_H_
+#include "platform/memory_inline.h"
+
+#endif  // PLATFORM_MEMORY_H_
