@@ -1,16 +1,14 @@
 #include "arch/bit_twiddle.h"
 
 #include <assert.h>
-#include <stdio.h>
 #include <inttypes.h>
+#include <stdio.h>
 
 void check_right_mask(uint64_t number, uint64_t masked) {
   uint64_t actual_masked = right_mask(number);
-  printf(
-      "number:   %" PRIx64 "\n"
-      "expected: %" PRIx64 "\n"
-      "actual:   %" PRIx64 "\n\n",
-      number, masked, actual_masked);
+  printf("number:   %" PRIx64 "\nexpected: %" PRIx64 "\nactual:   %" PRIx64
+         "\n\n",
+         number, masked, actual_masked);
   assert(masked == actual_masked);
 }
 
