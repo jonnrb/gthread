@@ -8,6 +8,7 @@
 #include "arch/atomic.h"
 
 #include <assert.h>
+#include <inttypes.h>
 #include <stdio.h>
 
 void test_compare_and_swap() {
@@ -17,7 +18,7 @@ void test_compare_and_swap() {
   assert(val == 10);
 
   assert(compare_and_swap(&val, 10, 0));
-  printf("val: %llu\n", val);
+  printf("val: %" PRIu64 "\n", val);
   assert(val == 0);
 }
 

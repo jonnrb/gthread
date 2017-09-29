@@ -39,7 +39,7 @@ int main() {
       printf("next should segfault\n");
       ok = 1;
     }
-    printf("writing to %lx\n", (char *)t_attr.stack.addr - (char *)i);
+    printf("writing to %td\n", (char *)t_attr.stack.addr - (char *)i);
     *i = (uint32_t)i;
   }
   // should have segfaulted. will exit with failure.
