@@ -17,9 +17,6 @@
 #include "arch/bit_twiddle.h"
 #include "gthread.h"
 
-// TODO(jonnrb): check proper linux value
-static const void *GTHREAD_STACK_HINT = (void *)0xB0000000;
-
 const size_t GTHREAD_STACK_MIN = 0x2000;
 
 static inline size_t page_size() {
@@ -54,8 +51,7 @@ int gthread_allocate_stack(gthread_attr_t *attrs, void **stack,
   *total_stack_size = attrs->stack.size + attrs->stack.guardsize;
 
   // mmap the region as a stack using MAP_GROWSDOWN magic
-  void *stackaddr = mmap((void *)GTHREAD_STACK_HINT, *total_stack_size,
-                         PROT_READ | PROT_WRITE,
+  void *stackaddr = mmap(NULL, *total_stack_size, PROT_READ | PROT_WRITE,
                          MAP_PRIVATE | MAP_ANONYMOUS | MAP_GROWSDOWN, -1, 0);
 
   if (stackaddr == NULL) {
