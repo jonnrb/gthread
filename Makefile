@@ -10,7 +10,7 @@ SHELL = /bin/bash
 AR = ar rcs
 
 CC = gcc
-CFLAGS = -xc -Wall -fPIC -I.
+CFLAGS = -xc -std=c11 -Wall -fPIC -I.
 
 LD = gcc
 LDFLAGS = -fPIE
