@@ -22,9 +22,7 @@ int main() {
                                                &total_stack_size));
   printf("size:  0x%zu\n", total_stack_size);
   printf("stack: %p\n", t_attr.stack.addr);
-  printf("base:  %p\n",
-         gthread_get_stack_base(t_attr.stack.addr - total_stack_size,
-                                total_stack_size));
+  printf("base:  %p\n", t_attr.stack.addr - total_stack_size);
 
   assert(!gthread_free_stack(t_attr.stack.addr - total_stack_size,
                              total_stack_size));
