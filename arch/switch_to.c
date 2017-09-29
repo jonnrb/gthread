@@ -8,7 +8,8 @@
 #include "switch_to.h"
 
 // very simple switch_to() like the linux kernel do.
-void gthread_switch_to(gthread_saved_ctx_t* from, gthread_saved_ctx_t* to) {
+void __attribute__((noinline))
+gthread_switch_to(gthread_saved_ctx_t* from, gthread_saved_ctx_t* to) {
   __asm__ __volatile__(
       "  test %0, %0        \n"  // if |from| is NULL don't save ctx.
       "  jz no_save         \n"
@@ -24,7 +25,6 @@ void gthread_switch_to(gthread_saved_ctx_t* from, gthread_saved_ctx_t* to) {
       "no_save:             \n"
       : "=D"(from)  // output
       :             // no inputs
-      :             // shhh this clobbers everything...
   );
 
   // TODO(jonnrb): possibly do signal masking here?
@@ -41,13 +41,13 @@ void gthread_switch_to(gthread_saved_ctx_t* from, gthread_saved_ctx_t* to) {
       "  mov 0x30(%0), %%r15\n"
       :          // no outputs
       : "S"(to)  // input
-      :          // shhh this clobbers everything...
   );
 }
 
-void gthread_switch_to_and_spawn(gthread_saved_ctx_t* self_ctx,
-                                 gthread_saved_ctx_t* ret_ctx, void* stack,
-                                 void (*entry)(void*), void* arg) {
+void __attribute__((noinline))
+gthread_switch_to_and_spawn(gthread_saved_ctx_t* self_ctx,
+                            gthread_saved_ctx_t* ret_ctx, void* stack,
+                            void (*entry)(void*), void* arg) {
   // save the current context.
   __asm__ __volatile__(
       "mov %%rbx, 0x00(%0)\n"
@@ -58,25 +58,23 @@ void gthread_switch_to_and_spawn(gthread_saved_ctx_t* self_ctx,
       "mov %%r13, 0x20(%0)\n"
       "mov %%r14, 0x28(%0)\n"
       "mov %%r15, 0x30(%0)\n"
-      : "=D"(self_ctx)  // output
-      :                 // no inputs
-      :                 // shhh this clobbers everything...
+      :                // no outputs
+      : "D"(self_ctx)  // input
   );
 
-  // save |ret_ctx| to the bottom of the stack.
-  gthread_saved_ctx_t** rsp = ((gthread_saved_ctx_t**)stack) - 1;
-  *rsp = ret_ctx;
-  --rsp;
-
+  // pray that we may return from this inline asm horror
   __asm__ __volatile__(
-      "mov %0, %%rsp          \n"  // change the stack pointer to |stack|
-      "call *%1               \n"  // call `entry(arg)`
-      "                       \n"
-      "mov 0x8(%%rsp), %%rsi  \n"  // move saved |ret_ctx| to param2 (SysV ABI)
-      "movq     $0, %%rdi     \n"  // move NULL to param1 (SysV ABI)
-      "call _gthread_switch_to\n"
-      :                                 // no output
-      : "r"(rsp), "r"(entry), "D"(arg)  // inputs
-      : "rsp", "rsi"                    // clobbers
+      "mov %1, %%rsp \n"  // change the stack pointer to |stack|
+      "pushq %%rsi   \n"  // push the return context to the new stack
+      "pushq %0      \n"  // make stack 16-byte aligned as is the ritual
+      "call *%2      \n"  // call `entry(arg)` (rdi is prepopulated)
+      "              \n"
+      "popq %%rax    \n"
+      "popq %%rsi    \n"  // move saved |ret_ctx| to param2 (SysV ABI)
+      "movq $0, %%rdi\n"  // move NULL to param1 (SysV ABI)
+      "jmp *%%rax    \n"  // no coming back
+      :
+      : "r"(gthread_switch_to), "r"(stack), "r"(entry), "D"(arg), "S"(ret_ctx)
+      // inputs
   );
 }
