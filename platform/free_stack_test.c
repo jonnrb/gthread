@@ -20,9 +20,9 @@ int main() {
 
   printf("ret:   %d\n", gthread_allocate_stack(&t_attr, &t_attr.stack.addr,
                                                &total_stack_size));
-  printf("size:  0x%.16lx\n", total_stack_size);
-  printf("stack: %.16p\n", t_attr.stack.addr);
-  printf("base:  %.16p\n",
+  printf("size:  0x%zu\n", total_stack_size);
+  printf("stack: %p\n", t_attr.stack.addr);
+  printf("base:  %p\n",
          gthread_get_stack_base(t_attr.stack.addr - total_stack_size,
                                 total_stack_size));
 
