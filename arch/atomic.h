@@ -13,13 +13,15 @@
 static inline int compare_and_swap(uint64_t* location, uint64_t expected,
                                    uint64_t new_val) {
   int result = 0;
-  asm("  cmpxchgq %3, (%2)        \n"  // compare and exchange instruction
-                                       // (no {smp,lock prefix,mesi} == fast)
-      "  jnz compare_and_swap_fail\n"  // sets zf if successful
-      "  movl $1, %0              \n"  // if successful, return 1
-      "compare_and_swap_fail:     \n"
-      : "=mr"(result), "+a"(expected)
-      : "r"(location), "r"(new_val));
+  asm("  mov %2, %%rax    \n"  // |expected| goes in rax
+      "  cmpxchgq %3, (%1)\n"  // compare and exchange instruction
+                               // (no {smp,lock prefix,mesi} == fast)
+      "  jnz 1f           \n"  // sets zf if successful
+      "  movl $1, %0      \n"  // if successful, return 1
+      "1:                 \n"
+      : "=m"(result)
+      : "D"(location), "S"(expected), "d"(new_val)
+      : "rax");
   return result;
 }
 
