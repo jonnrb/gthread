@@ -13,7 +13,7 @@
 
 static uint64_t g_is_sched_init = 0;
 
-static const size_t k_num_tasks = 1024;
+#define k_num_tasks 1024
 
 // g_root_task is the initial task
 static gthread_task_t* g_root_task = NULL;

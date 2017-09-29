@@ -40,7 +40,7 @@ int main() {
       ok = 1;
     }
     printf("writing to %td\n", (char *)t_attr.stack.addr - (char *)i);
-    *i = (uint32_t)i;
+    *i = (uint64_t)i;
   }
   // should have segfaulted. will exit with failure.
   segv_handler(0);

@@ -6,6 +6,7 @@
  */
 
 #include <assert.h>
+#include <inttypes.h>
 #include <sched.h>
 #include <stdio.h>
 #include <sys/time.h>
@@ -20,7 +21,7 @@ static uint64_t g_elapsed;
 
 void trap(uint64_t elapsed) {
   ++g_traps;
-  printf("elapsed: %llu\n", (g_elapsed = elapsed));
+  printf("elapsed: %" PRIu64 "\n", (g_elapsed = elapsed));
   fflush(stdout);
 }
 

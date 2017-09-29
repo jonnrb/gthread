@@ -139,7 +139,7 @@ static int switch_to_task(gthread_task_t* task, uint64_t* elapsed) {
   g_lock = 0;
   gthread_switch_to(&prev_task->ctx, &g_current_task->ctx);
 
-  assert(g_current_task = prev_task);
+  assert(g_current_task == prev_task);
   prev_task->run_state = GTHREAD_TASK_RUNNING;
   return 0;
 }
