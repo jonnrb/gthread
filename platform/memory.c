@@ -7,6 +7,8 @@
 
 #if defined(__APPLE__) && defined(__MACH__)
 #include "platform/memory_macos.c"
+#elif defined(__linux__)
+#include "platform/memory_linux.c"
 #else
 #error ":("
 #endif
