@@ -5,7 +5,7 @@
  * info: implements Linux specific functionality
  */
 
-// let's us build in C11 mode
+// lets us build in C11 mode
 #define _GNU_SOURCE
 
 #include "platform/memory.h"
@@ -18,6 +18,9 @@
 #include "gthread.h"
 
 const size_t GTHREAD_STACK_MIN = 0x2000;
+
+// same as nptl
+const static size_t k_stack_default = 2 << 20;
 
 static inline size_t page_size() {
   static size_t k = 0;
@@ -35,7 +38,7 @@ static inline size_t page_size() {
 int gthread_allocate_stack(gthread_attr_t *attrs, void **stack,
                            size_t *total_stack_size) {
   gthread_attr_t defaults = {.stack = {.addr = NULL,
-                                       .size = 1024 * 1024,  // 1 MB stack.
+                                       .size = k_stack_default,
                                        .guardsize = GTHREAD_STACK_MIN}};
   attrs = attrs ?: &defaults;
 
