@@ -129,7 +129,7 @@ static int dl_iterate_phdr_init_cb(struct dl_phdr_info* info, size_t size,
       if (branch_expected(module > 0)) {
         images[module - 1].data = info->dlpi_tls_data;
         images[module - 1].image_size = phdr->p_filesz;
-        images[module - 1].mem_offset =(-phdr->p_memsz) & (phdr->p_align - 1);
+        images[module - 1].mem_offset = (-phdr->p_memsz) & (phdr->p_align - 1);
         images[module - 1].reserve = phdr->p_memsz;
       } else {
         // must have a module id (index starts at 1)
