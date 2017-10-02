@@ -37,14 +37,6 @@ int gthread_allocate_stack(gthread_attr_t *attrs, void **stack,
  */
 int gthread_free_stack(void *stack_addr, size_t total_stack_size);
 
-/**
- * |stack_addr| can be any pointer within the stack. |total_stack_size| is the
- * full stack size i.e. the stack size + the guard size. returns the base
- * pointer of the stack. if guardsize was specified when the stack was created,
- * this region is probably protected and accessing will make you segfault.
- */
-void *gthread_get_stack_base(void *stack_addr, size_t total_stack_size);
-
 #include "platform/memory_inline.h"
 
 #endif  // PLATFORM_MEMORY_H_

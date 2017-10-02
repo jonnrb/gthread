@@ -65,17 +65,10 @@ int gthread_allocate_stack(gthread_attr_t *attrs, void **stack,
   return 0;
 }
 
-inline void *gthread_get_stack_base(void *stack_addr, size_t total_stack_size) {
-  return (void *)(((size_t)stack_addr) & ~(vm_page_size - 1));
-}
-
-int gthread_free_stack(void *stack_addr, size_t total_stack_size) {
-  void *stack_base = gthread_get_stack_base(stack_addr, total_stack_size);
-  if (mach_vm_deallocate(mach_task_self(), (mach_vm_address_t)stack_base, 1)) {
+int gthread_free_stack(void *stack_base, size_t total_stack_size) {
+  if (mach_vm_deallocate(mach_task_self(), (mach_vm_address_t)stack_base,
+                         total_stack_size)) {
     return EAGAIN;
   }
   return 0;
 }
-
-#ifdef MACOS_STACK_TEST
-#endif  // MACOS_STACK_TEST
