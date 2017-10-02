@@ -5,6 +5,8 @@
  * info: test platform timer utilities
  */
 
+#include "platform/timer.h"
+
 #include <assert.h>
 #include <inttypes.h>
 #include <sched.h>
@@ -12,7 +14,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 
-#include "platform/timer.h"
+#include "platform/clock.h"
 
 const static int g_usec_interval = 5000;
 const static int g_usec_interval_big = 20000;
@@ -32,13 +34,16 @@ int main() {
   gthread_timer_set_trap(trap);
 
   // let a bunch of intervals run
+  printf("running 20 intervals of %d µs\n", g_usec_interval);
   assert(!gthread_timer_set_interval(g_usec_interval));
   clock_t start = clock();
-  while (g_traps < 20)
-    ;
+  while (g_traps < 20) gthread_nsleep(10 * 1000);
   double d_elapsed = (double)(clock() - start) / CLOCKS_PER_SEC;
-  double d_20traps = (double)g_usec_interval * 20 / 1000000;
-  printf("elapsed time for 20 intervals: %f\n", d_elapsed);
+  double d_20traps = (double)g_usec_interval * 20 / CLOCKS_PER_SEC;
+  printf("elapsed µs for 20 intervals (clock()): %f\n",
+         d_elapsed * 1000 * 1000);
+  printf("elapsed µs for per interval (clock()): %f\n",
+         d_elapsed * 1000 * 1000 / 20);
   fflush(stdout);
   assert(d_elapsed >= d_20traps);
 
@@ -51,6 +56,8 @@ int main() {
   assert(cur_traps == g_traps);
 
   // early alarm
+  printf("setting interval of %d µs\n", g_usec_interval_big);
+  printf("waiting for clock() to elapse %d µs\n", g_usec_interval_big / 2);
   assert(!gthread_timer_set_interval(g_usec_interval_big));
   start = clock();
   g_traps = 0;

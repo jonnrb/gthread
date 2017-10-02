@@ -27,8 +27,8 @@ static bool g_time_slice_trap_set = false;
  * if an active thread is doing tons of syscalls, it should be penalized for
  * the time they take.
  */
-const int TIMER_TYPE = ITIMER_REAL;
-const int SIGNAL_TYPE = SIGALRM;
+const int TIMER_TYPE = ITIMER_PROF;
+const int SIGNAL_TYPE = SIGPROF;
 
 int gthread_timer_set_interval(uint64_t usec) {
   g_interval = usec;

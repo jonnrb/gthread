@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 199309L
+
 #include "platform/clock.h"
 
 #include <stdint.h>
@@ -41,4 +43,13 @@ int64_t gthread_clock_process() {
 
 int64_t gthread_clock_resolution_process() {
   return posix_time_resolution_from_type(CLOCK_PROCESS_CPUTIME_ID);
+}
+
+uint64_t gthread_nsleep(uint64_t ns) {
+  struct timespec t = { ns / (1000*1000*1000), ns % (1000*1000*1000) };
+  if (branch_unexpected(nanosleep(&t, &t))) {
+    return ns - t.tv_sec * 1000 * 1000 * 1000 - t.tv_nsec;
+  } else {
+    return t.tv_sec * 1000 * 1000 * 1000 + t.tv_nsec;
+  }
 }

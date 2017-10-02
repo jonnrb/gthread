@@ -15,4 +15,6 @@ int64_t gthread_clock_process();
 
 int64_t gthread_clock_resolution_process();
 
+uint64_t gthread_nsleep(uint64_t ns);
+
 #endif  // PLATFORM_CLOCK_H_
