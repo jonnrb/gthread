@@ -88,7 +88,7 @@ int gthread_start_task(gthread_task_t* task, gthread_entry_t* entry,
 
   reset_timer_and_record_time(g_current_task);
 
-  if (!compare_and_swap(&g_lock, 0, 1)) return -1;
+  if (!gthread_cas(&g_lock, 0, 1)) return -1;
 
   gthread_task_t* prev_task = g_current_task;
   g_current_task = task;
@@ -123,7 +123,7 @@ static int switch_to_task(gthread_task_t* task, uint64_t* elapsed) {
 
   init_root_task();
 
-  if (!compare_and_swap(&g_lock, 0, 1)) return -1;
+  if (!gthread_cas(&g_lock, 0, 1)) return -1;
 
   if (elapsed == NULL) {
     reset_timer_and_record_time(g_current_task);

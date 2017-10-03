@@ -10,8 +10,8 @@
 
 #include <stdint.h>
 
-static inline int compare_and_swap(uint64_t* location, uint64_t expected,
-                                   uint64_t new_val) {
+static inline int gthread_cas(uint64_t* location, uint64_t expected,
+                              uint64_t new_val) {
   int result = 0;
   __asm__ __volatile__(
       "  mov %2, %%rax    \n"  // |expected| goes in rax

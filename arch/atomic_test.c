@@ -14,10 +14,10 @@
 void test_compare_and_swap() {
   uint64_t val = 10;
 
-  assert(!compare_and_swap(&val, 5, 0));
+  assert(!gthread_cas(&val, 5, 0));
   assert(val == 10);
 
-  assert(compare_and_swap(&val, 10, 0));
+  assert(gthread_cas(&val, 10, 0));
   printf("val: %" PRIu64 "\n", val);
   assert(val == 0);
 }

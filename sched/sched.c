@@ -40,8 +40,8 @@ static gthread_task_t* next_task_round_robin() {
 static gthread_task_t* make_task(gthread_attr_t* attr) {
   for (int i = 1; i < k_num_tasks; ++i) {
     if (g_tasks[i].run_state == GTHREAD_TASK_FREE &&
-        compare_and_swap(&g_tasks[i].run_state, GTHREAD_TASK_FREE,
-                         GTHREAD_TASK_LOCKED)) {
+        gthread_cas(&g_tasks[i].run_state, GTHREAD_TASK_FREE,
+                    GTHREAD_TASK_LOCKED)) {
       if (gthread_construct_task(&g_tasks[i], attr)) return NULL;
       return &g_tasks[i];
     }
@@ -66,7 +66,7 @@ static void* sched_main(void* _) {
 }
 
 int gthread_sched_init() {
-  if (!compare_and_swap(&g_is_sched_init, 0, 1)) return -1;
+  if (!gthread_cas(&g_is_sched_init, 0, 1)) return -1;
 
   g_root_task = gthread_get_current_task();
 
