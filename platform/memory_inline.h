@@ -8,18 +8,14 @@
 #ifndef PLATFORM_MEMORY_INLINE_H_
 #define PLATFORM_MEMORY_INLINE_H_
 
-#ifndef _POSIX_C_SOURCE
-#define _POSIX_C_SOURCE 200112L
-#else
-#define GTHREAD_POSIX_C_SOURCE_WAS_DEF
-#endif
-
 #include <stdlib.h>
 
 #include "util/compiler.h"
 
 // wrapper for malloc
 static inline void *gthread_allocate(size_t bytes) { return malloc(bytes); }
+
+extern int posix_memalign(void **p, size_t a, size_t s);
 
 // wrapper for posix_memalign
 static inline void *gthread_allocate_aligned(size_t alignment, size_t bytes) {
@@ -33,9 +29,5 @@ static inline void *gthread_allocate_aligned(size_t alignment, size_t bytes) {
 
 // wrapper for free
 static inline void gthread_free(void *data) { free(data); }
-
-#ifndef GTHREAD_POSIX_C_SOURCE_WAS_DEF
-#undef _POSIX_C_SOURCE
-#endif
 
 #endif  // PLATFORM_MEMORY_INLINE_H_
