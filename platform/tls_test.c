@@ -4,7 +4,6 @@
  * file: @gthread//platform/tls.c
  * info: text-includes platform-specific tls stuff (for make easy gnu)
  */
-#define _POSIX_C_SOURCE 200112L
 
 #include "platform/tls.h"
 
@@ -57,7 +56,7 @@ int main() {
   void* tcb = (void*)0xDEADBEEFL;
   if (total_tls_data > 0) {
     void* tcb_base;
-    assert(!posix_memalign(&tcb_base, tls_alignment, total_tls_data));
+    assert(tcb_base = gthread_allocate_aligned(tls_alignment, total_tls_data));
     memset(tcb_base, '\0', total_tls_data);
     printf("tcb_base: %p\n", tcb_base);
     tcb = (void*)((char*)tcb_base + total_tls_data);
