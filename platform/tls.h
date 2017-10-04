@@ -11,16 +11,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
-// has to be the same as glibc right now so we can use their internal functions
-typedef union gthread_dtv {
-  size_t num_modules;
-  struct {
-    void* v;
-    bool is_static;  // for now, don't care about this
-  } pointer;
-} gthread_dtv_t;
-
-typedef gthread_dtv_t* gthread_tls_t;
+typedef void* gthread_tls_t;
 
 gthread_tls_t gthread_tls_allocate(size_t* tls_image_reserve,
                                    size_t* tls_image_alignment);

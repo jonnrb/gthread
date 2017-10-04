@@ -18,6 +18,15 @@
 
 #include "util/compiler.h"
 
+// has to be the same as glibc right now so we can use their internal functions
+typedef union dtv {
+  size_t num_modules;
+  struct {
+    void* v;
+    bool is_static;  // for now, don't care about this
+  } pointer;
+} dtv_t;
+
 // TLS ABI document: https://www.akkadia.org/drepper/tls.pdf
 
 // this is how glibc detects unallocated slots for dynamic loading
@@ -33,11 +42,11 @@
     _r;                                                   \
   })
 
-static inline int get_dtv(gthread_dtv_t** dtv) {
+static inline int get_dtv(dtv_t** dtv) {
   return syscall(SYS_arch_prctl, ARCH_GET_FS, dtv);
 }
 
-static inline int set_dtv(gthread_dtv_t* dtv) {
+static inline int set_dtv(dtv_t* dtv) {
   return syscall(SYS_arch_prctl, ARCH_SET_FS, dtv);
 }
 
@@ -69,13 +78,13 @@ static int dl_iterate_phdr_exec_size_cb(struct dl_phdr_info* info, size_t size,
 
 gthread_tls_t gthread_tls_allocate(size_t* tls_image_reserve,
                                    size_t* tls_align) {
-  gthread_tls_t tls = calloc(k_num_slots + 2, sizeof(gthread_tls_t[0]));
+  dtv_t* dtv = calloc(k_num_slots + 2, sizeof(dtv_t));
 
-  tls[0].num_modules = k_num_slots;
+  dtv[0].num_modules = k_num_slots;
 
   for (int i = 0; i < k_num_slots; ++i) {
-    tls[i + 2].pointer.v = TLS_DTV_UNALLOCATED;
-    tls[i + 2].pointer.is_static = 0;
+    dtv[i + 2].pointer.v = TLS_DTV_UNALLOCATED;
+    dtv[i + 2].pointer.is_static = 0;
   }
 
   if (tls_image_reserve != NULL || tls_align != NULL) {
@@ -85,20 +94,21 @@ gthread_tls_t gthread_tls_allocate(size_t* tls_image_reserve,
     if (tls_align != NULL) *tls_align = acc[1];
   }
 
-  return tls;
+  return (gthread_tls_t)dtv;
 }
 
 void gthread_tls_free(gthread_tls_t tls) {
   if (tls == NULL) return;
 
+  dtv_t* dtv = (dtv_t*) tls;
   for (int i = 0; i < k_num_slots; ++i) {
-    if (!tls[i + 2].pointer.is_static &&
-        tls[i + 2].pointer.v != TLS_DTV_UNALLOCATED) {
-      free(tls[i + 2].pointer.v);
+    if (!dtv[i + 2].pointer.is_static &&
+        dtv[i + 2].pointer.v != TLS_DTV_UNALLOCATED) {
+      free(dtv[i + 2].pointer.v);
     }
   }
 
-  free(tls);
+  free(dtv);
 }
 
 typedef struct {
@@ -143,9 +153,10 @@ static int dl_iterate_phdr_init_cb(struct dl_phdr_info* info, size_t size,
 }
 
 int gthread_tls_initialize_image(gthread_tls_t tls) {
+  dtv_t* dtv = (dtv_t*)tls;
   tls_image_t images[k_num_slots];
 
-  if (tls[1].pointer.v == NULL) return -1;
+  if (dtv[1].pointer.v == NULL) return -1;
 
   for (int i = 0; i < k_num_slots; ++i) {
     images[i].data = NULL;
@@ -153,7 +164,7 @@ int gthread_tls_initialize_image(gthread_tls_t tls) {
 
   if (dl_iterate_phdr(dl_iterate_phdr_init_cb, images)) return -1;
 
-  char* base = (char*)tls[1].pointer.v;
+  char* base = (char*)dtv[1].pointer.v;
   for (int i = 0; i < k_num_slots; ++i) {
     if (images[i].data == NULL) break;
 
@@ -165,21 +176,25 @@ int gthread_tls_initialize_image(gthread_tls_t tls) {
     memcpy(base, images[i].data, images[i].image_size);
     base -= uninitialized;
 
-    tls[i + 2].pointer.is_static = 1;
-    tls[i + 2].pointer.v = base;
+    dtv[i + 2].pointer.is_static = 1;
+    dtv[i + 2].pointer.v = base;
   }
 
   return 0;
 }
 
 gthread_tls_t gthread_tls_current() {
-  gthread_tls_t dtv = NULL;
+  dtv_t* dtv = NULL;
   get_dtv(&dtv);
   return dtv - 1;
 }
 
 void gthread_tls_set_thread(gthread_tls_t tls, void* thread) {
-  tls[1].pointer.v = thread;
+  dtv_t* dtv = (dtv_t*)tls;
+  dtv[1].pointer.v = thread;
 }
 
-void gthread_tls_use(gthread_tls_t tls) { set_dtv(&tls[1]); }
+void gthread_tls_use(gthread_tls_t tls) {
+  dtv_t* dtv = (dtv_t*)tls;
+  set_dtv(&dtv[1]);
+}
