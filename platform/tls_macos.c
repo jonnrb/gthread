@@ -42,8 +42,8 @@
 typedef void *gs_relative *tls_slot_t;
 
 static tls_slot_t g_pthread_self_slot = (tls_slot_t)0;
-static tls_slot_t g_thread_slot_a = (tls_slot_t)k_thread_slot_a;
-static tls_slot_t g_thread_slot_b = (tls_slot_t)k_thread_slot_b;
+static tls_slot_t g_thread_slot_a = ((tls_slot_t)0) + k_thread_slot_a;
+static tls_slot_t g_thread_slot_b = ((tls_slot_t)0) + k_thread_slot_b;
 
 /**
  * so xnu doesn't document its syscalls so good
