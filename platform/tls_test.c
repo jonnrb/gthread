@@ -14,8 +14,6 @@
 
 #include "platform/memory.h"
 
-//#define __thread
-//#define assert(x)
 #define baseval 15
 __thread int x = baseval;
 
@@ -55,13 +53,16 @@ int main() {
   printf("total_tls_data: %zu\n", total_tls_data);
   printf("tls_alignment: %zu\n", tls_alignment);
 
-  void* tcb_base = aligned_alloc(tls_alignment, total_tls_data);
-  memset(tcb_base, '\0', total_tls_data);
-  printf("tcb_base: %p\n", tcb_base);
-  void* tcb = (void*)((char*)tcb_base + total_tls_data);
-  gthread_tls_set_thread(tls, tcb);
+  if (total_tls_data > 0) {
+    void* tcb_base;
+    assert(!posix_memalign(&tcb_base, tls_alignment, total_tls_data));
+    memset(tcb_base, '\0', total_tls_data);
+    printf("tcb_base: %p\n", tcb_base);
+    void* tcb = (void*)((char*)tcb_base + total_tls_data);
+    gthread_tls_set_thread(tls, tcb);
 
-  assert(!gthread_tls_initialize_image(tls));
+    assert(!gthread_tls_initialize_image(tls));
+  }
 
   printf("testing XXXXXXXXXXXXXXX\n");
   printf("original\n");
