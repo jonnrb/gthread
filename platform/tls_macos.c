@@ -12,8 +12,6 @@
 #include "util/compiler.h"
 
 /**
- * TLS ABI document: https://www.akkadia.org/drepper/tls.pdf
- *
  * XNU says "ya know who really cares what everyone else does" and uses the
  * %gs segment for tls data on x86-64. k.
  *

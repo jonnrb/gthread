@@ -54,20 +54,28 @@ int main() {
   printf("total_tls_data: %zu\n", total_tls_data);
   printf("tls_alignment: %zu\n", tls_alignment);
 
+  void* tcb = (void*)0xDEADBEEFL;
   if (total_tls_data > 0) {
     void* tcb_base;
     assert(!posix_memalign(&tcb_base, tls_alignment, total_tls_data));
     memset(tcb_base, '\0', total_tls_data);
     printf("tcb_base: %p\n", tcb_base);
-    void* tcb = (void*)((char*)tcb_base + total_tls_data);
+    tcb = (void*)((char*)tcb_base + total_tls_data);
     gthread_tls_set_thread(tls, tcb);
 
     assert(!gthread_tls_initialize_image(tls));
+  } else {
+    gthread_tls_set_thread(tls, tcb);
   }
+
+  assert(gthread_tls_get_thread(tls) == tcb);
+  assert(gthread_tls_current_thread() != tcb);
+  gthread_tls_use(tls);
+  assert(gthread_tls_current_thread() == tcb);
 
   printf("testing XXXXXXXXXXXXXXX\n");
   printf("original\n");
-  x_inc(NULL, 1);
+  x_inc(old, 1);
 
   printf("mine :)\n");
   x_inc(tls, 1);
@@ -95,6 +103,8 @@ int main() {
   y_inc(NULL, 2, "og thread");
   y_inc(NULL, 3, "og thread");
   y_inc(NULL, 4, "og thread");
+
+  gthread_tls_free(tls);
 
   return 0;
 }
