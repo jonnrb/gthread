@@ -93,6 +93,7 @@ void gthread_tls_free(gthread_tls_t tls) {
   if (tls == NULL) return;
 
   void **tls_slots = (void **)((char *)tls + get_pthread_slots_offset());
+  // TODO(jonnrb): do we have to free the low slots?
   for (int i = k_num_copied_slots; i < k_num_slots; ++i)
     if (tls_slots[i] != NULL) free(tls_slots[i]);
 
