@@ -7,6 +7,6 @@
 
 static inline void* gthread_tls_current_thread() {
   register void* thread __asm__("rax");
-  __asm__("mov %%fs, %0" : "=r"(thread));
+  __asm__("mov %%fs:0, %0" : "=r"(thread));
   return thread;
 }

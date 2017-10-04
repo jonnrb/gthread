@@ -185,6 +185,11 @@ void gthread_tls_set_thread(gthread_tls_t tls, void* thread) {
   dtv[1].pointer.v = thread;
 }
 
+void* gthread_tls_get_thread(gthread_tls_t tls) {
+  dtv_t* dtv = (dtv_t*)tls;
+  return dtv[1].pointer.v;
+}
+
 void gthread_tls_use(gthread_tls_t tls) {
   dtv_t* dtv = (dtv_t*)tls;
   set_dtv(&dtv[1]);
