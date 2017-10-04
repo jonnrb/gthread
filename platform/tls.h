@@ -51,7 +51,7 @@ void* gthread_tls_get_thread(gthread_tls_t tls);
 /**
  * returns the thread vector for the current context's tls
  */
-void* gthread_tls_current_thread();
+static inline void* gthread_tls_current_thread();
 
 /**
  * returns the tls used in the current execution context
@@ -62,5 +62,13 @@ gthread_tls_t gthread_tls_current();
  * change the current context's tls to use |tls|
  */
 void gthread_tls_use(gthread_tls_t tls);
+
+#if defined(__APPLE__) && defined(__MACH__)
+#include "platform/tls_inline_macos.h"
+#elif defined(__linux__)
+#include "platform/tls_inline_linux.h"
+#else
+#error "tls not supported :("
+#endif
 
 #endif  // PLATFORM_TLS_H_
