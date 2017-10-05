@@ -6,6 +6,12 @@
  */
 
 /**
+ * Thread Local Storage allows for global data that is relatively local to a
+ * context, i.e. the values can be all switched during a context switch.
+ *
+ * the standard gnu extension allows declaring static variables with a
+ * `__thread` prefix and C11 uses the `_Thread_local` prefix
+ *
  * ELF TLS ABI document: https://www.akkadia.org/drepper/tls.pdf
  */
 
@@ -15,41 +21,36 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
-typedef void* gthread_tls_t;
+typedef struct gthread_tls* gthread_tls_t;
 
 /**
- * allocates a tls dtv (dynamic thread vector) which is returned as an opaque
- * pointer conforming to the current platform. when the thread pointer is set
- * on the tls, it should have |tls_image_reserve| bytes allocated before that
- * pointer aligned to a |tls_image_alignment| boundary.
+ * allocates thread local storage for a context. the returned thread local
+ * storage is initialized to default values.
  */
-gthread_tls_t gthread_tls_allocate(size_t* tls_image_reserve,
-                                   size_t* tls_image_alignment);
+gthread_tls_t gthread_tls_allocate();
 
 /**
- * frees the tls data and the dtv.
+ * resets the thread local data stored for |tls|
+ */
+int gthread_tls_reset(gthread_tls_t tls);
+
+/**
+ * frees the tls data
  */
 void gthread_tls_free(gthread_tls_t tls);
 
 /**
- * assumes |tls| has a thread pointer with enough space before it for the tls
- * base image
- */
-int gthread_tls_initialize_image(gthread_tls_t tls);
-
-/**
- * sets the thread pointer on the tls vector. it should have the appropriate
- * storage available before this address.
+ * sets the thread pointer (user data) on |tls|
  */
 void gthread_tls_set_thread(gthread_tls_t tls, void* thread);
 
 /**
- * returns the thread vector that is set on |tls|
+ * returns the thread pointer that is set on |tls|
  */
 void* gthread_tls_get_thread(gthread_tls_t tls);
 
 /**
- * returns the thread vector for the current context's tls
+ * returns the thread pointer for the current context's tls
  */
 static inline void* gthread_tls_current_thread();
 

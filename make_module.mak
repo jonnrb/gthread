@@ -36,7 +36,7 @@ $$($(MODULE)-TEST-BINS): $$(TESTDIR)/% : $$(OBJDIR)/%.o $$($(MODULE)-STATIC-LIBS
 	@mkdir -p $$(dir $$@)
 	@$$(call build_and_check, $$(LD) $$(LDFLAGS) $$^ -o $$@);
 
-$$($(MODULE)-BINS): $$(TESTDIR)/% : $$(OBJDIR)/%.o $$($(MODULE)-STATIC-LIBS) $(BIN-DEPS)
+$$($(MODULE)-BINS): $$(BINDIR)/% : $$(OBJDIR)/%.o $$($(MODULE)-STATIC-LIBS) $(BIN-DEPS)
 	@mkdir -p $$(dir $$@)
 	@$$(call build_and_check, $$(LD) $$(LDFLAGS) $$^ -o $$@);
 

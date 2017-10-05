@@ -60,8 +60,7 @@ static inline size_t get_pthread_slots_offset() {
   return pthread_t_size = (char *)search - (char *)pthread_self;
 }
 
-gthread_tls_t gthread_tls_allocate(size_t *tls_image_reserve,
-                                   size_t *tls_image_alignment) {
+gthread_tls_t gthread_tls_allocate() {
   size_t pthread_t_size = get_pthread_slots_offset();
 
   void *tls = calloc(k_num_slots * sizeof(void *) + pthread_t_size, 1);
@@ -74,10 +73,21 @@ gthread_tls_t gthread_tls_allocate(size_t *tls_image_reserve,
   void **tls_slots = (void **)((char *)tls + pthread_t_size);
   tls_slots[0] = tls;
 
-  if (tls_image_reserve != NULL) *tls_image_reserve = 0;
-  if (tls_image_alignment != NULL) *tls_image_reserve = 0;
-
   return (gthread_tls_t)tls;
+}
+
+int gthread_tls_reset(gthread_tls_t tls) {
+  if (tls == NULL) return -1;
+
+  void **tls_slots = (void **)((char *)tls + get_pthread_slots_offset());
+  // TODO(jonnrb): do we have to free the low slots?
+  for (int i = k_num_copied_slots; i < k_num_slots; ++i)
+    if (tls_slots[i] != NULL) {
+      free(tls_slots[i]);
+      tls_slots[i] = NULL;
+    }
+
+  return 0;
 }
 
 void gthread_tls_free(gthread_tls_t tls) {
@@ -108,6 +118,3 @@ void *gthread_tls_get_thread(gthread_tls_t tls) {
 void gthread_tls_use(gthread_tls_t tls) {
   _thread_set_tsd_base((void *)((char *)tls + get_pthread_slots_offset()));
 }
-
-// nop: macOS does this on the fly
-int gthread_tls_initialize_image(gthread_tls_t tls) { return 0; }

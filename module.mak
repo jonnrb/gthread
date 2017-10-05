@@ -3,4 +3,8 @@
 # file: @gthread//module.mak
 # info: gnu makefile for root module
 
+MODULE :=
+BINS := testy
+BIN-DEPS := $(OBJDIR)/arch.a $(OBJDIR)/platform.a $(OBJDIR)/sched.a
+
 include make_module.mak

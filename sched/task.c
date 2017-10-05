@@ -14,9 +14,6 @@
 // task representing the initial context of execution.
 static gthread_task_t g_root_task = {0};
 
-// were smp supported, we would actually need some per-processor distinction.
-static gthread_task_t* g_current_task = NULL;
-
 static gthread_task_end_handler_t* g_task_end_handler = NULL;
 
 // task switching MUST not be reentrant.
@@ -26,33 +23,37 @@ static int g_timer_enabled = 0;
 
 static gthread_task_time_slice_trap_t* g_time_slice_trap = NULL;
 
-int gthread_construct_task(gthread_task_t* task, gthread_attr_t* attrs) {
-  int ret;
+uint64_t gthread_task_is_root_task_init = false;
+
+gthread_task_t* gthread_task_construct(gthread_attr_t* attrs) {
+  gthread_tls_t tls = gthread_tls_allocate();
+  if (tls == NULL) return NULL;
+
+  gthread_task_t* task = gthread_allocate(sizeof(gthread_task_t));
+  if (task == NULL) {
+    gthread_tls_free(tls);
+    return NULL;
+  }
+  gthread_tls_set_thread(tls, task);
+  task->tls = tls;
+
   task->run_state = GTHREAD_TASK_STOPPED;
   task->return_value = NULL;
-  if ((ret = gthread_allocate_stack(attrs, &task->stack,
-                                    &task->total_stack_size))) {
-    return ret;
+  if (gthread_allocate_stack(attrs, &task->stack, &task->total_stack_size)) {
+    gthread_tls_free(tls);
+    gthread_free(task);
+    return NULL;
   }
-  for (int i = 0; i < 16; ++i) task->slice_times[i] = 0;
-  task->slice_i = 0;
-  return 0;
+  task->vruntime = 0;
+
+  return task;
 }
 
-static inline void init_root_task() {
-  if (g_current_task == NULL) {
-    g_current_task = &g_root_task;
-    g_current_task->run_state = GTHREAD_TASK_RUNNING;
-    // struct is statically zero-initialized as the lord penguin intended.
-  }
+static inline void record_time_slice(gthread_task_t* task, uint64_t elapsed) {
+  task->vruntime += elapsed;
 }
 
-static void record_time_slice(gthread_task_t* task, uint64_t elapsed) {
-  task->slice_times[task->slice_i] = elapsed;
-  task->slice_i = (task->slice_i + 1) % 16;
-}
-
-static void reset_timer_and_record_time(gthread_task_t* task) {
+static inline void reset_timer_and_record_time(gthread_task_t* task) {
   if (g_timer_enabled) {
     uint64_t elapsed = gthread_timer_reset();
     record_time_slice(task, elapsed);
@@ -77,30 +78,37 @@ static void task_entry(void* arg) {
   }
 }
 
-int gthread_start_task(gthread_task_t* task, gthread_entry_t* entry,
+int gthread_task_start(gthread_task_t* task, gthread_entry_t* entry,
                        void* arg) {
-  if (task == g_current_task) {
+  if (task == gthread_task_current()) {
     assert(0);  // DO NOT SUBMIT: test for now
     return 0;
   }
 
-  init_root_task();
+  // slow path on being the first call in this module
+  if (branch_unexpected(!gthread_task_is_root_task_init)) {
+    gthread_task_module_init();
+  }
 
-  reset_timer_and_record_time(g_current_task);
+  reset_timer_and_record_time(gthread_task_current());
 
   if (!gthread_cas(&g_lock, 0, 1)) return -1;
 
-  gthread_task_t* prev_task = g_current_task;
-  g_current_task = task;
+  gthread_task_t* prev_task = gthread_task_current();
+
+  // switch tls contexts. officially in the new context.
+  gthread_tls_use(task->tls);
 
   prev_task->run_state = GTHREAD_TASK_SUSPENDED;
-  g_current_task->run_state = GTHREAD_TASK_LOCKED;  // will be running in entry
+  task->run_state = GTHREAD_TASK_LOCKED;  // will be running in entry
 
-  entry_point_t* entry_point = (entry_point_t*)g_current_task->stack - 1;
+  // grab an `entry_point_t` sized space before the stack
+  entry_point_t* entry_point = &((entry_point_t*)task->stack)[-1];
   entry_point->task = task;
   entry_point->entry = entry;
   entry_point->arg = arg;
 
+  // 16-byte aligned
   void* stack_head = (void*)((size_t)entry_point & ~((size_t)0xF));
 
   g_lock = 0;
@@ -110,36 +118,45 @@ int gthread_start_task(gthread_task_t* task, gthread_entry_t* entry,
   return 0;
 }
 
-gthread_task_t* gthread_get_current_task() {
-  init_root_task();
-  return g_current_task;
+int gthread_task_reset(gthread_task_t* task) {
+  int ret;
+  if ((ret = gthread_tls_reset(task->tls))) return ret;
+
+  task->run_state = GTHREAD_TASK_STOPPED;
+  task->return_value = NULL;
+  task->vruntime = 0;
+
+  return 0;
 }
 
 static int switch_to_task(gthread_task_t* task, uint64_t* elapsed) {
-  if (task == g_current_task) {
+  gthread_task_t* prev_task = gthread_task_current();
+  if (task == prev_task) {
     assert(0);  // DO NOT SUBMIT: test for now
     return 0;
   }
 
-  init_root_task();
-
-  if (!gthread_cas(&g_lock, 0, 1)) return -1;
-
-  if (elapsed == NULL) {
-    reset_timer_and_record_time(g_current_task);
-  } else {
-    record_time_slice(g_current_task, *elapsed);
+  // slow path on being the first call in this module
+  if (branch_unexpected(!gthread_task_is_root_task_init)) {
+    gthread_task_module_init();
   }
 
-  gthread_task_t* prev_task = g_current_task;
-  g_current_task = task;
-
+  if (!gthread_cas(&g_lock, 0, 1)) return -1;
   prev_task->run_state = GTHREAD_TASK_SUSPENDED;
 
-  g_lock = 0;
-  gthread_switch_to(&prev_task->ctx, &g_current_task->ctx);
+  if (elapsed == NULL) {
+    reset_timer_and_record_time(prev_task);
+  } else {
+    record_time_slice(prev_task, *elapsed);
+  }
 
-  assert(g_current_task == prev_task);
+  // officially in the |task|'s context
+  gthread_tls_use(task->tls);
+
+  g_lock = 0;
+  gthread_switch_to(&prev_task->ctx, &task->ctx);
+
+  assert(gthread_task_current() == prev_task);
   prev_task->run_state = GTHREAD_TASK_RUNNING;
   return 0;
 }
@@ -149,16 +166,17 @@ int gthread_switch_to_task(gthread_task_t* task) {
 }
 
 static void time_slice_trap(uint64_t elapsed) {
+  gthread_task_t* current = gthread_task_current();
   gthread_task_t* next_task = NULL;
 
   if (g_time_slice_trap != NULL) {
-    next_task = g_time_slice_trap(g_current_task);
+    next_task = g_time_slice_trap(current);
   }
 
   if (next_task != NULL) {
     switch_to_task(next_task, &elapsed);
   } else {
-    record_time_slice(g_current_task, elapsed);
+    record_time_slice(current, elapsed);
   }
 }
 
@@ -173,4 +191,16 @@ int gthread_task_set_time_slice_trap(gthread_task_time_slice_trap_t* trap,
 int gthread_set_task_end_handler(gthread_task_end_handler_t* task_end_handler) {
   g_task_end_handler = task_end_handler;
   return 0;
+}
+
+void gthread_task_module_init() {
+  if (branch_unexpected(
+          !gthread_task_is_root_task_init &&
+          gthread_cas(&gthread_task_is_root_task_init, false, true))) {
+    // most of struct is zero-initialized
+    g_root_task.tls = gthread_tls_current();
+    g_root_task.run_state = GTHREAD_TASK_RUNNING;
+
+    gthread_tls_set_thread(g_root_task.tls, &g_root_task);
+  }
 }

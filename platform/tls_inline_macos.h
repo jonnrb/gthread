@@ -5,6 +5,9 @@
  * info: thread local storage inlines for macOS
  */
 
+#ifndef PLATFORM_TLS_INLINE_MACOS_H_
+#define PLATFORM_TLS_INLINE_MACOS_H_
+
 // slots 6 and 11 are reserved for WINE (so we're gonna steal em)
 // DUPLICATED IN ./tls_macos.c
 #define k_thread_slot_a 6
@@ -20,3 +23,5 @@ static inline void *gthread_tls_current_thread() {
 #undef k_thread_slot_a
 #undef k_thread_slot_b
 #undef gs_relative
+
+#endif  // PLATFORM_TLS_INLINE_MACOS_H_
