@@ -27,20 +27,11 @@ typedef union dtv {
   } pointer;
 } dtv_t;
 
-// TLS ABI document: https://www.akkadia.org/drepper/tls.pdf
-
 // this is how glibc detects unallocated slots for dynamic loading
 #define TLS_DTV_UNALLOCATED ((void*)-1l)
 
 // should be enough slots i hope
 #define k_num_slots 128
-
-#define gthread_get_thread_vector_offset(offset)          \
-  ({                                                      \
-    void* _r;                                             \
-    __asm__("mov %%fs:%P1, %0" : "=r"(_r) : "i"(offset)); \
-    _r;                                                   \
-  })
 
 static inline int get_dtv(dtv_t** dtv) {
   return syscall(SYS_arch_prctl, ARCH_GET_FS, dtv);
@@ -100,7 +91,7 @@ gthread_tls_t gthread_tls_allocate(size_t* tls_image_reserve,
 void gthread_tls_free(gthread_tls_t tls) {
   if (tls == NULL) return;
 
-  dtv_t* dtv = (dtv_t*) tls;
+  dtv_t* dtv = (dtv_t*)tls;
   for (int i = 0; i < k_num_slots; ++i) {
     if (!dtv[i + 2].pointer.is_static &&
         dtv[i + 2].pointer.v != TLS_DTV_UNALLOCATED) {
@@ -192,6 +183,11 @@ gthread_tls_t gthread_tls_current() {
 void gthread_tls_set_thread(gthread_tls_t tls, void* thread) {
   dtv_t* dtv = (dtv_t*)tls;
   dtv[1].pointer.v = thread;
+}
+
+void* gthread_tls_get_thread(gthread_tls_t tls) {
+  dtv_t* dtv = (dtv_t*)tls;
+  return dtv[1].pointer.v;
 }
 
 void gthread_tls_use(gthread_tls_t tls) {

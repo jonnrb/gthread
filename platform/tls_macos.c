@@ -12,8 +12,6 @@
 #include "util/compiler.h"
 
 /**
- * TLS ABI document: https://www.akkadia.org/drepper/tls.pdf
- *
  * XNU says "ya know who really cares what everyone else does" and uses the
  * %gs segment for tls data on x86-64. k.
  *
@@ -27,25 +25,18 @@
 #define k_num_copied_slots 256
 
 // slots 6 and 11 are reserved for WINE (so we're gonna steal em)
+// DUPLICATED IN ./tls_inline_macos.h
 #define k_thread_slot_a 6
 #define k_thread_slot_b 11
 
 // nicey clang attribute allows using gs segment relative pointer vars
 #define gs_relative __attribute__((address_space(256)))
 
-// more portable gs relative (gcc should really get on this)
-#define gthread_get_thread_vector_offset(offset)          \
-  ({                                                      \
-    void *_r;                                             \
-    __asm__("mov %%gs:%P1, %0" : "=r"(_r) : "i"(offset)); \
-    _r;                                                   \
-  })
-
 typedef void *gs_relative *tls_slot_t;
 
 static tls_slot_t g_pthread_self_slot = (tls_slot_t)0;
-static tls_slot_t g_thread_slot_a = (tls_slot_t)k_thread_slot_a;
-static tls_slot_t g_thread_slot_b = (tls_slot_t)k_thread_slot_b;
+static tls_slot_t g_thread_slot_a = ((tls_slot_t)0) + k_thread_slot_a;
+static tls_slot_t g_thread_slot_b = ((tls_slot_t)0) + k_thread_slot_b;
 
 /**
  * so xnu doesn't document its syscalls so good
@@ -113,8 +104,6 @@ void *gthread_tls_get_thread(gthread_tls_t tls) {
   void **tls_slots = (void **)((char *)tls + get_pthread_slots_offset());
   return tls_slots[k_thread_slot_a];
 }
-
-void *gthread_tls_current_thread() { return *g_thread_slot_a; }
 
 void gthread_tls_use(gthread_tls_t tls) {
   _thread_set_tsd_base((void *)((char *)tls + get_pthread_slots_offset()));

@@ -18,6 +18,9 @@ extern const size_t GTHREAD_STACK_MIN;
 // wrapper for malloc
 static inline void *gthread_allocate(size_t bytes);
 
+// wrapper for posix_memalign
+static inline void *gthread_allocate_aligned(size_t alignment, size_t bytes);
+
 // wrapper for free
 static inline void gthread_free(void *data);
 
