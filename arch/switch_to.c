@@ -65,6 +65,7 @@ gthread_switch_to_and_spawn(gthread_saved_ctx_t* self_ctx,
   // pray that we may return from this inline asm horror
   __asm__ __volatile__(
       "mov %1, %%rsp \n"  // change the stack pointer to |stack|
+      "mov $0, %%rbp \n"  // tells {g,ll}db that this is the bottom stack frame
       "pushq %%rsi   \n"  // push the return context to the new stack
       "pushq %0      \n"  // make stack 16-byte aligned as is the ritual
       "call *%2      \n"  // call `entry(arg)` (rdi is prepopulated)
