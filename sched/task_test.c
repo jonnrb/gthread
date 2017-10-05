@@ -19,7 +19,7 @@ void* important_task(void* arg) {
       printf("\n");
       start = c;
     } else {
-      gthread_switch_to_task(tasks[0]);
+      gthread_task_switch_to(tasks[0]);
     }
   }
 }
