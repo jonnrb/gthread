@@ -60,8 +60,7 @@ static inline size_t get_pthread_slots_offset() {
   return pthread_t_size = (char *)search - (char *)pthread_self;
 }
 
-gthread_tls_t gthread_tls_allocate(size_t *tls_image_reserve,
-                                   size_t *tls_image_alignment) {
+gthread_tls_t gthread_tls_allocate() {
   size_t pthread_t_size = get_pthread_slots_offset();
 
   void *tls = calloc(k_num_slots * sizeof(void *) + pthread_t_size, 1);
@@ -73,9 +72,6 @@ gthread_tls_t gthread_tls_allocate(size_t *tls_image_reserve,
   // set the user tcb to be this tls block
   void **tls_slots = (void **)((char *)tls + pthread_t_size);
   tls_slots[0] = tls;
-
-  if (tls_image_reserve != NULL) *tls_image_reserve = 0;
-  if (tls_image_alignment != NULL) *tls_image_reserve = 0;
 
   return (gthread_tls_t)tls;
 }
@@ -108,6 +104,3 @@ void *gthread_tls_get_thread(gthread_tls_t tls) {
 void gthread_tls_use(gthread_tls_t tls) {
   _thread_set_tsd_base((void *)((char *)tls + get_pthread_slots_offset()));
 }
-
-// nop: macOS does this on the fly
-int gthread_tls_initialize_image(gthread_tls_t tls) { return 0; }

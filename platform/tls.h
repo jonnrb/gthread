@@ -15,7 +15,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
-typedef void* gthread_tls_t;
+typedef struct gthread_tls* gthread_tls_t;
 
 /**
  * allocates a tls dtv (dynamic thread vector) which is returned as an opaque
@@ -23,8 +23,7 @@ typedef void* gthread_tls_t;
  * on the tls, it should have |tls_image_reserve| bytes allocated before that
  * pointer aligned to a |tls_image_alignment| boundary.
  */
-gthread_tls_t gthread_tls_allocate(size_t* tls_image_reserve,
-                                   size_t* tls_image_alignment);
+gthread_tls_t gthread_tls_allocate();
 
 /**
  * frees the tls data and the dtv.
@@ -32,24 +31,17 @@ gthread_tls_t gthread_tls_allocate(size_t* tls_image_reserve,
 void gthread_tls_free(gthread_tls_t tls);
 
 /**
- * assumes |tls| has a thread pointer with enough space before it for the tls
- * base image
- */
-int gthread_tls_initialize_image(gthread_tls_t tls);
-
-/**
- * sets the thread pointer on the tls vector. it should have the appropriate
- * storage available before this address.
+ * sets the thread pointer (user data) on the tls vector
  */
 void gthread_tls_set_thread(gthread_tls_t tls, void* thread);
 
 /**
- * returns the thread vector that is set on |tls|
+ * returns the thread pointer that is set on |tls|
  */
 void* gthread_tls_get_thread(gthread_tls_t tls);
 
 /**
- * returns the thread vector for the current context's tls
+ * returns the thread pointer for the current context's tls
  */
 static inline void* gthread_tls_current_thread();
 
