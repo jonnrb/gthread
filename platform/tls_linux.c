@@ -80,7 +80,7 @@ static int dl_iterate_phdr_init_cb(struct dl_phdr_info* info, size_t size,
     if (phdr->p_type == PT_TLS) {
       size_t module = info->dlpi_tls_modid;
       if (branch_expected(module > 0)) {
-        images[module - 1].data = info->dlpi_tls_data;
+        images[module - 1].data = (char*)info->dlpi_addr + phdr->p_vaddr;
         images[module - 1].image_size = phdr->p_filesz;
         images[module - 1].mem_offset = (-phdr->p_memsz) & (phdr->p_align - 1);
         images[module - 1].reserve = phdr->p_memsz;
@@ -95,8 +95,12 @@ static int dl_iterate_phdr_init_cb(struct dl_phdr_info* info, size_t size,
   return 0;
 }
 
-gthread_tls_t gthread_tls_allocate() {
-  tls_image_t images[k_num_slots];
+// needed to get consistent values after the context has been switched
+static tls_image_t* find_tls_images() {
+  static bool has = false;
+  static tls_image_t images[k_num_slots];
+
+  if (branch_expected(has)) return images;
 
   for (int i = 0; i < k_num_slots; ++i) {
     images[i].data = NULL;
@@ -104,6 +108,14 @@ gthread_tls_t gthread_tls_allocate() {
 
   // discover tls images in the binary
   if (dl_iterate_phdr(dl_iterate_phdr_init_cb, images)) return NULL;
+
+  has = true;
+
+  return images;
+}
+
+gthread_tls_t gthread_tls_allocate() {
+  tls_image_t* images = find_tls_images();
 
   size_t alloc_size = 0;
   for (int i = 0; i < k_num_slots; ++i) {
@@ -127,18 +139,62 @@ gthread_tls_t gthread_tls_allocate() {
   }
 
   char* image_base = (char*)tcbhead;
+  int module = 0;
   for (int i = 0; i < k_num_slots; ++i) {
-    if (images[i].data == NULL) break;
+    if (images[i].data == NULL) continue;
+    ++module;
 
     // this data ordering *seems* to work and models gnu and musl libcs
     image_base -= images[i].reserve;
     memcpy(image_base, images[i].data, images[i].image_size);
 
-    dtv[i + 2].pointer.is_static = true;
-    dtv[i + 2].pointer.v = image_base;
+    dtv[module + 1].pointer.is_static = true;
+    dtv[module + 1].pointer.v = image_base;
   }
 
   return tcbhead;
+}
+
+int gthread_tls_reset(gthread_tls_t tls) {
+  // free dynamically allocated modules
+  dtv_t* dtv = tls->dtv;
+  for (int i = 0; i < k_num_slots; ++i) {
+    if (dtv[i + 2].pointer.v != TLS_DTV_UNALLOCATED &&
+        !dtv[i + 2].pointer.is_static) {
+      free(dtv[i + 2].pointer.v);
+    }
+    dtv[i + 2].pointer.v = TLS_DTV_UNALLOCATED;
+    dtv[i + 2].pointer.is_static = false;
+  }
+
+  tls_image_t* images = find_tls_images();
+
+  size_t total_size = 0;
+  for (int i = 0; i < k_num_slots; ++i) {
+    if (images[i].data == NULL) break;
+    total_size += images[i].reserve;
+  }
+
+  // zero-initialize data not in the image
+  char* old_base = dtv[0].head.base;
+  memset(old_base, '\0', (char*)tls - old_base);
+
+  char* image_base = (char*)tls;
+  int module = 0;
+  for (int i = 0; image_base > old_base && i < k_num_slots; ++i) {
+    if (images[i].data == NULL) continue;
+    ++module;
+
+    // this data ordering *seems* to work and models gnu and musl libcs
+    image_base -= images[i].reserve;
+    if (image_base < old_base) return -1;
+    memcpy(image_base, images[i].data, images[i].image_size);
+
+    dtv[module+1].pointer.is_static = true;
+    dtv[module+1].pointer.v = image_base;
+  }
+
+  return 0;
 }
 
 void gthread_tls_free(gthread_tls_t tls) {

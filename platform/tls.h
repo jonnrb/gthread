@@ -6,6 +6,12 @@
  */
 
 /**
+ * Thread Local Storage allows for global data that is relatively local to a
+ * context, i.e. the values can be all switched during a context switch.
+ *
+ * the standard gnu extension allows declaring static variables with a
+ * `__thread` prefix and C11 uses the `_Thread_local` prefix
+ *
  * ELF TLS ABI document: https://www.akkadia.org/drepper/tls.pdf
  */
 
@@ -18,20 +24,23 @@
 typedef struct gthread_tls* gthread_tls_t;
 
 /**
- * allocates a tls dtv (dynamic thread vector) which is returned as an opaque
- * pointer conforming to the current platform. when the thread pointer is set
- * on the tls, it should have |tls_image_reserve| bytes allocated before that
- * pointer aligned to a |tls_image_alignment| boundary.
+ * allocates thread local storage for a context. the returned thread local
+ * storage is initialized to default values.
  */
 gthread_tls_t gthread_tls_allocate();
 
 /**
- * frees the tls data and the dtv.
+ * resets the thread local data stored for |tls|
+ */
+int gthread_tls_reset(gthread_tls_t tls);
+
+/**
+ * frees the tls data
  */
 void gthread_tls_free(gthread_tls_t tls);
 
 /**
- * sets the thread pointer (user data) on the tls vector
+ * sets the thread pointer (user data) on |tls|
  */
 void gthread_tls_set_thread(gthread_tls_t tls, void* thread);
 

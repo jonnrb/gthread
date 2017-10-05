@@ -144,6 +144,25 @@ int main() {
   y_inc(NULL, 3, "og thread");
   y_inc(NULL, 4, "og thread");
 
+  printf("poisoning main tls\n");
+  x = 172;
+  y.nums[0] = -9;
+  y.nums[5] = -3;
+
+  printf("resetting mine\n");
+  assert(!gthread_tls_reset(tls));
+
+  x_inc(tls, 1);
+  x_inc(NULL, 2);
+  x_inc(NULL, 3);
+  x_inc(NULL, 4);
+
+  y_inc(NULL, 0, "some other thread");
+  y_inc(NULL, 1, "some other thread");
+  y_inc(NULL, 2, "some other thread");
+  y_inc(NULL, 3, "some other thread");
+  gthread_tls_use(old);
+
   gthread_tls_free(tls);
 
   return 0;
