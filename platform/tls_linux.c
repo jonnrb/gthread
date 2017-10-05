@@ -33,9 +33,9 @@ typedef union dtv {
 
 typedef struct gthread_tls {
   void* self;
-  void* thread;
   dtv_t* dtv;  // maintain compatability with glibc. for our purposes, the
                // `dtv_t` will be immediately after the `tcbhead_t`.
+  void* thread;
 } tcbhead_t;
 
 // this is how glibc detects unallocated slots for dynamic loading

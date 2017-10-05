@@ -47,6 +47,7 @@ void y_inc(gthread_tls_t tls, int start_val, const char* str) {
 
 int main() {
   printf("%p\n", gthread_tls_current_thread());
+  gthread_tls_set_thread(gthread_tls_current(), (void*)0xbacabacaL);
 
   int fd = open("./abc", O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
   if (fd < 0) {
@@ -72,6 +73,12 @@ int main() {
   assert(gthread_tls_current_thread() != tcb);
   gthread_tls_use(tls);
   assert(gthread_tls_current_thread() == tcb);
+
+  gthread_tls_t other = gthread_tls_allocate();
+  void* other_tcb = (void*)0xf00dea7e5L;
+  gthread_tls_set_thread(other, other_tcb);
+  gthread_tls_use(other);
+  assert(gthread_tls_current_thread() == other_tcb);
 
   if (write(fd, "def", 4) < 0) {
     perror("");
