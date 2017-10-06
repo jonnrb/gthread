@@ -30,22 +30,32 @@ static bool g_time_slice_trap_set = false;
 const int TIMER_TYPE = ITIMER_PROF;
 const int SIGNAL_TYPE = SIGPROF;
 
-int gthread_timer_set_interval(uint64_t usec) {
-  g_interval = usec;
-
+static int set_interval_internal(uint64_t usec) {
   g_timer.it_value.tv_sec = usec / 1000000;
   g_timer.it_value.tv_usec = usec % 1000000;
   g_timer.it_interval.tv_sec = usec / 1000000;
   g_timer.it_interval.tv_usec = usec % 1000000;
 
-  return setitimer(TIMER_TYPE, &g_timer, NULL);
+  if (setitimer(TIMER_TYPE, &g_timer, NULL)) return -1;
+
+  return 0;
 }
 
-uint64_t gthread_timer_reset() {
+int gthread_timer_set_interval(uint64_t usec) {
+  set_interval_internal(usec);
+
+  // read the interval back. it gets rounded up APPARENTLY
+  if (getitimer(TIMER_TYPE, &g_timer)) return -1;
+  g_interval = g_timer.it_value.tv_sec * 1000000 + g_timer.it_value.tv_usec;
+
+  return 0;
+}
+
+int64_t gthread_timer_reset() {
   if (getitimer(TIMER_TYPE, &g_timer) < 0) return -1;
   uint64_t remaining =
       g_timer.it_value.tv_sec * 1000000 + g_timer.it_value.tv_usec;
-  if (gthread_timer_set_interval(g_interval) < 0) return -1;
+  if (set_interval_internal(g_interval) < 0) return -1;
   return g_interval - remaining;
 }
 

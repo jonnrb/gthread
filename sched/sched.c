@@ -74,7 +74,7 @@ static gthread_task_t* sched_timer(gthread_task_t* task) {
 int gthread_sched_init() {
   if (!gthread_cas(&g_is_sched_init, 0, 1)) return -1;
 
-  gthread_task_set_time_slice_trap(sched_timer, 500 * 1000);
+  gthread_task_set_time_slice_trap(sched_timer, 50 * 1000);
 
   g_tasks[0] = gthread_task_current();
   assert(g_tasks[0] != NULL);

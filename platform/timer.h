@@ -15,7 +15,7 @@
 int gthread_timer_set_interval(uint64_t usec);
 
 // resets the interval and returns the elapsed time.
-uint64_t gthread_timer_reset();
+int64_t gthread_timer_reset();
 
 int gthread_timer_alarm_now();
 
