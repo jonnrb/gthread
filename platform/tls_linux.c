@@ -36,6 +36,12 @@ typedef struct gthread_tls {
   dtv_t* dtv;  // maintain compatability with glibc. for our purposes, the
                // `dtv_t` will be immediately after the `tcbhead_t`.
   void* thread;
+
+  char padding_a[8];
+  // more glibc required MAGIC
+  void* sysinfo;
+  void* stack_guard;
+  void* pointer_guard;
 } tcbhead_t;
 
 // this is how glibc detects unallocated slots for dynamic loading
@@ -95,6 +101,9 @@ static int dl_iterate_phdr_init_cb(struct dl_phdr_info* info, size_t size,
   return 0;
 }
 
+// initialized in `find_tls_images()`
+static tcbhead_t magic_pointers;
+
 // needed to get consistent values after the context has been switched
 static tls_image_t* find_tls_images() {
   static bool has = false;
@@ -108,6 +117,12 @@ static tls_image_t* find_tls_images() {
 
   // discover tls images in the binary
   if (dl_iterate_phdr(dl_iterate_phdr_init_cb, images)) return NULL;
+
+  tcbhead_t* og_tcb_head;
+  get_thread_vector(&og_tcb_head);
+  magic_pointers.sysinfo = og_tcb_head->sysinfo;
+  magic_pointers.stack_guard = og_tcb_head->stack_guard;
+  magic_pointers.pointer_guard = og_tcb_head->pointer_guard;
 
   has = true;
 
@@ -152,6 +167,10 @@ gthread_tls_t gthread_tls_allocate() {
     dtv[module + 1].pointer.v = image_base;
   }
 
+  tcbhead->sysinfo = magic_pointers.sysinfo;
+  tcbhead->stack_guard = magic_pointers.stack_guard;
+  tcbhead->pointer_guard = magic_pointers.pointer_guard;
+
   return tcbhead;
 }
 
@@ -190,8 +209,8 @@ int gthread_tls_reset(gthread_tls_t tls) {
     if (image_base < old_base) return -1;
     memcpy(image_base, images[i].data, images[i].image_size);
 
-    dtv[module+1].pointer.is_static = true;
-    dtv[module+1].pointer.v = image_base;
+    dtv[module + 1].pointer.is_static = true;
+    dtv[module + 1].pointer.v = image_base;
   }
 
   return 0;
