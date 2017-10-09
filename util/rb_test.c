@@ -188,6 +188,8 @@ void stress() {
       abort();
     }
   }
+
+  assert(tree == NULL);
 }
 
 void time_test() {
@@ -229,6 +231,8 @@ void time_test() {
     t = gthread_clock_process() - start;
     printf("popping %4zu things took %9" PRId64 " ns (log => %5.02f)\n",
            num_nodes, t, log((double)t));
+
+    assert(tree == NULL);
   }
 }
 
