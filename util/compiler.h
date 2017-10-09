@@ -15,6 +15,12 @@
 /**
  * this macro subtracts off the offset of |member| within |type| from |ptr|,
  * allowing you to easily get a pointer to the containing struct of |ptr|
+ *
+ *           ┌─────────────┬──────────┬──────┐
+ * |type| -> │ XXXXXXXXXXX │ |member| │ YYYY │
+ *           └─────────────┴──────────┴──────┘
+ *           ^             ^
+ *        returns        |ptr|
  */
 #define container_of(ptr, type, member)                \
   ({                                                   \
