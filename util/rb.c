@@ -125,28 +125,6 @@ static void insert_impl(gthread_rb_tree_t* tree, gthread_rb_node_t* node) {
   }
 }
 
-static inline void remove_exremum_sibling_rotations(gthread_rb_tree_t* tree,
-                                                    gthread_rb_node_t* sibling,
-                                                    gthread_rb_tree_t* parent,
-                                                    int from_right) {
-  if (!is_red(*parent)) {
-    return;
-  }
-
-  if (is_red(sibling->link[from_right])) {
-    rotate_double(parent, from_right);
-  } else if (is_red(sibling->link[!from_right])) {
-    rotate(parent, from_right);
-  } else {
-    return;
-  }
-
-  (*tree)->red = 1;
-  (*parent)->red = 1;
-  (*parent)->link[0]->red = 0;
-  (*parent)->link[1]->red = 0;
-}
-
 static gthread_rb_node_t* pop_impl(gthread_rb_tree_t* tree, int from_right) {
   if (*tree == NULL) return NULL;
 
