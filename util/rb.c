@@ -136,7 +136,6 @@ static gthread_rb_node_t* pop_impl(gthread_rb_tree_t* tree, int from_right) {
 
   gthread_rb_tree_t* it = tree;
   gthread_rb_tree_t* parent = NULL;
-  gthread_rb_tree_t* grandparent = NULL;
   gthread_rb_node_t* sibling = NULL;
 
   for (;;) {
@@ -178,7 +177,6 @@ static gthread_rb_node_t* pop_impl(gthread_rb_tree_t* tree, int from_right) {
       return ret;
     }
 
-    grandparent = parent;
     parent = it;
     it = &(*it)->link[from_right];
     sibling = (*parent)->link[!from_right];
