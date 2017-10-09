@@ -170,7 +170,11 @@ static gthread_rb_node_t* pop_impl(gthread_rb_tree_t* tree, int from_right) {
     if ((*it)->link[from_right] == NULL) {
       gthread_rb_node_t* ret = *it;
       *it = (*it)->link[!from_right];
+
       (*tree)->red = 0;
+
+      ret->link[0] = NULL;
+      ret->link[1] = NULL;
       return ret;
     }
 
@@ -196,6 +200,9 @@ void gthread_rb_push(gthread_rb_tree_t* tree, gthread_rb_node_t* node) {
     errno = EINVAL;
     return;
   }
+
+  node->link[0] = NULL;
+  node->link[1] = NULL;
 
   if (*tree == NULL) {
     *tree = node;
