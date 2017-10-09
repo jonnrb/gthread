@@ -33,6 +33,7 @@ all: objs tests bins libs
 include arch/module.mak
 include platform/module.mak
 include sched/module.mak
+include util/module.mak
 include module.mak
 #########
 
