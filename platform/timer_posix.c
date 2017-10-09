@@ -16,11 +16,15 @@
 #include <sys/time.h>
 #include <time.h>
 
+#include "platform/clock.h"
+
 static uint64_t g_interval = 0;
 static struct itimerval g_timer;
 
 static gthread_timer_trap_t* g_trap = NULL;
 static bool g_time_slice_trap_set = false;
+
+static uint64_t g_process_time = 0;
 
 /**
  * ITIMER_PROF is the right timer to use here since it measures stime+utime.
@@ -43,11 +47,8 @@ static int set_interval_internal(uint64_t usec) {
 
 int gthread_timer_set_interval(uint64_t usec) {
   set_interval_internal(usec);
-
-  // read the interval back. it gets rounded up APPARENTLY
-  if (getitimer(TIMER_TYPE, &g_timer)) return -1;
-  g_interval = g_timer.it_value.tv_sec * 1000000 + g_timer.it_value.tv_usec;
-
+  g_process_time = gthread_clock_process();
+  g_interval = usec;
   return 0;
 }
 
@@ -56,6 +57,16 @@ int64_t gthread_timer_reset() {
   uint64_t remaining =
       g_timer.it_value.tv_sec * 1000000 + g_timer.it_value.tv_usec;
   if (set_interval_internal(g_interval) < 0) return -1;
+
+  // if the time remaining on the itimer is greater than we expected, don't
+  // freak out: just use the process time as an estimate
+  uint64_t s = g_process_time;
+  g_process_time = gthread_clock_process();
+  if (remaining > g_interval) {
+    s = g_process_time - s;
+    return s < g_interval ? s : 0;
+  }
+
   return g_interval - remaining;
 }
 
