@@ -6,18 +6,12 @@
 
 #include "sched/sched.h"
 
-extern void gthread_sched_print_stats();
-
 void* important_task(void* arg) {
   const char* msg = (const char*)arg;
   clock_t start = clock();
   for (clock_t c = clock();; c = clock()) {
     if ((c - start) > CLOCKS_PER_SEC) {
-      if (msg != NULL) {
-        printf("hi I am task \"%c\"\n", *msg);
-      } else {
-        gthread_sched_print_stats();
-      }
+      printf("hi I am task \"%c\"\n", *msg);
       start = c;
     } else {
       gthread_sched_yield();
@@ -35,7 +29,7 @@ int init() {
                                 (void*)(&msgs[i])));
   }
   printf("done and stuff\n");
-  while (true) important_task(NULL);
+  while (true) gthread_sched_yield();
   return 0;
 }
 
