@@ -22,7 +22,7 @@ $(MODULE)-STATIC-LIBS = $$(OBJDIR)/$(MODULE).a
 
 $$(OBJDIR)/$(MODULE).a: $$($(MODULE)-LIB-OBJECTS)
 	@mkdir -p $$(OBJDIR)
-	@$$(call build_and_check, $$(AR) $$@ $$^)
+	@$$(call build_and_check, $$(AR) rcs $$@ $$^)
 
 endif
 
@@ -34,11 +34,11 @@ STATIC-LIBS += $$($(MODULE)-STATIC-LIBS)
 
 $$($(MODULE)-TEST-BINS): $$(TESTDIR)/% : $$(OBJDIR)/%.o $$($(MODULE)-STATIC-LIBS) $(TEST-DEPS)
 	@mkdir -p $$(dir $$@)
-	@$$(call build_and_check, $$(LD) $$(LDFLAGS) $$^ -o $$@);
+	@$$(call build_and_check, $$(CC) $$(local_LDFLAGS) $(LDFLAGS) $$^ -o $$@);
 
 $$($(MODULE)-BINS): $$(BINDIR)/% : $$(OBJDIR)/%.o $$($(MODULE)-STATIC-LIBS) $(BIN-DEPS)
 	@mkdir -p $$(dir $$@)
-	@$$(call build_and_check, $$(LD) $$(LDFLAGS) $$^ -o $$@);
+	@$$(call build_and_check, $$(CC) $$(local_LDFLAGS) $(LDFLAGS) $$^ -o $$@);
 
 
 MODULE :=

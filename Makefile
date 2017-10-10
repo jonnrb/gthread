@@ -5,15 +5,12 @@
 
 include makeutils.mak
 
-SHELL = /bin/bash
 
-AR = ar rcs
 
-CC = gcc
-CFLAGS = -xc -std=c11 -Wall -fPIC -I.
+local_CFLAGS := -xc -std=c11 -Wall -fPIC -I.
+local_LDFLAGS := -lm
 
-LD = gcc
-LDFLAGS = -fPIE
+
 
 SRCDIR = .
 OBJDIR = obj
@@ -33,6 +30,7 @@ all: objs tests bins libs
 include arch/module.mak
 include platform/module.mak
 include sched/module.mak
+include util/module.mak
 include module.mak
 #########
 
@@ -58,7 +56,7 @@ $(DEPFILES): $(OBJDIR)/%.d : $(SRCDIR)/%.c
 
 $(OBJECTS): $(OBJDIR)/%.o : $(SRCDIR)/%.c $(OBJDIR)/%.d
 	@mkdir -p $(dir $@)
-	@$(call build_and_check, $(CC) $(CFLAGS) -c $< -o $@)
+	@$(call build_and_check, $(CC) $(local_CFLAGS) $(CFLAGS) -c $< -o $@)
 
 
 

@@ -14,6 +14,7 @@
 #include "gthread.h"
 #include "platform/timer.h"
 #include "platform/tls.h"
+#include "util/rb.h"
 
 typedef enum {
   GTHREAD_TASK_FREE = 0,
@@ -33,6 +34,7 @@ typedef struct gthread_task {
   void* stack;
   size_t total_stack_size;
 
+  gthread_rb_node_t rb_node;
   uint64_t vruntime;  // microseconds
 } gthread_task_t;
 

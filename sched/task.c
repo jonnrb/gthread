@@ -10,6 +10,7 @@
 #include "arch/atomic.h"
 #include "gthread.h"
 #include "platform/memory.h"
+#include "util/rb.h"
 
 // task representing the initial context of execution.
 static gthread_task_t g_root_task = {0};
@@ -20,7 +21,6 @@ static gthread_task_end_handler_t* g_task_end_handler = NULL;
 static uint64_t g_lock = 0;
 
 static int g_timer_enabled = 0;
-
 static gthread_task_time_slice_trap_t* g_time_slice_trap = NULL;
 
 uint64_t gthread_task_is_root_task_init = false;
@@ -44,6 +44,8 @@ gthread_task_t* gthread_task_construct(gthread_attr_t* attrs) {
     gthread_free(task);
     return NULL;
   }
+
+  gthread_rb_construct(&task->rb_node);
   task->vruntime = 0;
 
   return task;
@@ -173,7 +175,7 @@ static void time_slice_trap(uint64_t elapsed) {
     next_task = g_time_slice_trap(current);
   }
 
-  if (next_task != NULL) {
+  if (next_task != NULL && next_task != current) {
     switch_to_task(next_task, &elapsed);
   } else {
     record_time_slice(current, elapsed);
@@ -200,6 +202,7 @@ void gthread_task_module_init() {
     // most of struct is zero-initialized
     g_root_task.tls = gthread_tls_current();
     g_root_task.run_state = GTHREAD_TASK_RUNNING;
+    gthread_rb_construct(&g_root_task.rb_node);
 
     gthread_tls_set_thread(g_root_task.tls, &g_root_task);
   }
