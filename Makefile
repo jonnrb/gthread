@@ -5,15 +5,10 @@
 
 include makeutils.mak
 
-SHELL = /bin/bash
 
-AR = ar rcs
 
-CC = gcc
-CFLAGS = -xc -std=c11 -Wall -fPIC -I.
-
-LD = gcc
-LDFLAGS = -fPIE
+local_CFLAGS = -xc -std=c11 -Wall -fPIC -I.
+local_LDFLAGS = -macosx_version_min 10.13 -lc
 
 SRCDIR = .
 OBJDIR = obj
@@ -59,7 +54,7 @@ $(DEPFILES): $(OBJDIR)/%.d : $(SRCDIR)/%.c
 
 $(OBJECTS): $(OBJDIR)/%.o : $(SRCDIR)/%.c $(OBJDIR)/%.d
 	@mkdir -p $(dir $@)
-	@$(call build_and_check, $(CC) $(CFLAGS) -c $< -o $@)
+	@$(call build_and_check, $(CC) $(local_CFLAGS) $(CFLAGS) -c $< -o $@)
 
 
 
