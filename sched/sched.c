@@ -201,3 +201,21 @@ int gthread_sched_spawn(gthread_sched_handle_t* handle, gthread_attr_t* attr,
 
   return 0;
 }
+
+void gthread_sched_exit(void* return_value) {
+
+  gthread_task_t* current_thread = gthread_task_current();
+  /*
+  put return of gthread into itself
+  set current_thread to self-destruct
+  put return value into return_value
+  yield to scheduler to de-schedule the task
+  */
+
+  gthread_sched_yield();
+
+}
+
+int gthread_sched_join(gthread_sched_handle_t thread, void **return_value){
+
+}
