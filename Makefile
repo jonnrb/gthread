@@ -7,8 +7,10 @@ include makeutils.mak
 
 
 
-local_CFLAGS = -xc -std=c11 -Wall -fPIC -I.
-local_LDFLAGS = -macosx_version_min 10.13 -lc
+local_CFLAGS := -xc -std=c11 -Wall -fPIC -I.
+local_LDFLAGS := -lm
+
+
 
 SRCDIR = .
 OBJDIR = obj
