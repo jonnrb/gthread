@@ -10,9 +10,13 @@
 // very simple switch_to() like the linux kernel do.
 void __attribute__((noinline))
 gthread_switch_to(gthread_saved_ctx_t* from, gthread_saved_ctx_t* to) {
+  // intentionally does not list clobbers. if clobbers are listed here, the
+  // compiler will push each and every register clobbered to the stack,
+  // effectively saving the context to the stack, which is not what we want.
+  // some finesse is required, but this cuts the memory ops in half.
   __asm__ __volatile__(
       "  test %0, %0        \n"  // if |from| is NULL don't save ctx.
-      "  jz no_save         \n"
+      "  jz 1f              \n"
       "  mov %%rbx, 0x00(%0)\n"  // move non-volatile registers to %[from].
       "  mov %%rbp, 0x08(%0)\n"
       "  mov %%rsp, 0x10(%0)\n"  // saving %rsp means a `gthread_switch_to()`
@@ -22,9 +26,9 @@ gthread_switch_to(gthread_saved_ctx_t* from, gthread_saved_ctx_t* to) {
       "  mov %%r13, 0x20(%0)\n"
       "  mov %%r14, 0x28(%0)\n"
       "  mov %%r15, 0x30(%0)\n"
-      "no_save:             \n"
-      : "=D"(from)  // output
-      :             // no inputs
+      "1:                   \n"
+      :
+      : "D"(from)  // (%rdi will be the first arg, hint hint compiler)
   );
 
   // TODO(jonnrb): possibly do signal masking here?
@@ -48,7 +52,7 @@ void __attribute__((noinline))
 gthread_switch_to_and_spawn(gthread_saved_ctx_t* self_ctx,
                             gthread_saved_ctx_t* ret_ctx, void* stack,
                             void (*entry)(void*), void* arg) {
-  // save the current context.
+  // save the current context. does not list clobbers: see `gthread_switch_to()`
   __asm__ __volatile__(
       "mov %%rbx, 0x00(%0)\n"
       "mov %%rbp, 0x08(%0)\n"
