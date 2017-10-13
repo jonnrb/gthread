@@ -6,12 +6,7 @@
 // are ignored.
 int gthread_mutex_init(gthread_mutex_t* mutex,
                    	const gthread_mutexattr_t *mutexattr){
-   						mutex = (gthread_mutex_t*)malloc(sizeof(gthread_mutex_t));
-   						if(mutex == NULL){
-   							errno = ENOMEM;
-   							perror("Error in gthread_mutex_init(), mutex structure creation.\n");
-   							return errno;
-   						}
+						mutex->init = 1; //initialized state
    						mutex->task = NULL;
    						mutex->state = UNLOCKED;
    						return 1;
@@ -20,7 +15,7 @@ int gthread_mutex_init(gthread_mutex_t* mutex,
 // Locks a given mutex, other threads attempting to access this mutex will not
 // run until it is unlocked.
 int gthread_mutex_lock(gthread_mutex_t *mutex){
-    while(!gthread_cas(&(mutex->state),UNLOCKED, LOCKED)){ //compare and swap mutex
+    while(gthread_cas(&(mutex->state),UNLOCKED, LOCKED) != 1){ //compare and swap mutex
    	 gthread_sched_yield();//yields if swap failed
     }
     mutex->task = gthread_task_current();
@@ -29,6 +24,11 @@ int gthread_mutex_lock(gthread_mutex_t *mutex){
 
 // Unlocks a given mutex.
 int gthread_mutex_unlock(gthread_mutex_t *mutex){
+	if(mutex -> init != 1){
+		errno = EINVAL;
+		perror("Invalid mutex, must initialize first.");
+		return -1;
+	}
     if(gthread_task_current() == mutex->task){
    	 mutex->task = NULL;
    	 return gthread_cas(&(mutex->state),LOCKED,UNLOCKED);
@@ -43,9 +43,15 @@ int gthread_mutex_unlock(gthread_mutex_t *mutex){
 
 // Destroys a given mutex. Mutex should be unlocked before doing so.
 int gthread_mutex_destroy(gthread_mutex_t *mutex){
-    if(mutex != NULL && mutex->state == UNLOCKED && mutex->task == NULL){
-   	 free(mutex);
-    }
-    return 1;
+	if(mutex->init == 1){
+		mutex->init = 0;
+		return 1;
+	}
+	else{
+		errno = EINVAL;
+		perror("Mutex was not initialized to begin with.");
+		return -1;
+	}
+    
 }
 

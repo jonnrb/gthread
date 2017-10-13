@@ -11,6 +11,7 @@ typedef enum{
 }lock;
 
 typedef struct gthread_mutex_data{
+	int init;
     lock state;
     gthread_task_t* task;
 }gthread_mutex_t;
