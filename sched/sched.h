@@ -20,9 +20,9 @@ int gthread_sched_yield();
 int gthread_sched_spawn(gthread_sched_handle_t* handle, gthread_attr_t* attr,
                         gthread_entry_t* entry, void* arg);
 
-void gthread_sched_exit(void* return_value); 
-
 int gthread_sched_join(gthread_sched_handle_t thread, void **return_value);
+
+void gthread_sched_exit(void* return_value);
 
 // gthread_t gthread_sched_self();
 

@@ -1,5 +1,5 @@
 /**
- * author: JonNRb <jonbetti@gmail.com>
+ * author: JonNRb <jonbetti@gmail.com>, Matthew Handzy <matthewhandzy@gmail.com>
  * license: MIT
  * file: @gthread//sched/task.h
  * info: generic task switching functions for a scheduler
@@ -27,6 +27,7 @@ typedef enum {
 typedef struct gthread_task {
   gthread_tls_t tls;
 
+  struct gthread_task* joiner;
   uint64_t run_state;
   void* return_value;
 
