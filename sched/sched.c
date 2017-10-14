@@ -215,13 +215,15 @@ int gthread_sched_join(gthread_sched_handle_t thread, void** return_value) {
 
   // if stack space, push to stack
   if (freelist_r - freelist_w > k_freelist_size) {
-    freelist[freelist_w] = thread;
+    freelist[freelist_w % k_freelist_size] = thread;
+    ++freelist_w;
   }
 
-  // otherwise, free stack and TLS
+  // otherwise, free stack and TLS then thread
   else {
     gthread_tls_free(thread->tls);
     gthread_free_stack(thread->stack, thread->total_stack_size);
+    free(thread);
   }
 
   // make sure you don't lose the ret value
@@ -233,7 +235,7 @@ int gthread_sched_join(gthread_sched_handle_t thread, void** return_value) {
 void gthread_sched_exit(void* return_value) {
   gthread_task_t* current_thread = gthread_task_current();
 
-  current_thread->return_value = return_value;       // set ret value
+  current_thread->return_value = *return_value;      // set ret value
   current_thread->run_state = GTHREAD_TASK_STOPPED;  // code 4 for exit
 
   gthread_sched_yield();  // deschedule
