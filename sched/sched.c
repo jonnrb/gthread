@@ -34,7 +34,7 @@ static gthread_rb_tree_t g_runqueue = NULL;
 #define k_freelist_size 64
 static uint64_t freelist_r = 0;  // reader is `make_task()`
 static uint64_t freelist_w = 0;  // TODO: writer
-static gthread_task_t* freelist[k_freelist_size] = {NULL};
+static gthread_task_t *freelist[k_freelist_size] = {NULL};
 
 static uint64_t min_vruntime = 0;
 
@@ -53,8 +53,8 @@ static struct {
  * pushes the |last_running_task| to the `g_runqueue` and pops the task with
  * the least virtual runtime to return
  */
-static inline gthread_task_t* next_task_min_vruntime(
-    gthread_task_t* last_running_task) {
+static inline gthread_task_t *next_task_min_vruntime(
+    gthread_task_t *last_running_task) {
 #ifdef GTHREAD_SCHED_COLLECT_STATS
   uint64_t start = gthread_clock_process();
 #endif  // GTHREAD_SCHED_COLLECT_STATS
@@ -69,16 +69,16 @@ static inline gthread_task_t* next_task_min_vruntime(
       assert(0);
     }
     printf("scheduler contention");
-    return (gthread_task_t*)g_runqueue_lock;
+    return (gthread_task_t *)g_runqueue_lock;
   }
 
   gthread_rb_push(&g_runqueue, &last_running_task->rb_node);
-  gthread_rb_node_t* node = gthread_rb_pop_min(&g_runqueue);
+  gthread_rb_node_t *node = gthread_rb_pop_min(&g_runqueue);
 
   g_runqueue_lock = 0;
 
   if (branch_unexpected(node == NULL)) assert(0);
-  gthread_task_t* next_task = container_of(node, gthread_task_t, rb_node);
+  gthread_task_t *next_task = container_of(node, gthread_task_t, rb_node);
   if (min_vruntime < next_task->vruntime) {
     min_vruntime = next_task->vruntime;
   }
@@ -90,8 +90,8 @@ static inline gthread_task_t* next_task_min_vruntime(
   return next_task;
 }
 
-static gthread_task_t* make_task(gthread_attr_t* attr) {
-  gthread_task_t* task;
+static gthread_task_t *make_task(gthread_attr_t *attr) {
+  gthread_task_t *task;
 
 #ifdef GTHREAD_SCHED_COLLECT_STATS
   uint64_t start = gthread_clock_process();
@@ -124,12 +124,12 @@ static gthread_task_t* make_task(gthread_attr_t* attr) {
 }
 
 // quite poor scheduler implementation: basic round robin.
-static gthread_task_t* sched_timer(gthread_task_t* task) {
+static gthread_task_t *sched_timer(gthread_task_t *task) {
   return next_task_min_vruntime(task);
 }
 
 #ifdef GTHREAD_SCHED_COLLECT_STATS
-static void* print_stats(void* _) {
+static void *print_stats(void *_) {
   printf("printing scheduler stats every %.3fs\n",
          GTHREAD_SCHED_STATS_INTERVAL / (double)(1000 * 1000 * 1000));
 
@@ -177,15 +177,15 @@ int gthread_sched_yield() {
   return gthread_timer_alarm_now();
 }
 
-int gthread_sched_spawn(gthread_sched_handle_t* handle, gthread_attr_t* attr,
-                        gthread_entry_t* entry, void* arg) {
+int gthread_sched_spawn(gthread_sched_handle_t *handle, gthread_attr_t *attr,
+                        gthread_entry_t *entry, void *arg) {
   if (handle == NULL || entry == NULL) {
     errno = EINVAL;
     return -1;
   }
 
-  gthread_task_t* task = make_task(attr);
-  gthread_task_t* current = gthread_task_current();
+  gthread_task_t *task = make_task(attr);
+  gthread_task_t *current = gthread_task_current();
 
   while (!gthread_cas(&g_runqueue_lock, 0, (uint64_t)current)) {
     printf("contention on rb tree from uninterruptable code!\n");
@@ -204,18 +204,17 @@ int gthread_sched_spawn(gthread_sched_handle_t* handle, gthread_attr_t* attr,
 }
 
 /* wait for thread termination */
-int gthread_sched_join(gthread_sched_handle_t thread, void **return_value){
-
+int gthread_sched_join(gthread_sched_handle_t thread, void **return_value) {
   /* flag to thread that you are the joiner */
   thread->joiner = gthread_task_current();
 
   // while thread is not exiting, keep yielding
-  while(thread->run_state != GTHREAD_TASK_STOPPED) {
+  while (thread->run_state != GTHREAD_TASK_STOPPED) {
     gthread_sched_yield();
   }
 
   // if stack space, push to stack
-  if(freelist_r-freelist_w > k_freelist_size) {
+  if (freelist_r - freelist_w > k_freelist_size) {
     freelist[freelist_w] = thread;
   }
 
@@ -229,16 +228,13 @@ int gthread_sched_join(gthread_sched_handle_t thread, void **return_value){
   thread->return_value = *return_value;
 
   return 0;
-
 }
 
-void gthread_sched_exit(void* return_value) {
+void gthread_sched_exit(void *return_value) {
+  gthread_task_t *current_thread = gthread_task_current();
 
-  gthread_task_t* current_thread = gthread_task_current();
-
-  current_thread->return_value = return_value;  // set ret value
-  current_thread->run_state = GTHREAD_TASK_STOPPED;    // code 4 for exit
+  current_thread->return_value = return_value;       // set ret value
+  current_thread->run_state = GTHREAD_TASK_STOPPED;  // code 4 for exit
 
   gthread_sched_yield();  // deschedule
-
 }
