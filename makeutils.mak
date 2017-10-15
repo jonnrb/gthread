@@ -21,7 +21,11 @@ define build_and_check
   printf " %b" "$(COM_COLOR)$(COM_STRING) $(OBJ_COLOR)$(@F)$(NO_COLOR)\r"; \
   rm -f $(@).fifo;                                                         \
   mkfifo $(@).fifo;                                                        \
-  script -q --return /dev/null -c '$(1)' > $(@).fifo &                     \
+  if [ "$$(uname)" = "Darwin" ]; then                                      \
+    script -q /dev/null $(1) > $(@).fifo &                                 \
+  else                                                                     \
+    script -q --return /dev/null -c '$(1)' > $(@).fifo &                   \
+  fi;                                                                      \
   SUBPID=$$!;                                                              \
   OLDIFS=$$IFS;                                                            \
   IFS=\n;                                                                  \
@@ -51,7 +55,11 @@ define run_and_check
   printf " %b" "$(RUN_COLOR)$(RUN_STRING) $(OBJ_COLOR)$(@F)$(NO_COLOR)\r"; \
   rm -f $(1).fifo;                                                         \
   mkfifo $(1).fifo;                                                        \
-  script -q --return /dev/null -c '$(1) 2>$(1).warn' > $(1).fifo &         \
+  if [ "$$(uname)" = "Darwin" ]; then                                      \
+    script -q /dev/null $(1) > $(1).fifo &                                 \
+  else                                                                     \
+    script -q --return /dev/null -c '$(1)' > $(1).fifo &                   \
+  fi;                                                                      \
   SUBPID=$$!;                                                              \
   FLAG=0;                                                                  \
   OLDIFS=$$IFS;                                                            \
