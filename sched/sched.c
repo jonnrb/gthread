@@ -1,5 +1,5 @@
 /**
- * author: JonNRb <jonbetti@gmail.com>
+ * author: JonNRb <jonbetti@gmail.com>, Matthew Handzy <matthewhandzy@gmail.com>
  * license: MIT
  * file: @gthread//sched/sched.c
  * info: scheduler for uniprocessors
@@ -13,6 +13,7 @@
 
 #include "arch/atomic.h"
 #include "platform/clock.h"
+#include "platform/memory.h"
 #include "util/compiler.h"
 #include "util/rb.h"
 
@@ -30,7 +31,7 @@ static gthread_rb_tree_t g_runqueue = NULL;
 // TODO(jonnrb): add sleep waitqueue
 
 // ring buffer for free tasks
-#define k_freelist_size 1024
+#define k_freelist_size 64
 static uint64_t freelist_r = 0;  // reader is `make_task()`
 static uint64_t freelist_w = 0;  // TODO: writer
 static gthread_task_t* freelist[k_freelist_size] = {NULL};
@@ -200,4 +201,47 @@ int gthread_sched_spawn(gthread_sched_handle_t* handle, gthread_attr_t* attr,
   *handle = task;
 
   return 0;
+}
+
+/* wait for thread termination */
+int gthread_sched_join(gthread_sched_handle_t thread, void** return_value) {
+  /* flag to thread that you are the joiner */
+  if (!thread->joiner) {
+    thread->joiner = gthread_task_current();
+  }
+
+  else
+    return -1;
+
+  // while thread is not exiting, keep yielding
+  while (thread->run_state != GTHREAD_TASK_STOPPED) {
+    gthread_sched_yield();
+  }
+
+  // if stack space, push to stack
+  if (freelist_r - freelist_w > k_freelist_size) {
+    freelist[freelist_w % k_freelist_size] = thread;
+    ++freelist_w;
+  }
+
+  // otherwise, free stack and TLS then thread
+  else {
+    gthread_tls_free(thread->tls);
+    gthread_free_stack(thread->stack, thread->total_stack_size);
+    free(thread);
+  }
+
+  // make sure you don't lose the ret value
+  thread->return_value = *return_value;
+
+  return 0;
+}
+
+void gthread_sched_exit(void* return_value) {
+  gthread_task_t* current_thread = gthread_task_current();
+
+  current_thread->return_value = *return_value;      // set ret value
+  current_thread->run_state = GTHREAD_TASK_STOPPED;  // code 4 for exit
+
+  gthread_sched_yield();  // deschedule
 }
