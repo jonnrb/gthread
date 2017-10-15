@@ -4,6 +4,9 @@
 #include "sched/task.h"
 #include "arch/atomic.h"
 #include <errno.h>
+#include <stdlib.h>
+#include <stdio.h>
+
 
 typedef enum{
     LOCKED,
@@ -14,10 +17,11 @@ typedef struct gthread_mutex_data{
 	int init;
     lock state;
     gthread_task_t* task;
+    // char which_task; //test purposes
 }gthread_mutex_t;
 
 typedef struct mutexattr{
-//dummy struct to allow compilation    
+//dummy struct to allow compilation
 }gthread_mutexattr_t;
 
 
@@ -37,4 +41,3 @@ int gthread_mutex_unlock(gthread_mutex_t *mutex);
 int gthread_mutex_destroy(gthread_mutex_t *mutex);
 
 #endif  // CONCUR_MUTEX_H_
-
