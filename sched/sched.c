@@ -206,7 +206,12 @@ int gthread_sched_spawn(gthread_sched_handle_t* handle, gthread_attr_t* attr,
 /* wait for thread termination */
 int gthread_sched_join(gthread_sched_handle_t thread, void** return_value) {
   /* flag to thread that you are the joiner */
-  thread->joiner = gthread_task_current();
+  if (!thread->joiner) {
+    thread->joiner = gthread_task_current();
+  }
+
+  else
+    return -1;
 
   // while thread is not exiting, keep yielding
   while (thread->run_state != GTHREAD_TASK_STOPPED) {
