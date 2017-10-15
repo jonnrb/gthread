@@ -12,6 +12,7 @@
 #include <asm/prctl.h>
 #include <link.h>
 #include <locale.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/syscall.h>
@@ -89,7 +90,8 @@ static int dl_iterate_phdr_init_cb(struct dl_phdr_info* info, size_t size,
         images[module - 1].data = (char*)info->dlpi_addr + phdr->p_vaddr;
         images[module - 1].image_size = phdr->p_filesz;
         images[module - 1].mem_offset = (-phdr->p_memsz) & (phdr->p_align - 1);
-        images[module - 1].reserve = phdr->p_memsz;
+        images[module - 1].reserve =
+            images[module - 1].mem_offset + phdr->p_memsz;
       } else {
         // must have a module id (index starts at 1)
         return -1;
@@ -148,6 +150,8 @@ gthread_tls_t gthread_tls_allocate() {
   tcbhead->dtv = dtv;
   dtv[0].head.num_modules = k_num_slots;
   dtv[0].head.base = alloc_base;
+  dtv[1].pointer.v = (void*)tcbhead;
+  dtv[1].pointer.is_static = false;
   for (int i = 0; i < k_num_slots; ++i) {
     dtv[i + 2].pointer.v = TLS_DTV_UNALLOCATED;
     dtv[i + 2].pointer.is_static = false;
@@ -161,7 +165,8 @@ gthread_tls_t gthread_tls_allocate() {
 
     // this data ordering *seems* to work and models gnu and musl libcs
     image_base -= images[i].reserve;
-    memcpy(image_base, images[i].data, images[i].image_size);
+    memcpy((char*)image_base + images[i].mem_offset,
+           (char*)images[i].data + images[i].mem_offset, images[i].image_size);
 
     dtv[module + 1].pointer.is_static = true;
     dtv[module + 1].pointer.v = image_base;
