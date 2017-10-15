@@ -21,28 +21,28 @@ define build_and_check
   printf " %b" "$(COM_COLOR)$(COM_STRING) $(OBJ_COLOR)$(@F)$(NO_COLOR)\r"; \
   rm -f $(@).fifo;                                                         \
   mkfifo $(@).fifo;                                                        \
-  $(1) 2> $(@).warn > $(@).fifo &                                          \
+  script -q --return /dev/null -c '$(1)' > $(@).fifo &                     \
   SUBPID=$$!;                                                              \
-  FLAG=0;                                                                  \
-  while read -r LINE; do                                                   \
+  OLDIFS=$$IFS;                                                            \
+  IFS=\n;                                                                  \
+  ( FLAG=0; while read -r LINE; do                                         \
     if [ $$FLAG -eq 0 ]; then FLAG=1; printf "\n"; fi;                     \
     echo "$$LINE";                                                         \
-  done < $(@).fifo &                                                       \
+  done < $(@).fifo; exit $$FLAG; ) &                                       \
   OUTPID=$$!;                                                              \
+  IFS=$$OLDIFS;                                                            \
   wait $$SUBPID; RESULT=$$?;                                               \
-  wait $$OUTPID;                                                           \
+  wait $$OUTPID; WARN=$$?;                                                 \
   if [ $$RESULT -ne 0 ]; then                                              \
     printf "\r %-60b%b" "$(COM_COLOR)$(COM_STRING)$(OBJ_COLOR) $@"         \
       "$(ERROR_COLOR)$(ERROR_STRING)$(NO_COLOR)\n";                        \
-  elif [ -s $@.warn ]; then                                                \
+  elif [ $$WARN -eq 1 ]; then                                              \
     printf "\r %-60b%b" "$(COM_COLOR)$(COM_STRING)$(OBJ_COLOR) $@"         \
       "$(WARN_COLOR)$(WARN_STRING)$(NO_COLOR)\n";                          \
   else                                                                     \
     printf "\r %-60b%b" "$(COM_COLOR)$(COM_STRING)$(OBJ_COLOR) $(@F)"      \
       "$(OK_COLOR)$(OK_STRING)$(NO_COLOR)\n";                              \
   fi;                                                                      \
-  cat $@.warn;                                                             \
-  rm -f $@.warn;                                                           \
   rm -f $@.fifo;                                                           \
   exit $$RESULT
 endef
@@ -51,13 +51,16 @@ define run_and_check
   printf " %b" "$(RUN_COLOR)$(RUN_STRING) $(OBJ_COLOR)$(@F)$(NO_COLOR)\r"; \
   rm -f $(1).fifo;                                                         \
   mkfifo $(1).fifo;                                                        \
-  $(1) 2> $(1).warn > $(1).fifo &                                          \
+  script -q --return /dev/null -c '$(1) 2>$(1).warn' > $(1).fifo &         \
   SUBPID=$$!;                                                              \
   FLAG=0;                                                                  \
+  OLDIFS=$$IFS;                                                            \
+  IFS=\n;                                                                  \
   while read -r LINE; do                                                   \
     if [ $$FLAG -eq 0 ]; then FLAG=1; printf "\n"; fi;                     \
     echo "$$LINE";                                                         \
   done < $(1).fifo &                                                       \
+  IFS=$$OLDIFS;                                                            \
   OUTPID=$$!;                                                              \
   wait $$SUBPID; RESULT=$$?;                                               \
   wait $$OUTPID;                                                           \
