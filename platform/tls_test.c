@@ -10,11 +10,14 @@
 
 #include <assert.h>
 #include <fcntl.h>
+#include <inttypes.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
+#include "platform/clock.h"
 #include "platform/memory.h"
 
 #define baseval 15
@@ -162,6 +165,21 @@ int main() {
   y_inc(NULL, 2, "some other thread");
   y_inc(NULL, 3, "some other thread");
   gthread_tls_use(old);
+
+#define k_num_tls_switches ((uint64_t)1000 * 1000)
+  uint64_t start = gthread_clock_process();
+  for (uint64_t i = 0; i < k_num_tls_switches; ++i) {
+    gthread_tls_use(tls);
+    __asm__ __volatile__("" ::: "memory");
+    gthread_tls_use(old);
+    __asm__ __volatile__("" ::: "memory");
+  }
+  uint64_t end = gthread_clock_process();
+
+  printf("  %" PRIu64 " tls switches in %.3f microseconds\n",
+         k_num_tls_switches * 2, (double)(end - start) / 1000);
+  printf("  %.0f tls switches / microsecond\n",
+         k_num_tls_switches * 2 / ((double)(end - start) / 1000));
 
   gthread_tls_free(tls);
 
