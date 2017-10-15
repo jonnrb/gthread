@@ -5,6 +5,8 @@
  * info: tests switching between and spawning new contexts
  */
 
+#define _XOPEN_SOURCE
+
 #include "arch/switch_to.h"
 
 #include <assert.h>
@@ -16,7 +18,7 @@
 #include "platform/clock.h"
 #include "platform/memory.h"
 
-#define k_num_context_switches ((uint64_t)10 * 1000 * 1000)
+#define k_num_context_switches ((uint64_t)1000 * 1000)
 
 const char* test_str = "hello world";
 
