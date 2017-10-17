@@ -9,6 +9,7 @@
 #include <unistd.h>
 
 #include "arch/atomic.h"
+#include "platform/memory.h"
 #include "util/compiler.h"
 
 /**
@@ -63,7 +64,12 @@ static inline size_t get_pthread_slots_offset() {
 gthread_tls_t gthread_tls_allocate() {
   size_t pthread_t_size = get_pthread_slots_offset();
 
-  void *tls = calloc(k_num_slots * sizeof(void *) + pthread_t_size, 1);
+  void *tls = gthread_allocate(k_num_slots * sizeof(void *) + pthread_t_size);
+  if (tls == NULL) {
+    return NULL;
+  }
+
+  memset((char *)tls + pthread_t_size, '\0', k_num_slots * sizeof(void *));
   if (memcpy(tls, *g_pthread_self_slot, pthread_t_size) == NULL) {
     free(tls);
     return NULL;
@@ -81,11 +87,12 @@ int gthread_tls_reset(gthread_tls_t tls) {
 
   void **tls_slots = (void **)((char *)tls + get_pthread_slots_offset());
   // TODO(jonnrb): do we have to free the low slots?
-  for (int i = k_num_copied_slots; i < k_num_slots; ++i)
+  for (int i = k_num_copied_slots; i < k_num_slots; ++i) {
     if (tls_slots[i] != NULL) {
       free(tls_slots[i]);
       tls_slots[i] = NULL;
     }
+  }
 
   return 0;
 }
@@ -96,9 +103,9 @@ void gthread_tls_free(gthread_tls_t tls) {
   void **tls_slots = (void **)((char *)tls + get_pthread_slots_offset());
   // TODO(jonnrb): do we have to free the low slots?
   for (int i = k_num_copied_slots; i < k_num_slots; ++i)
-    if (tls_slots[i] != NULL) free(tls_slots[i]);
+    if (tls_slots[i] != NULL) gthread_free(tls_slots[i]);
 
-  free(tls);
+  gthread_free(tls);
 }
 
 gthread_tls_t gthread_tls_current() {
