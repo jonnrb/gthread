@@ -38,6 +38,7 @@ gthread_task_t* gthread_task_construct(gthread_attr_t* attrs) {
   task->tls = tls;
 
   task->run_state = GTHREAD_TASK_STOPPED;
+  task->joiner = NULL;
   task->return_value = NULL;
   if (gthread_allocate_stack(attrs, &task->stack, &task->total_stack_size)) {
     gthread_tls_free(tls);
@@ -101,8 +102,10 @@ int gthread_task_start(gthread_task_t* task, gthread_entry_t* entry,
   // switch tls contexts. officially in the new context.
   gthread_tls_use(task->tls);
 
-  prev_task->run_state = GTHREAD_TASK_SUSPENDED;
-  task->run_state = GTHREAD_TASK_LOCKED;  // will be running in entry
+  // if the task sets its own `run_state`, respect that value
+  if (prev_task->run_state == GTHREAD_TASK_RUNNING) {
+    prev_task->run_state = GTHREAD_TASK_SUSPENDED;
+  }
 
   // grab an `entry_point_t` sized space before the stack
   entry_point_t* entry_point = &((entry_point_t*)task->stack)[-1];
@@ -121,14 +124,21 @@ int gthread_task_start(gthread_task_t* task, gthread_entry_t* entry,
 }
 
 int gthread_task_reset(gthread_task_t* task) {
-  int ret;
-  if ((ret = gthread_tls_reset(task->tls))) return ret;
-
+  if (gthread_tls_reset(task->tls)) return -1;
+  gthread_rb_construct(&task->rb_node);
   task->run_state = GTHREAD_TASK_STOPPED;
   task->return_value = NULL;
+  task->joiner = NULL;
   task->vruntime = 0;
 
   return 0;
+}
+
+void gthread_task_destruct(gthread_task_t* task) {
+  gthread_tls_free(task->tls);
+  gthread_free_stack((char*)task->stack - task->total_stack_size,
+                     task->total_stack_size);
+  gthread_free(task);
 }
 
 static int switch_to_task(gthread_task_t* task, uint64_t* elapsed) {
@@ -144,7 +154,11 @@ static int switch_to_task(gthread_task_t* task, uint64_t* elapsed) {
   }
 
   if (!gthread_cas(&g_lock, 0, 1)) return -1;
-  prev_task->run_state = GTHREAD_TASK_SUSPENDED;
+
+  // if the task sets its own `run_state`, respect that value
+  if (prev_task->run_state == GTHREAD_TASK_RUNNING) {
+    prev_task->run_state = GTHREAD_TASK_SUSPENDED;
+  }
 
   if (elapsed == NULL) {
     reset_timer_and_record_time(prev_task);

@@ -5,6 +5,7 @@
 
 MODULE := sched
 LIBS := sched task
-#TESTS := task_test
+TESTS := sched_test
+TEST-DEPS := $(OBJDIR)/util.a $(OBJDIR)/platform.a $(OBJDIR)/arch.a
 
 include make_module.mak

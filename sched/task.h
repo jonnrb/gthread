@@ -14,6 +14,7 @@
 #include "gthread.h"
 #include "platform/timer.h"
 #include "platform/tls.h"
+#include "util/compiler.h"
 #include "util/rb.h"
 
 typedef enum {
@@ -21,7 +22,7 @@ typedef enum {
   GTHREAD_TASK_RUNNING = 1,
   GTHREAD_TASK_SUSPENDED = 2,
   GTHREAD_TASK_STOPPED = 3,
-  GTHREAD_TASK_LOCKED = 4
+  GTHREAD_TASK_WAITING = 4
 } gthread_task_run_state_t;
 
 typedef struct gthread_task {
@@ -36,7 +37,9 @@ typedef struct gthread_task {
   size_t total_stack_size;
 
   gthread_rb_node_t rb_node;
-  uint64_t vruntime;  // microseconds
+  uint64_t vruntime;       // microseconds
+  uint64_t vruntime_save;  // used to save `vruntime` when adding the task to a
+                           // waitqueue
 } gthread_task_t;
 
 // constructs a stack and sets |task| to default values.
@@ -44,11 +47,9 @@ gthread_task_t* gthread_task_construct(gthread_attr_t* attrs);
 
 int gthread_task_start(gthread_task_t* task, gthread_entry_t* entry, void* arg);
 
-// int gthread_task_stop(gthread_task_t* task, void* ret_val);
-
 int gthread_task_reset(gthread_task_t* task);
 
-// int gthread_reap_task(gthread_task_t* task);
+void gthread_task_destruct(gthread_task_t* task);
 
 static inline gthread_task_t* gthread_task_current();
 
