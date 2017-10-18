@@ -7,7 +7,7 @@
 #include "platform/clock.h"
 
 static gthread_mutex_t mutex;
-static char last_task_with_mutex = '\0';
+static char last_task_with_mutex = '-';
 static int mutextarget = 0;
 static bool go = false;
 
