@@ -58,7 +58,7 @@ define run_and_check
   if [ "$$(uname)" = "Darwin" ]; then                                      \
     script -q /dev/null $(1) > $(1).fifo &                                 \
   else                                                                     \
-    script -q --return /dev/null -c '$(1)' > $(1).fifo &                   \
+    script -q --return /dev/null -c '$(1)' > $(1).fifo 2>&1 &              \
   fi;                                                                      \
   SUBPID=$$!;                                                              \
   FLAG=0;                                                                  \
@@ -75,15 +75,10 @@ define run_and_check
   if [ $$RESULT -ne 0 ]; then                                              \
     printf "\r %-60b%b" "$(RUN_COLOR)$(RUN_STRING)$(OBJ_COLOR) $(1)"       \
       "$(ERROR_COLOR)$(ERROR_STRING)$(NO_COLOR)\n";                        \
-  elif [ -s $@.warn ]; then                                                \
-    printf "\r %-60b%b" "$(COM_COLOR)$(COM_STRING)$(OBJ_COLOR) $(1)"       \
-      "$(WARN_COLOR)$(WARN_STRING)$(NO_COLOR)\n";                          \
   else                                                                     \
     printf "\r %-60b%b" "$(RUN_COLOR)$(RUN_STRING)$(OBJ_COLOR) $(@F)"      \
       "$(OK_COLOR)$(OK_STRING)$(NO_COLOR)\n";                              \
   fi;                                                                      \
-  cat $(1).warn;                                                           \
-  rm -f $(1).warn;                                                         \
   rm -f $(1).fifo;                                                         \
   exit $$RESULT
 endef
