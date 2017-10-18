@@ -22,12 +22,8 @@ void* important_task(void* arg) {
       printf("mutex hot potato! %c -> %c\n", last_task_with_mutex, *msg);
     }
     last_task_with_mutex = *msg;
-    printf("mutex locked by task %c\n", *msg);
-    printf("Mutex Variable value BEFORE calculation: %d\n", mutextarget);
     mutextarget = mutextarget + 1;
     gthread_nsleep(5 * 1000 * 1000);
-    printf("Mutex Variable value AFTER calculation: %d\n", mutextarget);
-    printf("mutex unlocked by task %c\n", *msg);
     gthread_mutex_unlock(&mutex);
   }
 
