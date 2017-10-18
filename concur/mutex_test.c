@@ -7,6 +7,7 @@
 #include "platform/clock.h"
 
 static gthread_mutex_t mutex;
+static char last_task_with_mutex = '\0';
 static int mutextarget = 0;
 static bool go = false;
 
@@ -17,6 +18,10 @@ void* important_task(void* arg) {
 
   for (int i = 0; i < 26; ++i) {
     gthread_mutex_lock(&mutex);
+    if (last_task_with_mutex != *msg) {
+      printf("mutex hot potato! %c -> %c\n", last_task_with_mutex, *msg);
+    }
+    last_task_with_mutex = *msg;
     printf("mutex locked by task %c\n", *msg);
     printf("Mutex Variable value BEFORE calculation: %d\n", mutextarget);
     mutextarget = mutextarget + 1;
