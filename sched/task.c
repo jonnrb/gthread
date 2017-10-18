@@ -53,6 +53,8 @@ gthread_task_t* gthread_task_construct(gthread_attr_t* attrs) {
 }
 
 static inline void record_time_slice(gthread_task_t* task, uint64_t elapsed) {
+  // XXX hack to hurt spinlocks
+  if (elapsed < 10) elapsed = 10;
   task->vruntime += elapsed;
 }
 
