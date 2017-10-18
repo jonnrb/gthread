@@ -8,11 +8,6 @@
 #ifndef CONCUR_MUTEX_H_
 #define CONCUR_MUTEX_H_
 
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include "arch/atomic.h"
-#include "sched/sched.h"
 #include "sched/task.h"
 
 // TODO(jonnrb): fifo waitqueue

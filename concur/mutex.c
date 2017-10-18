@@ -5,7 +5,16 @@
  * info: mutex or binary semaphore
  */
 
-#include "mutex.h"
+#include "concur/mutex.h"
+
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "arch/atomic.h"
+#include "sched/sched.h"
+#include "sched/task.h"
+#include "util/compiler.h"
 
 // Initializes a my_pthread_mutex_t created by the calling thread. Attributes
 // are ignored.
@@ -25,10 +34,12 @@ int gthread_mutex_lock(gthread_mutex_t *mutex) {
     perror("Invalid mutex, must initialize first.");
     return errno;
   }
-  while (!gthread_cas(&(mutex->state), UNLOCKED,
-                      LOCKED)) {  // compare and swap mutex
-    gthread_sched_yield();        // yields if swap failed
+
+  // compare and swap mutex
+  while (!gthread_cas(&(mutex->state), UNLOCKED, LOCKED)) {
+    gthread_sched_yield();  // yields if swap failed
   }
+
   mutex->task = gthread_task_current();
   return 0;
 }
@@ -40,6 +51,7 @@ int gthread_mutex_unlock(gthread_mutex_t *mutex) {
     perror("Invalid mutex, must initialize first.");
     return errno;
   }
+
   if (gthread_task_current() == mutex->task) {
     mutex->task = NULL;
     return !gthread_cas(&(mutex->state), LOCKED, UNLOCKED);
