@@ -1,7 +1,7 @@
-# author: JonNRb <jonbetti@gmail.com>
+# author: Khalid Akash, JonNRb <jonbetti@gmail.com>
 # license: MIT
-# file: @gthread//sched/module.mak
-# info: gnu module.mak for sched module
+# file: @gthread//concur/module.mak
+# info: gnu module.mak for concurrency module
 
 MODULE := concur
 LIBS := mutex

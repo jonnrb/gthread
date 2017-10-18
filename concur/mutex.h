@@ -1,3 +1,10 @@
+/**
+ * author: Khalid Akash, JonNRb <jonbetti@gmail.com>
+ * license: MIT
+ * file: @gthread//concur/mutex.h
+ * info: mutex or binary semaphore
+ */
+
 #ifndef CONCUR_MUTEX_H_
 #define CONCUR_MUTEX_H_
 
@@ -7,6 +14,8 @@
 #include "arch/atomic.h"
 #include "sched/sched.h"
 #include "sched/task.h"
+
+// TODO(jonnrb): fifo waitqueue
 
 typedef enum { LOCKED, UNLOCKED } lock;
 

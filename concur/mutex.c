@@ -1,3 +1,10 @@
+/**
+ * author: Khalid Akash, JonNRb <jonbetti@gmail.com>
+ * license: MIT
+ * file: @gthread//concur/mutex.c
+ * info: mutex or binary semaphore
+ */
+
 #include "mutex.h"
 
 // Initializes a my_pthread_mutex_t created by the calling thread. Attributes
