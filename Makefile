@@ -20,11 +20,12 @@ TESTDIR = bin-test
 OBJECTS :=
 TEST-BINS :=
 BINARIES :=
+LIB-OBJECTS :=
 STATIC-LIBS :=
 
 
 
-all: objs tests bins libs
+all: libmy_pthread.a objs tests bins libs
 
 # modules
 include arch/module.mak
@@ -32,7 +33,6 @@ include concur/module.mak
 include platform/module.mak
 include sched/module.mak
 include util/module.mak
-include module.mak
 #########
 
 objs: $(OBJECTS)
@@ -42,6 +42,22 @@ tests: $(TEST-BINS)
 bins: $(BINARIES)
 
 libs: $(STATIC-LIBS)
+
+
+
+libmy_pthread.a: $(LIB-OBJECTS)
+	@$(call build_and_check, $(AR) rcs $@ $^)
+
+bench: libmy_pthread.a
+	@cd yujie_benchmark             && \
+		make                          && \
+		./genRecord.sh                && \
+		echo "Running externalCal"    && \
+		time ./externalCal            && \
+		echo "Running parallelCal"    && \
+		time ./parallelCal            && \
+		echo "Running vectorMultiply" && \
+		time ./vectorMultiply
 
 
 

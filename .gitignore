@@ -2,3 +2,9 @@ bazel-*
 obj/
 bin/
 bin-test/
+yujie_benchmark/*.dSYM
+yujie_benchmark/record
+yujie_benchmark/externalCal
+yujie_benchmark/parallelCal
+yujie_benchmark/vectorMultiply
+libmy_pthread.a
