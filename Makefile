@@ -28,6 +28,7 @@ all: objs tests bins libs
 
 # modules
 include arch/module.mak
+include concur/module.mak
 include platform/module.mak
 include sched/module.mak
 include util/module.mak
