@@ -209,6 +209,11 @@ int gthread_set_task_end_handler(gthread_task_end_handler_t* task_end_handler) {
   return 0;
 }
 
+int gthread_task_set_end_handler(gthread_task_end_handler_t* task_end_handler) {
+  g_task_end_handler = task_end_handler;
+  return 0;
+}
+
 void gthread_task_module_init() {
   if (branch_unexpected(
           !gthread_task_is_root_task_init &&

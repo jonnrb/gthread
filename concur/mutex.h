@@ -12,7 +12,7 @@ typedef enum { LOCKED, UNLOCKED } lock;
 
 typedef struct gthread_mutex_data {
   int init;
-  lock state;
+  uint64_t state;
   gthread_task_t *task;
   // char which_task; //test purposes
 } gthread_mutex_t;

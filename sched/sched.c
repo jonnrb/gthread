@@ -181,10 +181,15 @@ static void* print_stats(void* _) {
 }
 #endif  // GTHREAD_SCHED_COLLECT_STATS
 
+static void task_end_handler(gthread_task_t* task) {
+  gthread_sched_exit(task->return_value);
+}
+
 int gthread_sched_init() {
   if (!gthread_cas(&g_is_sched_init, 0, 1)) return -1;
 
   gthread_task_set_time_slice_trap(sched_timer, 10 * 1000);
+  gthread_task_set_end_handler(task_end_handler);
 
 #ifdef GTHREAD_SCHED_COLLECT_STATS
   stats.start_time = gthread_clock_process();
