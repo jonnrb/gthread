@@ -50,7 +50,7 @@ libmy_pthread.a: $(LIB-OBJECTS)
 
 bench: libmy_pthread.a
 	@cd yujie_benchmark             && \
-		make                          && \
+		make clean && make            && \
 		./genRecord.sh                && \
 		echo "Running externalCal"    && \
 		time ./externalCal            && \
