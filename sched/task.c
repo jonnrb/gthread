@@ -53,6 +53,8 @@ gthread_task_t* gthread_task_construct(gthread_attr_t* attrs) {
 }
 
 static inline void record_time_slice(gthread_task_t* task, uint64_t elapsed) {
+  // XXX hack to hurt spinlocks
+  if (elapsed < 10) elapsed = 10;
   task->vruntime += elapsed;
 }
 
@@ -205,6 +207,11 @@ int gthread_task_set_time_slice_trap(gthread_task_time_slice_trap_t* trap,
 }
 
 int gthread_set_task_end_handler(gthread_task_end_handler_t* task_end_handler) {
+  g_task_end_handler = task_end_handler;
+  return 0;
+}
+
+int gthread_task_set_end_handler(gthread_task_end_handler_t* task_end_handler) {
   g_task_end_handler = task_end_handler;
   return 0;
 }

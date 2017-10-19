@@ -27,6 +27,7 @@ static uint64_t g_is_sched_init = 0;
  */
 static uint64_t g_runqueue_lock = 0;
 static gthread_rb_tree_t g_runqueue = NULL;
+static gthread_rb_tree_t g_next_runqueue = NULL;
 
 /**
  * `g_next_sleepqueue_wake` has the next time at which the `g_sleepqueue`
@@ -81,9 +82,13 @@ static inline gthread_task_t* next_task_min_vruntime(
   // if the task was in a runnable state when the scheduler was invoked, push it
   // to the runqueue
   if (last_running_task->run_state == GTHREAD_TASK_RUNNING) {
-    gthread_rb_push(&g_runqueue, &last_running_task->rb_node);
+    gthread_rb_push(&g_next_runqueue, &last_running_task->rb_node);
   }
 
+  if (g_runqueue == NULL) {
+    g_runqueue = g_next_runqueue;
+    g_next_runqueue = NULL;
+  }
   gthread_rb_node_t* node = gthread_rb_pop_min(&g_runqueue);
 
   g_runqueue_lock = 0;
@@ -181,10 +186,15 @@ static void* print_stats(void* _) {
 }
 #endif  // GTHREAD_SCHED_COLLECT_STATS
 
+static void task_end_handler(gthread_task_t* task) {
+  gthread_sched_exit(task->return_value);
+}
+
 int gthread_sched_init() {
   if (!gthread_cas(&g_is_sched_init, 0, 1)) return -1;
 
   gthread_task_set_time_slice_trap(sched_timer, 10 * 1000);
+  gthread_task_set_end_handler(task_end_handler);
 
 #ifdef GTHREAD_SCHED_COLLECT_STATS
   stats.start_time = gthread_clock_process();
@@ -235,7 +245,7 @@ int gthread_sched_spawn(gthread_sched_handle_t* handle, gthread_attr_t* attr,
     printf("contention on rb tree from uninterruptable code!\n");
     assert(0);
   }
-  gthread_rb_push(&g_runqueue, &current->rb_node);
+  gthread_rb_push(&g_next_runqueue, &current->rb_node);
   g_runqueue_lock = 0;
 
   if (gthread_task_start(task, entry, arg)) {
@@ -303,7 +313,7 @@ void gthread_sched_exit(void* return_value) {
       printf("contention on rb tree from uninterruptable code!\n");
       assert(0);
     }
-    gthread_rb_push(&g_runqueue, &joiner->rb_node);
+    gthread_rb_push(&g_next_runqueue, &joiner->rb_node);
     g_runqueue_lock = 0;
   } else {
     // if there wasn't a joiner that suspended itself, we entered a critical

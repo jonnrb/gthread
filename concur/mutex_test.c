@@ -1,52 +1,43 @@
+/**
+ * author: Khalid Akash, JonNRb <jonbetti@gmail.com>
+ * license: MIT
+ * file: @gthread//concur/mutex_test.c
+ * info: tests mutex by locking and unlocking in a tight loop across threads
+ */
+
+#include "concur/mutex.h"
+
 #include <assert.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
-#include <sys/time.h>
-#include <unistd.h>
-#include "mutex.h"
 
-gthread_mutex_t mutex;
-int mutextarget;
+#include "platform/clock.h"
+#include "sched/sched.h"
 
+static gthread_mutex_t mutex;
+static char last_task_with_mutex = '-';
+static uint64_t mutextarget = 0;
+static bool go = false;
 
-void printMutex(char* arg){
-	printf("|||||||||||||||||||||||||||||||||||||||||||||\n");
-	printf("-----MUTEX STRUCTURE STATE-----\n");
-	printf("%s\n", arg);
-	if(mutex.state == LOCKED){
-		// printf("Mutex is LOCKED by task: %c \n", mutex.which_task);  //delete comment for test
-	}
-	else{
-		printf("Mutex is UNLOCKED\n");
-	}
-	printf("|||||||||||||||||||||||||||||||||||||||||||||\n");
-
-	return;
-}
+#define k_num_loops 10 * 1000 * 1000
 
 void* important_task(void* arg) {
   const char* msg = (const char*)arg;
-  clock_t start = clock();
-  for (clock_t c = clock();; c = clock()) {
-    if ((c - start) > CLOCKS_PER_SEC) {
-      printf("Starting - I am task: \"%c\"\n", *msg);
-      start = c;
-      printf("Mutex Variable value BEFORE calculation: %d\n",mutextarget);
-      printf("-----------------------------------------------\n");
-      printMutex("BEFORE LOCK");
-      gthread_mutex_lock(&mutex);
-      //mutex.which_task = *msg; //delete comment for test
-      printMutex("AFTER LOCK/BEFORE UNLOCK");
-      mutextarget = mutextarget+1;
-      printf("Mutex Variable value AFTER calculation: %d\n",mutextarget);
-      gthread_sched_yield();
-      printf("About to unlock - I am task: \"%c\"\n", *msg);
-      gthread_mutex_unlock(&mutex);
-      printMutex("AFTER UNLOCK");
-    } else {
-      gthread_sched_yield();
+
+  while (!go) gthread_sched_yield();
+
+  for (int i = 0; i < k_num_loops; ++i) {
+    assert(!gthread_mutex_lock(&mutex));
+    if (last_task_with_mutex != *msg) {
+      printf("mutex hot potato! %c -> %c\n", last_task_with_mutex, *msg);
     }
+    last_task_with_mutex = *msg;
+    mutextarget = mutextarget + 1;
+    assert(!gthread_mutex_unlock(&mutex));
   }
+
+  return NULL;
 }
 
 int init() {
@@ -58,19 +49,23 @@ int init() {
     assert(!gthread_sched_spawn(&tasks[i], NULL, important_task,
                                 (void*)(&msgs[i])));
   }
+
+  go = true;
+
+  for (int i = 0; i < 26; ++i) {
+    gthread_sched_join(tasks[i], NULL);
+  }
   printf("done and stuff\n");
-  while (true) gthread_sched_yield();
+  assert(mutextarget == 26 * k_num_loops);
   return 0;
 }
 
-
 int main() {
-  mutextarget= 0;
-  printf("Mutex INIT result first time: %d\n",gthread_mutex_init(&mutex, NULL));
-  gthread_sched_init();
-  printf("Scheduler initialized.\n");
+  mutextarget = 0;
+  assert(!gthread_mutex_init(&mutex, NULL));
   init();
-  printf("FIRST Gthread destroyed return integer: %d\n", gthread_mutex_destroy(&mutex));
-  printf("SECOND Gthread destroyed return integer: %d\n", gthread_mutex_destroy(&mutex));
-  return 1;
+  assert(!gthread_mutex_destroy(&mutex));
+  fprintf(stderr, "destroying destroyed mutex should err: ");
+  assert(gthread_mutex_destroy(&mutex));
+  return 0;
 }
