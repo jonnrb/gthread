@@ -79,11 +79,15 @@ $(RUN-TEST-TARGETS): run-test/% : %
 
 test: $(RUN-TEST-TARGETS)
 
+archive:
+	git archive -o gthread.tar.gz --prefix gthread/ HEAD .
+
 
 
 clean:
 	@rm -rf $(OBJDIR)
 	@rm -rf $(TESTDIR)
 	@rm -rf $(BINDIR)
+	@rm -rf libmy_pthread.a
 
 .PHONY: clean all test objs tests bins libs
