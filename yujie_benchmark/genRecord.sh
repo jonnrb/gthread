@@ -6,7 +6,7 @@ if [ ! -d "./record" ]; then
 	mkdir record
 fi
 
-while [ $ITER -lt 10 ]; do
+while [ $ITER -lt 100 ]; do
 	let "COUNTER=0"
 	while [ $COUNTER -lt 256 ]; do
 		echo $(( $RANDOM % 65535)) >> ./record/$ITER
