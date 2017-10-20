@@ -40,7 +40,7 @@ static gthread_rb_tree_t g_next_runqueue = NULL;
 // ring buffer for free tasks
 #define k_freelist_size 64
 static uint64_t g_freelist_r = 0;  // reader is `make_task()`
-static uint64_t g_freelist_w = 0;  // TODO: writer
+static uint64_t g_freelist_w = 0;  // writer is `return_task()`
 static gthread_task_t* g_freelist[k_freelist_size] = {NULL};
 
 static uint64_t min_vruntime = 0;
@@ -57,11 +57,13 @@ static struct {
 #endif  // GTHREAD_SCHED_COLLECT_STATS
 
 /**
- * pushes the |last_running_task| to the `g_runqueue` if it is in a runnable
- * state and pops the task with the least virtual runtime to return
+ * pushes the |last_running_task| to the `g_next_runqueue` if it is in a
+ * runnable state and pops the task with the least virtual runtime from
+ * `g_runqueue` to return
+ *
+ * if `g_runqueue` is empty, `g_next_runqueue` is swapped in
  */
-static inline gthread_task_t* next_task_min_vruntime(
-    gthread_task_t* last_running_task) {
+static inline gthread_task_t* sched(gthread_task_t* last_running_task) {
 #ifdef GTHREAD_SCHED_COLLECT_STATS
   uint64_t start = gthread_clock_process();
 #endif  // GTHREAD_SCHED_COLLECT_STATS
@@ -73,7 +75,7 @@ static inline gthread_task_t* next_task_min_vruntime(
       printf(
           "contention on rb tree from uninterruptable code!\n"
           "scheduler is running for wayyyyy too long (bug?)\n");
-      assert(0);
+      abort();
     }
     fprintf(stderr, "scheduler contention\n");
     return (gthread_task_t*)g_runqueue_lock;
@@ -93,8 +95,13 @@ static inline gthread_task_t* next_task_min_vruntime(
 
   g_runqueue_lock = 0;
 
-  // XXX: remove the assumption that the runqueue is never empty
-  if (branch_unexpected(node == NULL)) assert(0);
+  // XXX: remove the assumption that the runqueue is never empty. this is true
+  // if all tasks are sleeping and there is actually nothing to do. right now
+  // it is impossible to be in this state without some sort of deadlock.
+  if (branch_unexpected(node == NULL)) {
+    printf("nothing to do. deadlock?\n");
+    abort();
+  }
 
   gthread_task_t* next_task = container_of(node, gthread_task_t, rb_node);
 
@@ -125,7 +132,7 @@ static gthread_task_t* make_task(gthread_attr_t* attr) {
     task = g_freelist[pos % k_freelist_size];
     if (branch_unexpected(!gthread_cas(&g_freelist_r, pos, pos + 1))) {
       fprintf(stderr, "reader contention on single reader circular buffer!\n");
-      assert(0);
+      abort();
     }
     gthread_task_reset(task);
     task->vruntime = min_vruntime;
@@ -153,11 +160,6 @@ static void return_task(gthread_task_t* task) {
   } else {
     gthread_task_destruct(task);
   }
-}
-
-// quite poor scheduler implementation: basic round robin.
-static gthread_task_t* sched_timer(gthread_task_t* task) {
-  return next_task_min_vruntime(task);
 }
 
 #ifdef GTHREAD_SCHED_COLLECT_STATS
@@ -193,7 +195,7 @@ static void task_end_handler(gthread_task_t* task) {
 int gthread_sched_init() {
   if (!gthread_cas(&g_is_sched_init, 0, 1)) return -1;
 
-  gthread_task_set_time_slice_trap(sched_timer, 10 * 1000);
+  gthread_task_set_time_slice_trap(sched, 50 * 1000);
   gthread_task_set_end_handler(task_end_handler);
 
 #ifdef GTHREAD_SCHED_COLLECT_STATS
@@ -221,7 +223,7 @@ int gthread_sched_yield() {
 //
 //   while (!gthread_cas(&g_runqueue_lock, 0, (uint64_t)current)) {
 //     printf("contention on rb tree from uninterruptable code!\n");
-//     assert(0);
+//     abort();
 //   }
 //
 //   g_runqueue_lock = 0;
@@ -243,7 +245,7 @@ int gthread_sched_spawn(gthread_sched_handle_t* handle, gthread_attr_t* attr,
 
   while (!gthread_cas(&g_runqueue_lock, 0, (uint64_t)current)) {
     printf("contention on rb tree from uninterruptable code!\n");
-    assert(0);
+    abort();
   }
   gthread_rb_push(&g_next_runqueue, &current->rb_node);
   g_runqueue_lock = 0;
@@ -311,7 +313,7 @@ void gthread_sched_exit(void* return_value) {
     if (branch_unexpected(
             !gthread_cas(&g_runqueue_lock, 0, (uint64_t)current))) {
       printf("contention on rb tree from uninterruptable code!\n");
-      assert(0);
+      abort();
     }
     gthread_rb_push(&g_next_runqueue, &joiner->rb_node);
     g_runqueue_lock = 0;

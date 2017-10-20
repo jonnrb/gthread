@@ -1,16 +1,32 @@
-CC = gcc
-CFLAGS = -g -w
+#!/usr/bin/make -f
+# run `make bench` to run benchmarks
+# run `make USE_LIBC_PTHREAD=1` to build benchmark against libc -pthread
 
-all:: parallelCal vectorMultiply externalCal
+CFLAGS  := $(CFLAGS) -Wall -I../
+LDFLAGS := $(LDFLAGS) -L../ -lmy_pthread
 
-parallelCal:
-	$(CC) $(CFLAGS) -pthread -o parallelCal parallelCal.c -I../ -L../ -lmy_pthread
+ifeq ($(USE_LIBC_PTHREAD), 1)
+	CFLAGS += -DUSE_MY_PTHREAD=0 -pthread
+endif
 
-vectorMultiply:
-	$(CC) $(CFLAGS) -pthread -o vectorMultiply vectorMultiply.c -I../ -L../ -lmy_pthread
+BENCH-TESTS := parallelCal vectorMultiply externalCal
 
-externalCal:
-	$(CC) $(CFLAGS) -pthread -o externalCal externalCal.c -I../ -L../ -lmy_pthread
+.PHONY: all bench clean
+all: $(BENCH-TESTS)
+
+%.d: %.c
+	$(CC) -MF $@ -MM -MT $@ -MT $(basename $@).o $(CFLAGS) $<
+
+-include $(addsuffix .d,$(BENCH-TESTS))
+
+$(addprefix run-,$(BENCH-TESTS)): run-%: % record
+	time ./$<
+
+bench: $(addprefix run-,$(BENCH-TESTS))
+
+record: genRecord.sh
+	./genRecord.sh
 
 clean:
-	rm -rf parallelCal vectorMultiply externalCal *.o ./record/
+	$(RM) $(BENCH-TESTS) *.o *.d ./record/*
+	rmdir record

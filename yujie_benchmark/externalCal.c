@@ -6,6 +6,7 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 #include <pthread.h>
@@ -30,7 +31,7 @@ int sum = 0;
 
 int itr = RECORD_SIZE / 16;
 
-void external_calculate(void *arg) {
+void *external_calculate(void *arg) {
   int i = 0, j = 0, k = 0;
   int n = *((int *)arg);
 
@@ -59,6 +60,8 @@ void external_calculate(void *arg) {
     }
     fclose(f);
   }
+
+  return NULL;
 }
 
 void verify() {
@@ -103,7 +106,7 @@ int main(int argc, char **argv) {
   if (argc == 1) {
     thread_num = DEFAULT_THREAD_NUM;
   } else {
-    if (argv[1] < 1) {
+    if (atoi(argv[1]) < 1) {
       printf("enter a valid thread number\n");
       return 0;
     } else

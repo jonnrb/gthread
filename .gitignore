@@ -8,3 +8,5 @@ yujie_benchmark/externalCal
 yujie_benchmark/parallelCal
 yujie_benchmark/vectorMultiply
 libmy_pthread.a
+*.d
+*.o

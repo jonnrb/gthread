@@ -25,7 +25,7 @@ int s[VECTOR_SIZE];
 int res = 0;
 
 /* A CPU-bound task to do vector multiplication */
-void vector_multiply(void* arg) {
+void* vector_multiply(void* arg) {
   int i = 0;
   int n = *((int*)arg);
 
@@ -34,6 +34,8 @@ void vector_multiply(void* arg) {
     res += r[i] * s[i];
     pthread_mutex_unlock(&mutex);
   }
+
+  return NULL;
 }
 
 void verify() {
@@ -51,7 +53,7 @@ int main(int argc, char** argv) {
   if (argc == 1) {
     thread_num = DEFAULT_THREAD_NUM;
   } else {
-    if (argv[1] < 1) {
+    if (atoi(argv[1]) < 1) {
       printf("enter a valid thread number\n");
       return 0;
     } else
