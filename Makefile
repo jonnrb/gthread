@@ -45,19 +45,14 @@ libs: $(STATIC-LIBS)
 
 
 
-libmy_pthread.a: $(LIB-OBJECTS)
+libmy_pthread.a: $(LIB-OBJECTS) my_pthread_t.h
 	@$(call build_and_check, $(AR) rcs $@ $^)
 
 bench: libmy_pthread.a
-	@cd yujie_benchmark             && \
-		make clean && make            && \
-		./genRecord.sh                && \
-		echo "Running externalCal"    && \
-		time ./externalCal            && \
-		echo "Running parallelCal"    && \
-		time ./parallelCal            && \
-		echo "Running vectorMultiply" && \
-		time ./vectorMultiply
+	@cd yujie_benchmark    && \
+	 make clean >/dev/null && \
+	 make all >/dev/null   && \
+	 make bench
 
 
 
