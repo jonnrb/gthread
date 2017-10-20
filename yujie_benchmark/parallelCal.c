@@ -2,6 +2,7 @@
 // Author:	Yujie REN
 // Date:	09/23/2017
 
+#include <assert.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -10,7 +11,7 @@
 
 #include "../my_pthread_t.h"
 
-#define DEFAULT_THREAD_NUM 4
+#define DEFAULT_THREAD_NUM 1024
 
 #define C_SIZE 100000
 #define R_SIZE 1000
@@ -91,17 +92,17 @@ int main(int argc, char** argv) {
   memset(&pSum, 0, R_SIZE * sizeof(int));
 
   // mutex init
-  pthread_mutex_init(&mutex, NULL);
+  assert(!pthread_mutex_init(&mutex, NULL));
 
   for (i = 0; i < thread_num; ++i)
-    pthread_create(&thread[i], NULL, &parallel_calculate, &counter[i]);
+    assert(!pthread_create(&thread[i], NULL, &parallel_calculate, &counter[i]));
 
-  for (i = 0; i < thread_num; ++i) pthread_join(thread[i], NULL);
+  for (i = 0; i < thread_num; ++i) assert(!pthread_join(thread[i], NULL));
 
   printf("sum is: %d\n", sum);
 
   // mutex destroy
-  pthread_mutex_destroy(&mutex);
+  assert(!pthread_mutex_destroy(&mutex));
 
   // feel free to verify your answer here:
   verify();

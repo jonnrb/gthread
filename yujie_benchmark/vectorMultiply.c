@@ -2,6 +2,7 @@
 // Author:	Yujie REN
 // Date:	09/23/2017
 
+#include <assert.h>
 #include <stdio.h>
 #include <unistd.h>
 
@@ -9,9 +10,9 @@
 
 #include "../my_pthread_t.h"
 
-#define DEFAULT_THREAD_NUM 2
+#define DEFAULT_THREAD_NUM 1000
 
-#define VECTOR_SIZE 1000
+#define VECTOR_SIZE 1000000
 
 pthread_mutex_t mutex;
 
@@ -73,16 +74,16 @@ int main(int argc, char** argv) {
     s[i] = i;
   }
 
-  pthread_mutex_init(&mutex, NULL);
+  assert(!pthread_mutex_init(&mutex, NULL));
 
   for (i = 0; i < thread_num; ++i)
-    pthread_create(&thread[i], NULL, &vector_multiply, &counter[i]);
+    assert(!pthread_create(&thread[i], NULL, &vector_multiply, &counter[i]));
 
   for (i = 0; i < thread_num; ++i) pthread_join(thread[i], NULL);
 
   printf("res is: %d\n", res);
 
-  pthread_mutex_destroy(&mutex);
+  assert(!pthread_mutex_destroy(&mutex));
 
   // feel free to verify your answer here:
   verify();
