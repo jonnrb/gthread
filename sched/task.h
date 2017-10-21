@@ -30,6 +30,9 @@ typedef struct gthread_task {
 
   struct gthread_task* joiner;
   uint64_t run_state;
+
+  gthread_entry_t* entry;
+  void* arg;
   void* return_value;
 
   gthread_saved_ctx_t ctx;
@@ -45,7 +48,11 @@ typedef struct gthread_task {
 // constructs a stack and sets |task| to default values.
 gthread_task_t* gthread_task_construct(gthread_attr_t* attrs);
 
-int gthread_task_start(gthread_task_t* task, gthread_entry_t* entry, void* arg);
+typedef void gthread_task_divingboard_t(void*);
+
+// quickly starts |task| and switches back to the caller. meant to just get
+// things primed.
+int gthread_task_start(gthread_task_t* task);
 
 int gthread_task_reset(gthread_task_t* task);
 
@@ -54,7 +61,7 @@ void gthread_task_destruct(gthread_task_t* task);
 static inline gthread_task_t* gthread_task_current();
 
 // suspends the currently running task and switches to |task|.
-int gthread_switch_to_task(gthread_task_t* task);
+int gthread_task_switch_to(gthread_task_t* task);
 
 typedef gthread_task_t* gthread_task_time_slice_trap_t(gthread_task_t*);
 
@@ -63,9 +70,7 @@ int gthread_task_set_time_slice_trap(gthread_task_time_slice_trap_t* trap,
 
 typedef void gthread_task_end_handler_t(gthread_task_t*);
 
-int gthread_task_set_end_handler(gthread_task_end_handler_t* task_end_handler);
-
-void gthread_task_module_init();
+void gthread_task_set_end_handler(gthread_task_end_handler_t handler);
 
 #include "sched/task_inline.h"
 

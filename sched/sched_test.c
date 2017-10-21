@@ -13,14 +13,14 @@
 
 #include "platform/clock.h"
 
-#define k_num_threads 512
+#define k_num_threads 5000
 
 static gthread_sched_handle_t threads[k_num_threads] = {NULL};
 
 void* test_thread(void* arg) {
   uint64_t i = (uint64_t)arg;
   for (uint64_t s = gthread_clock_process();
-       gthread_clock_process() - s < (uint64_t)3 * 1000 * 1000 * 1000;) {
+       gthread_clock_process() - s < (uint64_t)1000 * 1000 * 1000;) {
     gthread_sched_yield();
   }
   gthread_sched_exit((void*)(i + 1));

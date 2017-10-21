@@ -10,6 +10,7 @@
 #include "arch/atomic.h"
 #include "gthread.h"
 #include "platform/memory.h"
+#include "util/log.h"
 #include "util/rb.h"
 
 // task representing the initial context of execution.
@@ -24,6 +25,8 @@ static int g_timer_enabled = 0;
 static gthread_task_time_slice_trap_t* g_time_slice_trap = NULL;
 
 uint64_t gthread_task_is_root_task_init = false;
+
+void gthread_task_module_init();
 
 gthread_task_t* gthread_task_construct(gthread_attr_t* attrs) {
   gthread_tls_t tls = gthread_tls_allocate();
@@ -65,29 +68,24 @@ static inline void reset_timer_and_record_time(gthread_task_t* task) {
   }
 }
 
-typedef struct _entry_point {
-  gthread_task_t* task;
-  gthread_entry_t* entry;
-  void* arg;
-} entry_point_t;
+// root of task stack trace! :)
+static void gthread_task_entry(void* arg) {
+  // swtich back to the starter to clean up
+  gthread_saved_ctx_t** from_and_to = (gthread_saved_ctx_t**)arg;
+  gthread_switch_to(from_and_to[0], from_and_to[1]);
 
-static void task_entry(void* arg) {
-  entry_point_t* entry_point = (entry_point_t*)arg;
-
-  entry_point->task->run_state = GTHREAD_TASK_RUNNING;
-  entry_point->task->return_value = entry_point->entry(entry_point->arg);
-  entry_point->task->run_state = GTHREAD_TASK_STOPPED;
-
-  if (g_task_end_handler) {
-    g_task_end_handler(entry_point->task);
-  }
+  // when we are here, tls should be set up
+  gthread_task_t* current = gthread_task_current();
+  current->run_state = GTHREAD_TASK_RUNNING;
+  current->return_value = current->entry(current->arg);
+  g_task_end_handler(current);
 }
 
-int gthread_task_start(gthread_task_t* task, gthread_entry_t* entry,
-                       void* arg) {
-  if (task == gthread_task_current()) {
-    assert(0);  // DO NOT SUBMIT: test for now
-    return 0;
+int gthread_task_start(gthread_task_t* task) {
+  gthread_task_t* current = gthread_task_current();
+
+  if (branch_unexpected(task == current)) {
+    gthread_log_fatal("cannot start current task from the current task!");
   }
 
   // slow path on being the first call in this module
@@ -95,33 +93,11 @@ int gthread_task_start(gthread_task_t* task, gthread_entry_t* entry,
     gthread_task_module_init();
   }
 
-  reset_timer_and_record_time(gthread_task_current());
+  gthread_saved_ctx_t* new_and_cur[2] = {&task->ctx, &current->ctx};
+  gthread_switch_to_and_spawn(&current->ctx, &current->ctx, task->stack,
+                              gthread_task_entry, new_and_cur);
+  task->run_state = GTHREAD_TASK_SUSPENDED;
 
-  if (!gthread_cas(&g_lock, 0, 1)) return -1;
-
-  gthread_task_t* prev_task = gthread_task_current();
-
-  // switch tls contexts. officially in the new context.
-  gthread_tls_use(task->tls);
-
-  // if the task sets its own `run_state`, respect that value
-  if (prev_task->run_state == GTHREAD_TASK_RUNNING) {
-    prev_task->run_state = GTHREAD_TASK_SUSPENDED;
-  }
-
-  // grab an `entry_point_t` sized space before the stack
-  entry_point_t* entry_point = &((entry_point_t*)task->stack)[-1];
-  entry_point->task = task;
-  entry_point->entry = entry;
-  entry_point->arg = arg;
-
-  // 16-byte aligned
-  void* stack_head = (void*)((size_t)entry_point & ~((size_t)0xF));
-
-  g_lock = 0;
-  gthread_switch_to_and_spawn(&prev_task->ctx, &prev_task->ctx, stack_head,
-                              task_entry, (void*)entry_point);
-  prev_task->run_state = GTHREAD_TASK_RUNNING;
   return 0;
 }
 
@@ -179,7 +155,7 @@ static int switch_to_task(gthread_task_t* task, uint64_t* elapsed) {
   return 0;
 }
 
-int gthread_switch_to_task(gthread_task_t* task) {
+int gthread_task_switch_to(gthread_task_t* task) {
   return switch_to_task(task, NULL);
 }
 
@@ -206,14 +182,12 @@ int gthread_task_set_time_slice_trap(gthread_task_time_slice_trap_t* trap,
   return gthread_timer_set_interval(usec);
 }
 
-int gthread_set_task_end_handler(gthread_task_end_handler_t* task_end_handler) {
-  g_task_end_handler = task_end_handler;
-  return 0;
+void gthread_task_set_end_handler(gthread_task_end_handler_t handler) {
+  g_task_end_handler = handler;
 }
 
-int gthread_task_set_end_handler(gthread_task_end_handler_t* task_end_handler) {
-  g_task_end_handler = task_end_handler;
-  return 0;
+static void default_task_end_handler(gthread_task_t* _) {
+  gthread_log_fatal("no task end handler set!");
 }
 
 void gthread_task_module_init() {
@@ -226,5 +200,9 @@ void gthread_task_module_init() {
     gthread_rb_construct(&g_root_task.rb_node);
 
     gthread_tls_set_thread(g_root_task.tls, &g_root_task);
+
+    if (g_task_end_handler == NULL) {
+      gthread_task_set_end_handler(default_task_end_handler);
+    }
   }
 }

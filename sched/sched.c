@@ -15,19 +15,20 @@
 #include "platform/clock.h"
 #include "platform/memory.h"
 #include "util/compiler.h"
+#include "util/log.h"
 #include "util/rb.h"
 
 #define k_pointer_lock ((uint64_t)-1)
 
 static uint64_t g_is_sched_init = 0;
 
+uint64_t g_interrupt_lock = 0;
+
 /**
  * tasks that can be switched to with the expectation that they will make
  * progress
  */
-static uint64_t g_runqueue_lock = 0;
 static gthread_rb_tree_t g_runqueue = NULL;
-static gthread_rb_tree_t g_next_runqueue = NULL;
 
 /**
  * `g_next_sleepqueue_wake` has the next time at which the `g_sleepqueue`
@@ -46,61 +47,106 @@ static gthread_task_t* g_freelist[k_freelist_size] = {NULL};
 static uint64_t min_vruntime = 0;
 
 #ifdef GTHREAD_SCHED_COLLECT_STATS
+
 #ifndef GTHREAD_SCHED_STATS_INTERVAL
 #define GTHREAD_SCHED_STATS_INTERVAL ((uint64_t)5 * 1000 * 1000 * 1000)
 #endif  // GTHREAD_SCHED_STATS_INTERVAL
 
 static struct {
   uint64_t start_time;
+  uint64_t cur_start_time;
   uint64_t used_time;
-} stats;
+} g_stats;
+
+static inline void maybe_start_stats_interval() {
+  g_stats.cur_start_time = gthread_clock_process();
+}
+
+static inline void maybe_end_stats_interval() {
+  g_stats.used_time += gthread_clock_process() - g_stats.cur_start_time;
+}
+
+static void* print_stats(void* _) {
+  fprintf(stderr, "printing scheduler stats every %.3fs\n",
+          GTHREAD_SCHED_STATS_INTERVAL / (double)(1000 * 1000 * 1000));
+  fflush(stderr);
+
+  uint64_t now = gthread_clock_process();
+  uint64_t last = now;
+
+  while (true) {
+    if (now - last < (uint64_t)5 * 1000 * 1000 * 1000) {
+      gthread_sched_yield();
+      now = gthread_clock_process();
+      continue;
+    }
+    last = now;
+
+    fprintf(stderr, "process time since sched start   %.12" PRIu64 "\n",
+            now - g_stats.start_time);
+    fprintf(stderr, "process time spent in scheduler  %.12" PRIu64 "\n",
+            g_stats.used_time);
+    fprintf(stderr, "ratio spent in scheduler         %.9f\n",
+            (double)g_stats.used_time / now);
+    fflush(stderr);
+  }
+}
+
+static inline int maybe_init_stats() {
+  g_stats.start_time = gthread_clock_process();
+  g_stats.used_time = 0;
+
+  static gthread_sched_handle_t stats_handle = NULL;
+  if (gthread_sched_spawn(&stats_handle, NULL, print_stats, NULL)) {
+    return -1;
+  }
+
+  return 0;
+}
+
+#else
+
+static inline void maybe_start_stats_interval() {}
+static inline void maybe_end_stats_interval() {}
+static inline int maybe_init_stats() { return 0; }
+
 #endif  // GTHREAD_SCHED_COLLECT_STATS
 
 /**
- * pushes the |last_running_task| to the `g_next_runqueue` if it is in a
- * runnable state and pops the task with the least virtual runtime from
- * `g_runqueue` to return
- *
- * if `g_runqueue` is empty, `g_next_runqueue` is swapped in
+ * pushes the |last_running_task| to the `g_runqueue` if it is in a runnable
+ * state and pops the task with the least virtual runtime from `g_runqueue`
+ * to return
  */
 static inline gthread_task_t* sched(gthread_task_t* last_running_task) {
-#ifdef GTHREAD_SCHED_COLLECT_STATS
-  uint64_t start = gthread_clock_process();
-#endif  // GTHREAD_SCHED_COLLECT_STATS
+  maybe_start_stats_interval();
 
   // if for some reason, a task that was about to switch gets interrupted,
   // switch to that task
-  if (branch_unexpected(!gthread_cas(&g_runqueue_lock, 0, k_pointer_lock))) {
-    if (g_runqueue_lock == k_pointer_lock) {
-      printf(
-          "contention on rb tree from uninterruptable code!\n"
-          "scheduler is running for wayyyyy too long (bug?)\n");
-      abort();
+  if (branch_unexpected(!gthread_cas(&g_interrupt_lock, 0, k_pointer_lock))) {
+    if (g_interrupt_lock == k_pointer_lock) {
+      gthread_log_fatal(
+          "scheduler was interrupted by itself! this should be impossible. "
+          "bug???");
     }
-    fprintf(stderr, "scheduler contention\n");
-    return (gthread_task_t*)g_runqueue_lock;
+    maybe_end_stats_interval();
+    return (gthread_task_t*)g_interrupt_lock;
   }
 
   // if the task was in a runnable state when the scheduler was invoked, push it
   // to the runqueue
   if (last_running_task->run_state == GTHREAD_TASK_RUNNING) {
-    gthread_rb_push(&g_next_runqueue, &last_running_task->rb_node);
+    gthread_rb_push(&g_runqueue, &last_running_task->rb_node);
   }
 
-  if (g_runqueue == NULL) {
-    g_runqueue = g_next_runqueue;
-    g_next_runqueue = NULL;
-  }
   gthread_rb_node_t* node = gthread_rb_pop_min(&g_runqueue);
 
-  g_runqueue_lock = 0;
+  g_interrupt_lock = 0;
 
   // XXX: remove the assumption that the runqueue is never empty. this is true
   // if all tasks are sleeping and there is actually nothing to do. right now
   // it is impossible to be in this state without some sort of deadlock.
   if (branch_unexpected(node == NULL)) {
-    printf("nothing to do. deadlock?\n");
-    abort();
+    gthread_log_fatal("nothing to do. deadlock?");
   }
 
   gthread_task_t* next_task = container_of(node, gthread_task_t, rb_node);
@@ -112,9 +158,7 @@ static inline gthread_task_t* sched(gthread_task_t* last_running_task) {
     min_vruntime = next_task->vruntime;
   }
 
-#ifdef GTHREAD_SCHED_COLLECT_STATS
-  stats.used_time += gthread_clock_process() - start;
-#endif  // GTHREAD_SCHED_COLLECT_STATS
+  maybe_end_stats_interval();
 
   return next_task;
 }
@@ -122,32 +166,29 @@ static inline gthread_task_t* sched(gthread_task_t* last_running_task) {
 static gthread_task_t* make_task(gthread_attr_t* attr) {
   gthread_task_t* task;
 
-#ifdef GTHREAD_SCHED_COLLECT_STATS
-  uint64_t start = gthread_clock_process();
-#endif  // GTHREAD_SCHED_COLLECT_STATS
+  maybe_start_stats_interval();
 
   // try to grab a task from the freelist
   if (g_freelist_w - g_freelist_r > 0) {
     uint64_t pos = g_freelist_r;
     task = g_freelist[pos % k_freelist_size];
     if (branch_unexpected(!gthread_cas(&g_freelist_r, pos, pos + 1))) {
-      fprintf(stderr, "reader contention on single reader circular buffer!\n");
-      abort();
+      gthread_log_fatal("reader contention on single reader circular buffer!");
     }
     gthread_task_reset(task);
     task->vruntime = min_vruntime;
+    maybe_end_stats_interval();
     return task;
   }
 
   task = gthread_task_construct(attr);
   if (branch_unexpected(task == NULL)) {
     perror("task construction failed");
+    maybe_end_stats_interval();
     return NULL;
   }
 
-#ifdef GTHREAD_SCHED_COLLECT_STATS
-  stats.used_time += gthread_clock_process() - start;
-#endif  // GTHREAD_SCHED_COLLECT_STATS
+  maybe_end_stats_interval();
 
   return task;
 }
@@ -162,51 +203,17 @@ static void return_task(gthread_task_t* task) {
   }
 }
 
-#ifdef GTHREAD_SCHED_COLLECT_STATS
-static void* print_stats(void* _) {
-  printf("printing scheduler stats every %.3fs\n",
-         GTHREAD_SCHED_STATS_INTERVAL / (double)(1000 * 1000 * 1000));
-
-  uint64_t now = gthread_clock_process();
-  uint64_t last = now;
-
-  while (true) {
-    if (now - last < (uint64_t)5 * 1000 * 1000 * 1000) {
-      gthread_sched_yield();
-      now = gthread_clock_process();
-      continue;
-    }
-    last = now;
-
-    printf("process time since sched start   %.12" PRIu64 "\n",
-           now - stats.start_time);
-    printf("process time spent in scheduler  %.12" PRIu64 "\n",
-           stats.used_time);
-    printf("ratio spent in scheduler         %.9f\n",
-           (double)stats.used_time / now);
-  }
-}
-#endif  // GTHREAD_SCHED_COLLECT_STATS
-
 static void task_end_handler(gthread_task_t* task) {
   gthread_sched_exit(task->return_value);
 }
 
-int gthread_sched_init() {
+static inline int init_sched_module() {
   if (!gthread_cas(&g_is_sched_init, 0, 1)) return -1;
 
   gthread_task_set_time_slice_trap(sched, 50 * 1000);
   gthread_task_set_end_handler(task_end_handler);
 
-#ifdef GTHREAD_SCHED_COLLECT_STATS
-  stats.start_time = gthread_clock_process();
-  stats.used_time = 0;
-
-  static gthread_sched_handle_t stats_handle = NULL;
-  if (gthread_sched_spawn(&stats_handle, NULL, print_stats, NULL)) {
-    return -1;
-  }
-#endif  // GTHREAD_SCHED_COLLECT_STATS
+  if (maybe_init_stats()) return -1;
 
   return 0;
 }
@@ -216,50 +223,51 @@ int gthread_sched_yield() {
   return gthread_timer_alarm_now();
 }
 
-// int64_t gthread_sched_nanosleep(uint64_t ns) {
-//   if (!g_is_sched_init) return -1;
-//
-//   gthread_task_t* current = gthread_task_current();
-//
-//   while (!gthread_cas(&g_runqueue_lock, 0, (uint64_t)current)) {
-//     printf("contention on rb tree from uninterruptable code!\n");
-//     abort();
-//   }
-//
-//   g_runqueue_lock = 0;
-// }
+// TODO: this would be nice (nanosleep sleeps the whole process)
+// int64_t gthread_sched_nanosleep(uint64_t ns) {}
 
 int gthread_sched_spawn(gthread_sched_handle_t* handle, gthread_attr_t* attr,
                         gthread_entry_t* entry, void* arg) {
-  if (handle == NULL || entry == NULL) {
+  if (branch_unexpected(handle == NULL || entry == NULL)) {
     errno = EINVAL;
     return -1;
   }
 
   if (branch_unexpected(!g_is_sched_init)) {
-    if (gthread_sched_init()) return -1;
+    if (init_sched_module()) return -1;
   }
 
   gthread_task_t* task = make_task(attr);
-  gthread_task_t* current = gthread_task_current();
+  task->entry = entry;
+  task->arg = arg;
 
-  while (!gthread_cas(&g_runqueue_lock, 0, (uint64_t)current)) {
-    printf("contention on rb tree from uninterruptable code!\n");
-    abort();
-  }
-  gthread_rb_push(&g_next_runqueue, &current->rb_node);
-  g_runqueue_lock = 0;
-
-  if (gthread_task_start(task, entry, arg)) {
+  if (branch_unexpected(gthread_task_start(task))) {
     return -1;
   }
 
-  *handle = task;
+  gthread_sched_uninterruptable_lock();
+  gthread_rb_push(&g_runqueue, &task->rb_node);
+  gthread_sched_uninterruptable_unlock();
 
+  *handle = task;
   return 0;
 }
 
-// wait for thread termination
+/**
+ * waits for |thread| to finish
+ *
+ * cleans up |thread|'s memory after it has returned
+ *
+ * implementation details:
+ *
+ * this function is very basic except for a race condition. the |thread|'s
+ * `joiner` property is used as a lock to prevent the race condition from
+ * leaving something possibly permanently descheduled.
+ *
+ * if |thread| has already exited, the function runs without blocking. however,
+ * if |thread| is still running, the `joiner` flag is locked to the current
+ * task and this task will deschedule itself.
+ */
 int gthread_sched_join(gthread_sched_handle_t thread, void** return_value) {
   // flag to |thread| that you are the joiner
   while (
@@ -296,9 +304,17 @@ int gthread_sched_join(gthread_sched_handle_t thread, void** return_value) {
   return 0;
 }
 
+/**
+ * immediately exits the current thread with return value |return_value|
+ */
 void gthread_sched_exit(void* return_value) {
   gthread_task_t* current = gthread_task_current();
   gthread_task_t* joiner = NULL;
+
+  // indicative that the current task is the root task. abort reallly hard.
+  if (branch_unexpected(current->stack == NULL)) {
+    gthread_log_fatal("cannot exit from the root task!");
+  }
 
   // lock the joiner with a flag
   if (!gthread_cas((uint64_t*)&current->joiner, (uint64_t)NULL,
@@ -310,13 +326,17 @@ void gthread_sched_exit(void* return_value) {
   current->run_state = GTHREAD_TASK_STOPPED;  // deschedule permanently
 
   if (joiner != NULL) {
-    if (branch_unexpected(
-            !gthread_cas(&g_runqueue_lock, 0, (uint64_t)current))) {
-      printf("contention on rb tree from uninterruptable code!\n");
-      abort();
+    // consider the very weird case where join() locked `joiner` but hasn't
+    // descheduled itself yet. it would be verrrryyy bad to put something in
+    // the tree twice. if this task is running and `joiner` is in the waiting
+    // state, it must be descheduled.
+    while (branch_unexpected(joiner->run_state != GTHREAD_TASK_WAITING)) {
+      gthread_sched_yield();
     }
-    gthread_rb_push(&g_next_runqueue, &joiner->rb_node);
-    g_runqueue_lock = 0;
+
+    gthread_sched_uninterruptable_lock();
+    gthread_rb_push(&g_runqueue, &joiner->rb_node);
+    gthread_sched_uninterruptable_unlock();
   } else {
     // if there wasn't a joiner that suspended itself, we entered a critical
     // section and we should unlock
