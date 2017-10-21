@@ -38,7 +38,8 @@ typedef gthread_sched_handle_t my_pthread_t;
 
 typedef gthread_mutex_t my_pthread_mutex_t;
 
-static inline int my_pthread_create(my_pthread_t* thread, pthread_attr_t* attr,
+static inline int my_pthread_create(my_pthread_t* thread,
+                                    const pthread_attr_t* attr,
                                     void* (*function)(void*), void* arg) {
   // |attr| is NULL by spec
   return gthread_sched_spawn(thread, NULL, function, arg);
