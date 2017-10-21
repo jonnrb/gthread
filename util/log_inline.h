@@ -8,11 +8,14 @@
 #ifndef UTIL_LOG_INLINE_H_
 #define UTIL_LOG_INLINE_H_
 
-#include <stdio.h>
+#include <iostream>
 
-static inline void gthread_log_fatal(const char* message_of_death) {
-  fprintf(stderr, "%s\n", message_of_death);
-  fflush(stderr);
+static inline void gthread_log(std::string message) {
+  std::cerr << message << std::endl;
+}
+
+static inline void gthread_log_fatal(std::string message_of_death) {
+  std::cerr << message_of_death << std::endl;
   abort();
 }
 

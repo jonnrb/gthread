@@ -1,7 +1,7 @@
 /**
  * author: JonNRb <jonbetti@gmail.com>
  * license: MIT
- * file: @gthread//arch/switch_to_test.c
+ * file: @gthread//arch/switch_to_test.cc
  * info: tests switching between and spawning new contexts
  */
 

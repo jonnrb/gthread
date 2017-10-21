@@ -1,7 +1,7 @@
 /**
  * author: Khalid Akash, JonNRb <jonbetti@gmail.com>
  * license: MIT
- * file: @gthread//concur/mutex_test.c
+ * file: @gthread//concur/mutex_test.cc
  * info: tests mutex by locking and unlocking in a tight loop across threads
  */
 

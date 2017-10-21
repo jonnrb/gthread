@@ -1,7 +1,7 @@
 /**
  * author: JonNRb <jonbetti@gmail.com>
  * license: MIT
- * file: @gthread//util/list_test.c
+ * file: @gthread//util/list_test.cc
  * info: test circular linked list as a queue
  */
 

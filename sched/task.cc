@@ -1,13 +1,14 @@
 /**
  * author: JonNRb <jonbetti@gmail.com>
  * license: MIT
- * file: @gthread//sched/task.c
+ * file: @gthread//sched/task.cc
  * info: generic task switching functions for a scheduler
  */
 
 #include "sched/task.h"
 
-#include "arch/atomic.h"
+#include <atomic>
+
 #include "gthread.h"
 #include "platform/memory.h"
 #include "util/log.h"
@@ -19,12 +20,12 @@ static gthread_task_t g_root_task = {0};
 static gthread_task_end_handler_t* g_task_end_handler = NULL;
 
 // task switching MUST not be reentrant.
-static uint64_t g_lock = 0;
+static std::atomic<bool> g_lock = ATOMIC_VAR_INIT(false);
 
 static int g_timer_enabled = 0;
 static gthread_task_time_slice_trap_t* g_time_slice_trap = NULL;
 
-uint64_t gthread_task_is_root_task_init = false;
+std::atomic<bool> gthread_task_is_root_task_init = ATOMIC_VAR_INIT(false);
 
 void gthread_task_module_init();
 
@@ -32,7 +33,8 @@ gthread_task_t* gthread_task_construct(gthread_attr_t* attrs) {
   gthread_tls_t tls = gthread_tls_allocate();
   if (tls == NULL) return NULL;
 
-  gthread_task_t* task = gthread_allocate(sizeof(gthread_task_t));
+  gthread_task_t* task =
+      (gthread_task_t*)gthread_allocate(sizeof(gthread_task_t));
   if (task == NULL) {
     gthread_tls_free(tls);
     return NULL;
@@ -141,7 +143,8 @@ static int switch_to_task(gthread_task_t* task, uint64_t* elapsed) {
     gthread_task_module_init();
   }
 
-  if (!gthread_cas(&g_lock, 0, 1)) return -1;
+  bool expected = false;
+  if (!g_lock.compare_exchange_strong(expected, true)) return -1;
 
   // if the task sets its own `run_state`, respect that value
   if (prev_task->run_state == GTHREAD_TASK_RUNNING) {
@@ -201,9 +204,12 @@ static void default_task_end_handler(gthread_task_t* _) {
 }
 
 void gthread_task_module_init() {
-  if (branch_unexpected(
-          !gthread_task_is_root_task_init &&
-          gthread_cas(&gthread_task_is_root_task_init, false, true))) {
+  bool expected = false;
+  if (branch_unexpected(!gthread_task_is_root_task_init &&
+                        gthread_task_is_root_task_init.compare_exchange_strong(
+                            expected, true))) {
+    g_lock = false;
+
     // most of struct is zero-initialized
     g_root_task.tls = gthread_tls_current();
     g_root_task.run_state = GTHREAD_TASK_RUNNING;

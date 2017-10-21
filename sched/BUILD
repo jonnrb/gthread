@@ -8,7 +8,7 @@ package(default_visibility = ["//:__subpackages__"])
 cc_library(
     name = "task",
     srcs = [
-        "task.c",
+        "task.cc",
         "task_inline.h",
     ],
     hdrs = ["task.h"],
@@ -23,7 +23,7 @@ cc_library(
 cc_library(
     name = "sched",
     srcs = [
-        "sched.c",
+        "sched.cc",
         "sched_inline.h",
     ],
     hdrs = ["sched.h"],
@@ -38,6 +38,6 @@ cc_library(
 
 cc_test(
     name = "sched_test",
-    srcs = ["sched_test.c"],
+    srcs = ["sched_test.cc"],
     deps = [":sched"],
 )

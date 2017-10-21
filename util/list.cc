@@ -1,7 +1,7 @@
 /**
  * author: JonNRb <jonbetti@gmail.com>
  * license: MIT
- * file: @gthread//util/list.c
+ * file: @gthread//util/list.cc
  * info: circular linked list that functions as a queue (not thread-safe)
  */
 

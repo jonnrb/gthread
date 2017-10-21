@@ -1,7 +1,7 @@
 /**
  * author: JonNRb <jonbetti@gmail.com>
  * license: MIT
- * file: @gthread//platform/memory_macos.c
+ * file: @gthread//platform/memory_macos.cc
  * info: implements macOS specific functionality
  */
 

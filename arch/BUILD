@@ -8,21 +8,9 @@ package(default_visibility = ["//:__subpackages__"])
 cc_library(
     name = "arch",
     deps = [
-        ":atomic",
         ":bit_twiddle",
         ":switch_to",
     ],
-)
-
-cc_inc_library(
-    name = "atomic",
-    hdrs = ["atomic.h"],
-)
-
-cc_test(
-    name = "atomic_test",
-    srcs = ["atomic_test.c"],
-    deps = [":atomic"],
 )
 
 cc_inc_library(
@@ -44,7 +32,10 @@ cc_library(
 
 cc_test(
     name = "switch_to_test",
-    srcs = ["switch_to_test.c"],
+    srcs = ["switch_to_test.cc"],
+    copts = [
+        "-Wdeprecated-declarations",  # uses ucontext.h which is deprecated
+    ],
     deps = [
         ":switch_to",
         "//platform",

@@ -1,7 +1,7 @@
 /**
  * author: JonNRb <jonbetti@gmail.com>
  * license: MIT
- * file: @gthread//platform/timer_test.c
+ * file: @gthread//platform/timer_test.cc
  * info: test platform timer utilities
  */
 

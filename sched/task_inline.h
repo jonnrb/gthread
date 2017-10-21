@@ -8,12 +8,14 @@
 #ifndef SCHED_TASK_INLINE_H_
 #define SCHED_TASK_INLINE_H_
 
+#include <atomic>
+
 #include "platform/tls.h"
 #include "util/compiler.h"
 
 static inline gthread_task_t* gthread_task_current() {
   extern void gthread_task_module_init();
-  extern uint64_t gthread_task_is_root_task_init;
+  extern std::atomic<bool> gthread_task_is_root_task_init;
 
   // slow path on being the first call in this module
   if (branch_unexpected(!gthread_task_is_root_task_init)) {

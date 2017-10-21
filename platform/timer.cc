@@ -1,7 +1,7 @@
 /**
  * author: JonNRb <jonbetti@gmail.com>
  * license: MIT
- * file: @gthread//platform/timer_posix.c
+ * file: @gthread//platform/timer.cc
  * info: platform timer utilities
  */
 

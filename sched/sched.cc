@@ -1,7 +1,7 @@
 /**
  * author: JonNRb <jonbetti@gmail.com>, Matthew Handzy <matthewhandzy@gmail.com>
  * license: MIT
- * file: @gthread//sched/sched.c
+ * file: @gthread//sched/sched.cc
  * info: scheduler for uniprocessors
  */
 
@@ -10,19 +10,19 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
+#include <atomic>
 
-#include "arch/atomic.h"
 #include "platform/clock.h"
 #include "platform/memory.h"
 #include "util/compiler.h"
 #include "util/log.h"
 #include "util/rb.h"
 
-#define k_pointer_lock ((uint64_t)-1)
+#define k_pointer_lock ((gthread_task_t*)-1)
 
-static uint64_t g_is_sched_init = 0;
+std::atomic<bool> g_is_sched_init = ATOMIC_VAR_INIT(false);
 
-uint64_t g_interrupt_lock = 0;
+std::atomic<gthread_task_t*> g_interrupt_lock = ATOMIC_VAR_INIT(nullptr);
 
 /**
  * tasks that can be switched to with the expectation that they will make
@@ -122,14 +122,16 @@ static inline gthread_task_t* sched(gthread_task_t* last_running_task) {
 
   // if for some reason, a task that was about to switch gets interrupted,
   // switch to that task
-  if (branch_unexpected(!gthread_cas(&g_interrupt_lock, 0, k_pointer_lock))) {
-    if (g_interrupt_lock == k_pointer_lock) {
+  gthread_task_t* waiter = nullptr;
+  if (branch_unexpected(
+          !g_interrupt_lock.compare_exchange_strong(waiter, k_pointer_lock))) {
+    if (waiter == k_pointer_lock) {
       gthread_log_fatal(
           "scheduler was interrupted by itself! this should be impossible. "
           "bug???");
     }
     maybe_end_stats_interval();
-    return (gthread_task_t*)g_interrupt_lock;
+    return waiter;
   }
 
   // if the task was in a runnable state when the scheduler was invoked, push it
@@ -140,7 +142,7 @@ static inline gthread_task_t* sched(gthread_task_t* last_running_task) {
 
   gthread_rb_node_t* node = gthread_rb_pop_min(&gthread_sched_runqueue);
 
-  g_interrupt_lock = 0;
+  g_interrupt_lock = nullptr;
 
   // XXX: remove the assumption that the runqueue is never empty. this is true
   // if all tasks are sleeping and there is actually nothing to do. right now
@@ -163,6 +165,22 @@ static inline gthread_task_t* sched(gthread_task_t* last_running_task) {
   return next_task;
 }
 
+static void task_end_handler(gthread_task_t* task) {
+  gthread_sched_exit(task->return_value);
+}
+
+static inline int init_sched_module() {
+  bool expected = false;
+  if (!g_is_sched_init.compare_exchange_strong(expected, true)) return -1;
+
+  gthread_task_set_time_slice_trap(sched, 50 * 1000);
+  gthread_task_set_end_handler(task_end_handler);
+
+  if (maybe_init_stats()) return -1;
+
+  return 0;
+}
+
 static gthread_task_t* make_task(gthread_attr_t* attr) {
   gthread_task_t* task;
 
@@ -172,9 +190,7 @@ static gthread_task_t* make_task(gthread_attr_t* attr) {
   if (g_freelist_w - g_freelist_r > 0) {
     uint64_t pos = g_freelist_r;
     task = g_freelist[pos % k_freelist_size];
-    if (branch_unexpected(!gthread_cas(&g_freelist_r, pos, pos + 1))) {
-      gthread_log_fatal("reader contention on single reader circular buffer!");
-    }
+    ++g_freelist_r;
     gthread_task_reset(task);
     task->s.rq.vruntime = min_vruntime;
     maybe_end_stats_interval();
@@ -201,21 +217,6 @@ static void return_task(gthread_task_t* task) {
   } else {
     gthread_task_destruct(task);
   }
-}
-
-static void task_end_handler(gthread_task_t* task) {
-  gthread_sched_exit(task->return_value);
-}
-
-static inline int init_sched_module() {
-  if (!gthread_cas(&g_is_sched_init, 0, 1)) return -1;
-
-  gthread_task_set_time_slice_trap(sched, 50 * 1000);
-  gthread_task_set_end_handler(task_end_handler);
-
-  if (maybe_init_stats()) return -1;
-
-  return 0;
 }
 
 int gthread_sched_yield() {
@@ -270,9 +271,10 @@ int gthread_sched_spawn(gthread_sched_handle_t* handle, gthread_attr_t* attr,
  */
 int gthread_sched_join(gthread_sched_handle_t thread, void** return_value) {
   // flag to |thread| that you are the joiner
-  while (
-      branch_unexpected(!gthread_cas((uint64_t*)&thread->joiner, (uint64_t)NULL,
-                                     (uint64_t)gthread_task_current()))) {
+  for (gthread_task_t* expected = nullptr;
+       branch_unexpected(!thread->joiner.compare_exchange_strong(
+           expected, gthread_task_current()));
+       expected = nullptr) {
     // if the joiner is not NULL and is not locked, something else is joining,
     // which is undefined behavior
     gthread_task_t* current_joiner = thread->joiner;
@@ -309,7 +311,6 @@ int gthread_sched_join(gthread_sched_handle_t thread, void** return_value) {
  */
 void gthread_sched_exit(void* return_value) {
   gthread_task_t* current = gthread_task_current();
-  gthread_task_t* joiner = NULL;
 
   // indicative that the current task is the root task. abort reallly hard.
   if (branch_unexpected(current->stack == NULL)) {
@@ -317,10 +318,8 @@ void gthread_sched_exit(void* return_value) {
   }
 
   // lock the joiner with a flag
-  if (!gthread_cas((uint64_t*)&current->joiner, (uint64_t)NULL,
-                   k_pointer_lock)) {
-    joiner = current->joiner;
-  }
+  gthread_task_t* joiner = nullptr;
+  current->joiner.compare_exchange_strong(joiner, k_pointer_lock);
 
   current->return_value = return_value;       // save |return_value|
   current->run_state = GTHREAD_TASK_STOPPED;  // deschedule permanently

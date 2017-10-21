@@ -30,13 +30,13 @@ cc_library(
 
 cc_library(
     name = "rb",
-    srcs = ["rb.c"],
+    srcs = ["rb.cc"],
     hdrs = ["rb.h"],
 )
 
 cc_test(
     name = "rb_test",
-    srcs = ["rb_test.c"],
+    srcs = ["rb_test.cc"],
     deps = [
         ":rb",
         "//platform:clock",
@@ -45,7 +45,7 @@ cc_test(
 
 cc_library(
     name = "list",
-    srcs = ["list.c"],
+    srcs = ["list.cc"],
     hdrs = ["list.h"],
     deps = [
         ":compiler",
@@ -54,7 +54,7 @@ cc_library(
 
 cc_test(
     name = "list_test",
-    srcs = ["list_test.c"],
+    srcs = ["list_test.cc"],
     deps = [
         ":list",
     ],

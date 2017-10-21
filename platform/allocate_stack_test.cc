@@ -1,7 +1,7 @@
 /**
  * author: JonNRb <jonbetti@gmail.com>
  * license: MIT
- * file: @gthread//platform/allocate_stack_test.c
+ * file: @gthread//platform/allocate_stack_test.cc
  * info: tests stack allocation by allocating a stack and writing to it
  */
 
@@ -32,10 +32,10 @@ int main() {
                                        &total_stack_size));
   printf("%p\n\n", t_attr.stack.addr);
 
-  for (uint64_t *i = t_attr.stack.addr - sizeof(*i);; --i) {
-    if ((char *)t_attr.stack.addr - (char *)i > t_attr.stack.size) {
+  for (uint64_t* i = (uint64_t*)t_attr.stack.addr - 1;; --i) {
+    if ((char*)t_attr.stack.addr - (char*)i > t_attr.stack.size) {
       printf("next should segfault\n");
-      printf("writing to %#tx\n", (char *)t_attr.stack.addr - (char *)i);
+      printf("writing to %#tx\n", (char*)t_attr.stack.addr - (char*)i);
       ok = 1;
     }
     *i = (uint64_t)i;

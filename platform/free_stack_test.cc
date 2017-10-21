@@ -1,7 +1,7 @@
 /**
  * author: JonNRb <jonbetti@gmail.com>
  * license: MIT
- * file: @gthread//platform/free_stack_test.c
+ * file: @gthread//platform/free_stack_test.cc
  * info: tests allocating a stack and then freeing it
  */
 
@@ -33,12 +33,12 @@ int main() {
                                                &total_stack_size));
   printf("size:  0x%zu\n", total_stack_size);
   printf("stack: %p\n", t_attr.stack.addr);
-  printf("base:  %p\n", t_attr.stack.addr - total_stack_size);
+  printf("base:  %p\n", (char*)t_attr.stack.addr - total_stack_size);
 
   // can write to stack now
   ((uint64_t*)t_attr.stack.addr)[-1] = 4;
 
-  assert(!gthread_free_stack(t_attr.stack.addr - total_stack_size,
+  assert(!gthread_free_stack((char*)t_attr.stack.addr - total_stack_size,
                              total_stack_size));
 
   // now we can't

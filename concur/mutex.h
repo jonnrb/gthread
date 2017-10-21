@@ -8,12 +8,14 @@
 #ifndef CONCUR_MUTEX_H_
 #define CONCUR_MUTEX_H_
 
+#include <atomic>
+
 #include "sched/task.h"
 #include "util/list.h"
 
 typedef struct gthread_mutex_data {
   int init;
-  uint64_t lock;
+  std::atomic<bool> lock;
   gthread_task_t *owner;
   gthread_list_t waitqueue;
   uint64_t priority_boost;

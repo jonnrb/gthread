@@ -18,7 +18,7 @@ cc_library(
 cc_library(
     name = "memory",
     srcs = select({
-        "@bazel_tools//src:darwin": ["memory_macos.c"],
+        "@bazel_tools//src:darwin": ["memory_macos.cc"],
     }) + [
         "memory_inline.h",
     ],
@@ -32,19 +32,19 @@ cc_library(
 
 cc_test(
     name = "allocate_stack_test",
-    srcs = ["allocate_stack_test.c"],
+    srcs = ["allocate_stack_test.cc"],
     deps = [":platform"],
 )
 
 cc_test(
     name = "free_stack_test",
-    srcs = ["free_stack_test.c"],
+    srcs = ["free_stack_test.cc"],
     deps = [":platform"],
 )
 
 cc_library(
     name = "clock",
-    srcs = ["clock.c"],
+    srcs = ["clock.cc"],
     hdrs = ["clock.h"],
     deps = [
         "//util:compiler",
@@ -53,7 +53,7 @@ cc_library(
 
 cc_test(
     name = "clock_test",
-    srcs = ["clock_test.c"],
+    srcs = ["clock_test.cc"],
     deps = [
         ":clock",
     ],
@@ -61,9 +61,7 @@ cc_test(
 
 cc_library(
     name = "timer",
-    srcs = select({
-        "@bazel_tools//src:darwin": ["timer_posix.c"],
-    }),
+    srcs = ["timer.cc"],
     hdrs = ["timer.h"],
     deps = [
         ":clock",
@@ -72,7 +70,7 @@ cc_library(
 
 cc_test(
     name = "timer_test",
-    srcs = ["timer_test.c"],
+    srcs = ["timer_test.cc"],
     deps = [":timer"],
 )
 
@@ -80,7 +78,7 @@ cc_library(
     name = "tls",
     srcs = select({
         "@bazel_tools//src:darwin": [
-            "tls_macos.c",
+            "tls_macos.cc",
             "tls_inline_macos.h",
         ],
     }),
@@ -88,12 +86,11 @@ cc_library(
     deps = [
         ":clock",
         ":memory",
-        "//arch:atomic",
     ],
 )
 
 cc_test(
     name = "tls_test",
-    srcs = ["tls_test.c"],
+    srcs = ["tls_test.cc"],
     deps = [":tls"],
 )

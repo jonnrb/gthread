@@ -9,6 +9,7 @@
 #define SCHED_TASK_H_
 
 #include <stdlib.h>
+#include <atomic>
 
 #include "arch/switch_to.h"
 #include "gthread.h"
@@ -29,7 +30,7 @@ typedef enum {
 typedef struct gthread_task {
   gthread_tls_t tls;
 
-  struct gthread_task* joiner;
+  std::atomic<struct gthread_task*> joiner;
   uint64_t run_state;
 
   gthread_entry_t* entry;

@@ -1,7 +1,7 @@
 /**
  * author: JonNRb <jonbetti@gmail.com>, Matthew Handzy <matthewhandzy@gmail.com>
  * license: MIT
- * file: @gthread//sched/task_test.c
+ * file: @gthread//sched/task_test.cc
  * info: test task switching and spawning (WIP)
  */
 

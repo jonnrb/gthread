@@ -1,7 +1,7 @@
 /**
  * author: Khalid Akash, JonNRb <jonbetti@gmail.com>
  * license: MIT
- * file: @gthread//concur/mutex.c
+ * file: @gthread//concur/mutex.cc
  * info: mutex or binary semaphore
  */
 
@@ -10,16 +10,17 @@
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <atomic>
 
-#include "arch/atomic.h"
 #include "sched/sched.h"
 #include "sched/task.h"
 #include "util/compiler.h"
 #include "util/list.h"
 #include "util/rb.h"
 
-static inline void spin_acquire(uint64_t *lock) {
-  while (!gthread_cas(lock, 0, 1)) {
+static inline void spin_acquire(std::atomic<bool> *lock) {
+  for (bool expected = false; !lock->compare_exchange_weak(expected, true);
+       expected = false) {
     gthread_sched_yield();
   }
 }
@@ -30,7 +31,7 @@ int gthread_mutex_init(gthread_mutex_t *mutex,
                        const gthread_mutexattr_t *mutexattr) {
   mutex->init = 1;  // initialized state
   mutex->owner = NULL;
-  mutex->lock = 0;
+  mutex->lock = false;
   mutex->priority_boost = 0;
   return 0;
 }
@@ -61,7 +62,7 @@ int gthread_mutex_lock(gthread_mutex_t *mutex) {
     gthread_list_push(&mutex->waitqueue, &current->s.wq);
     gthread_sched_uninterruptable_unlock();
 
-    mutex->lock = 0;
+    mutex->lock = false;
 
     // deschedule self until woken up
     gthread_sched_yield();
@@ -118,7 +119,7 @@ int gthread_mutex_unlock(gthread_mutex_t *mutex) {
 
   mutex->owner = NULL;
   current->priority_boost = 0;
-  mutex->lock = 0;
+  mutex->lock = false;
   gthread_sched_yield();
 
   return 0;
@@ -128,8 +129,8 @@ int gthread_mutex_unlock(gthread_mutex_t *mutex) {
 int gthread_mutex_destroy(gthread_mutex_t *mutex) {
   if (branch_unexpected(mutex->init == 1)) {
     mutex->init = 0;
-    mutex->lock = 0;
-    mutex->owner = NULL;
+    mutex->lock = false;
+    mutex->owner = nullptr;
     return 0;
   } else {
     errno = EINVAL;

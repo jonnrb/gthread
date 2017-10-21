@@ -46,7 +46,8 @@ int64_t gthread_clock_resolution_process() {
 }
 
 uint64_t gthread_nsleep(uint64_t ns) {
-  struct timespec t = { ns / (1000*1000*1000), ns % (1000*1000*1000) };
+  struct timespec t = {static_cast<time_t>(ns / (1000 * 1000 * 1000)),
+                       static_cast<long>(ns % (1000 * 1000 * 1000))};
   if (branch_unexpected(nanosleep(&t, &t))) {
     return ns - t.tv_sec * 1000 * 1000 * 1000 - t.tv_nsec;
   } else {

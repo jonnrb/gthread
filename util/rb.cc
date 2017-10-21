@@ -1,7 +1,7 @@
 /**
  * author: JonNRb <jonbetti@gmail.com>
  * license: MIT
- * file: @gthread//util/rb.c
+ * file: @gthread//util/rb.cc
  * info: red black tree
  */
 

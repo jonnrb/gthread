@@ -10,6 +10,10 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * non-volatile registers must be saved by switch_to().
  * MS ABI (not used): https: *msdn.microsoft.com/en-us/library/6t169e9c.aspx
@@ -32,8 +36,8 @@ typedef struct _gthread_saved_ctx {
  * in |to|.
  *
  * if an execution context is saved with `gthread_switch_to()` and is returned
- * control with `gthread_switch_to()` by another context, the saved context will
- * resume control after the point where it called `gthread_switch_to()`.
+ * control with `gthread_switch_to()` by another context, the saved context
+ * will resume control after the point where it called `gthread_switch_to()`.
  */
 void gthread_switch_to(gthread_saved_ctx_t* from, gthread_saved_ctx_t* to);
 
@@ -44,5 +48,9 @@ void gthread_switch_to(gthread_saved_ctx_t* from, gthread_saved_ctx_t* to);
 void gthread_switch_to_and_spawn(gthread_saved_ctx_t* self_ctx,
                                  gthread_saved_ctx_t* ret_ctx, void* stack,
                                  void (*entry)(void*), void* arg);
+
+#ifdef __cplusplus
+};
+#endif
 
 #endif  // ARCH_SWITCH_TO_H_

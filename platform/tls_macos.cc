@@ -8,7 +8,6 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
-#include "arch/atomic.h"
 #include "platform/memory.h"
 #include "util/compiler.h"
 
@@ -36,8 +35,8 @@
 typedef void* gs_relative* tls_slot_t;
 
 static tls_slot_t g_pthread_self_slot = (tls_slot_t)0;
-static tls_slot_t g_thread_slot_a = ((tls_slot_t)0) + k_thread_slot_a;
-static tls_slot_t g_thread_slot_b = ((tls_slot_t)0) + k_thread_slot_b;
+// static tls_slot_t g_thread_slot_a = ((tls_slot_t)0) + k_thread_slot_a;
+// static tls_slot_t g_thread_slot_b = ((tls_slot_t)0) + k_thread_slot_b;
 
 /**
  * so xnu doesn't document its syscalls so good
@@ -47,7 +46,9 @@ static tls_slot_t g_thread_slot_b = ((tls_slot_t)0) + k_thread_slot_b;
  *
  * this function is used by libpthread though so it can be imported
  */
+extern "C" {
 extern void _thread_set_tsd_base(void*);
+};
 
 // this is terrible on several levels, but mono does it so it's okay
 static inline size_t get_pthread_slots_offset() {

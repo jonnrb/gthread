@@ -8,24 +8,24 @@
 #ifndef SCHED_SCHED_INLINE_H_
 #define SCHED_SCHED_INLINE_H_
 
-#include <stdio.h>
+#include <atomic>
 
-#include "arch/atomic.h"
+#include "util/log.h"
 
 static inline void gthread_sched_uninterruptable_lock() {
-  extern uint64_t g_interrupt_lock;
+  extern std::atomic<gthread_task_t*> g_interrupt_lock;
   gthread_task_t* current = gthread_task_current();
 
-  if (branch_unexpected(
-          !gthread_cas(&g_interrupt_lock, 0, (uint64_t)current))) {
-    printf("contention on rb tree from uninterruptable code!\n");
-    abort();
+  gthread_task_t* expected = nullptr;
+  if (!branch_unexpected(
+          g_interrupt_lock.compare_exchange_strong(expected, current))) {
+    gthread_log_fatal("contention on rb tree from uninterruptable code!");
   }
 }
 
 static inline void gthread_sched_uninterruptable_unlock() {
-  extern uint64_t g_interrupt_lock;
-  g_interrupt_lock = 0;
+  extern std::atomic<gthread_task_t*> g_interrupt_lock;
+  g_interrupt_lock = nullptr;
 }
 
 #endif  // SCHED_SCHED_INLINE_H_

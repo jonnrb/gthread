@@ -14,13 +14,13 @@ cc_library(
 
 cc_library(
     name = "mutex",
-    srcs = ["mutex.c"],
+    srcs = ["mutex.cc"],
     hdrs = ["mutex.h"],
     deps = ["//sched"],
 )
 
 cc_test(
     name = "mutex_test",
-    srcs = ["mutex_test.c"],
+    srcs = ["mutex_test.cc"],
     deps = [":mutex"],
 )
