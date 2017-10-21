@@ -28,7 +28,7 @@ uint64_t g_interrupt_lock = 0;
  * tasks that can be switched to with the expectation that they will make
  * progress
  */
-static gthread_rb_tree_t g_runqueue = NULL;
+gthread_rb_tree_t gthread_sched_runqueue = NULL;
 
 /**
  * `g_next_sleepqueue_wake` has the next time at which the `g_sleepqueue`
@@ -113,9 +113,9 @@ static inline int maybe_init_stats() { return 0; }
 #endif  // GTHREAD_SCHED_COLLECT_STATS
 
 /**
- * pushes the |last_running_task| to the `g_runqueue` if it is in a runnable
- * state and pops the task with the least virtual runtime from `g_runqueue`
- * to return
+ * pushes the |last_running_task| to the `gthread_sched_runqueue` if it is in a
+ * runnable state and pops the task with the least virtual runtime from
+ * `gthread_sched_runqueue` to return
  */
 static inline gthread_task_t* sched(gthread_task_t* last_running_task) {
   maybe_start_stats_interval();
@@ -135,10 +135,10 @@ static inline gthread_task_t* sched(gthread_task_t* last_running_task) {
   // if the task was in a runnable state when the scheduler was invoked, push it
   // to the runqueue
   if (last_running_task->run_state == GTHREAD_TASK_RUNNING) {
-    gthread_rb_push(&g_runqueue, &last_running_task->rb_node);
+    gthread_rb_push(&gthread_sched_runqueue, &last_running_task->s.rq.rb_node);
   }
 
-  gthread_rb_node_t* node = gthread_rb_pop_min(&g_runqueue);
+  gthread_rb_node_t* node = gthread_rb_pop_min(&gthread_sched_runqueue);
 
   g_interrupt_lock = 0;
 
@@ -149,13 +149,13 @@ static inline gthread_task_t* sched(gthread_task_t* last_running_task) {
     gthread_log_fatal("nothing to do. deadlock?");
   }
 
-  gthread_task_t* next_task = container_of(node, gthread_task_t, rb_node);
+  gthread_task_t* next_task = container_of(node, gthread_task_t, s.rq.rb_node);
 
-  // the task that was just popped from the `g_runqueue` a priori is the task
-  // with the minimum vruntime. since new tasks must start with a reasonable
-  // vruntime, update `min_vruntime`.
-  if (min_vruntime < next_task->vruntime) {
-    min_vruntime = next_task->vruntime;
+  // the task that was just popped from the `gthread_sched_runqueue` a priori is
+  // the task with the minimum vruntime. since new tasks must start with a
+  // reasonable vruntime, update `min_vruntime`.
+  if (min_vruntime < next_task->s.rq.vruntime) {
+    min_vruntime = next_task->s.rq.vruntime;
   }
 
   maybe_end_stats_interval();
@@ -176,7 +176,7 @@ static gthread_task_t* make_task(gthread_attr_t* attr) {
       gthread_log_fatal("reader contention on single reader circular buffer!");
     }
     gthread_task_reset(task);
-    task->vruntime = min_vruntime;
+    task->s.rq.vruntime = min_vruntime;
     maybe_end_stats_interval();
     return task;
   }
@@ -246,7 +246,7 @@ int gthread_sched_spawn(gthread_sched_handle_t* handle, gthread_attr_t* attr,
   }
 
   gthread_sched_uninterruptable_lock();
-  gthread_rb_push(&g_runqueue, &task->rb_node);
+  gthread_rb_push(&gthread_sched_runqueue, &task->s.rq.rb_node);
   gthread_sched_uninterruptable_unlock();
 
   *handle = task;
@@ -335,7 +335,7 @@ void gthread_sched_exit(void* return_value) {
     }
 
     gthread_sched_uninterruptable_lock();
-    gthread_rb_push(&g_runqueue, &joiner->rb_node);
+    gthread_rb_push(&gthread_sched_runqueue, &joiner->s.rq.rb_node);
     gthread_sched_uninterruptable_unlock();
   } else {
     // if there wasn't a joiner that suspended itself, we entered a critical

@@ -9,16 +9,14 @@
 #define CONCUR_MUTEX_H_
 
 #include "sched/task.h"
-
-// TODO(jonnrb): fifo waitqueue
-
-typedef enum { LOCKED, UNLOCKED } lock;
+#include "util/list.h"
 
 typedef struct gthread_mutex_data {
   int init;
-  uint64_t state;
-  gthread_task_t *task;
-  // char which_task; //test purposes
+  uint64_t lock;
+  gthread_task_t *owner;
+  gthread_list_t waitqueue;
+  uint64_t priority_boost;
 } gthread_mutex_t;
 
 typedef struct mutexattr {

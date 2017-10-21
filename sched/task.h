@@ -15,6 +15,7 @@
 #include "platform/timer.h"
 #include "platform/tls.h"
 #include "util/compiler.h"
+#include "util/list.h"
 #include "util/rb.h"
 
 typedef enum {
@@ -39,10 +40,17 @@ typedef struct gthread_task {
   void* stack;
   size_t total_stack_size;
 
-  gthread_rb_node_t rb_node;
-  uint64_t vruntime;       // microseconds
+  union {
+    struct {
+      gthread_rb_node_t rb_node;
+      uint64_t vruntime;  // microseconds
+    } rq;
+    gthread_list_node_t wq;
+  } s;
   uint64_t vruntime_save;  // used to save `vruntime` when adding the task to a
                            // waitqueue
+
+  uint64_t priority_boost;
 } gthread_task_t;
 
 // constructs a stack and sets |task| to default values.

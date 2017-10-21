@@ -49,16 +49,24 @@ gthread_task_t* gthread_task_construct(gthread_attr_t* attrs) {
     return NULL;
   }
 
-  gthread_rb_construct(&task->rb_node);
-  task->vruntime = 0;
+  // prep for runqueue
+  gthread_rb_construct(&task->s.rq.rb_node);
+  task->s.rq.vruntime = 0;
+  task->vruntime_save = 0;
+  task->priority_boost = 0;
 
   return task;
 }
 
 static inline void record_time_slice(gthread_task_t* task, uint64_t elapsed) {
+  if (task->priority_boost > 0) {
+    elapsed /= (task->priority_boost + 1);
+  }
+
   // XXX hack to hurt spinlocks
   if (elapsed < 10) elapsed = 10;
-  task->vruntime += elapsed;
+
+  task->s.rq.vruntime += elapsed;
 }
 
 static inline void reset_timer_and_record_time(gthread_task_t* task) {
@@ -103,11 +111,13 @@ int gthread_task_start(gthread_task_t* task) {
 
 int gthread_task_reset(gthread_task_t* task) {
   if (gthread_tls_reset(task->tls)) return -1;
-  gthread_rb_construct(&task->rb_node);
+  gthread_rb_construct(&task->s.rq.rb_node);
   task->run_state = GTHREAD_TASK_STOPPED;
   task->return_value = NULL;
   task->joiner = NULL;
-  task->vruntime = 0;
+  task->s.rq.vruntime = 0;
+  task->vruntime_save = 0;
+  task->priority_boost = 0;
 
   return 0;
 }
@@ -197,7 +207,7 @@ void gthread_task_module_init() {
     // most of struct is zero-initialized
     g_root_task.tls = gthread_tls_current();
     g_root_task.run_state = GTHREAD_TASK_RUNNING;
-    gthread_rb_construct(&g_root_task.rb_node);
+    gthread_rb_construct(&g_root_task.s.rq.rb_node);
 
     gthread_tls_set_thread(g_root_task.tls, &g_root_task);
 

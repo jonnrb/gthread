@@ -2,6 +2,7 @@
 
 _green threads for C_
 
+
 ## Overview
 
 For the Rutgers undergraduate Operating Systems class, we were assigned the
@@ -15,6 +16,7 @@ improved by adding additional concurrency primitives that would enable
 cooperative multitasking between tasks (a practical application of user-space
 threads in modern software systems).
 
+
 ## Modularity
 
 - `arch`: simple wrappers for x86-64 things like atomics and our context switch
@@ -25,6 +27,7 @@ threads in modern software systems).
 - `concur`: concurrency primitives, i.e., a mutex
 
 - `sched`: the scheduler (the interesting bit)
+
 
 ## Context Switch
 
@@ -49,6 +52,18 @@ age for longer (have to be preempted often) get run less frequently.
 Because our priorities are updated continuously, we needed a fast priority
 queue that allowed fast inserts anywhere. We used a tree structure that gives
 us *O(log n)* average case performance (located in `util/rb.{c,h}`).
+
+
+## Priority Inversion Avoidance
+
+To avoid PI, we use priority inheritance. This is a scheme that is fairly easy
+to implement and is provably correct for real-time applications on uniprocessor
+systems (which we emulate by having only one kernel thread).
+
+Since we don't have user settable priorities, we bump the priority for a given
+task by making it age less quickly when the resource is held. This pushes it to
+the front of the runqueue rapidly if it is a processor hog.
+
 
 ## Test Suite
 
