@@ -3,6 +3,15 @@
 _green threads for C_
 
 
+## Authors
+
+- Jon Betti (`jrb316`)
+
+- Matthew Handzy (`mah736`)
+
+- Khalid Akash (`ka428`)
+
+
 ## Overview
 
 For the Rutgers undergraduate Operating Systems class, we were assigned the
