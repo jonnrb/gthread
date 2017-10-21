@@ -2,7 +2,7 @@
  * author: JonNRb <jonbetti@gmail.com>
  * license: MIT
  * file: @gthread//gthread.h
- * info: main exported API (my_pthread.h trivially wraps this)
+ * info: main exported API
  */
 
 #ifndef GTHREAD_H_
