@@ -19,19 +19,53 @@
 #include "util/list.h"
 #include "util/rb.h"
 
-typedef enum {
-  GTHREAD_TASK_FREE = 0,
-  GTHREAD_TASK_RUNNING = 1,
-  GTHREAD_TASK_SUSPENDED = 2,
-  GTHREAD_TASK_STOPPED = 3,
-  GTHREAD_TASK_WAITING = 4
-} gthread_task_run_state_t;
+namespace gthread {
 
-typedef struct gthread_task {
+struct task {
+ public:
+  // constructs a stack and sets default values
+  task(gthread_attr_t* attrs);
+
+  ~task();
+
+  int reset();
+
+  /**
+   * quickly starts task and switches back to the caller. meant to just get
+   * things primed. it is undefined (like reaaallly undefined) as to what
+   * happens when a task is switched to that hasn't been `start()`ed.
+   */
+  int start();
+
+  /**
+   * convenience function to call the task's end handler. will assert that
+   * the end handler does *not* return. this function will not return.
+   */
+  void stop(void* return_value);
+
+  /**
+   * always returns a pointer to the current task
+   */
+  static inline task* current();
+
+  /**
+   * suspends the currently running task and switches to `this`
+   */
+  int switch_to();
+
+  typedef task* time_slice_trap_t(task*);
+  static int set_time_slice_trap(time_slice_trap_t trap, uint64_t usec);
+
+  typedef void end_handler_t(task*);
+  static void set_end_handler(end_handler_t handler);
+
+ public:
   gthread_tls_t tls;
 
-  std::atomic<struct gthread_task*> joiner;
-  uint64_t run_state;
+  std::atomic<task*> joiner;
+
+  typedef enum { RUNNING, SUSPENDED, STOPPED, WAITING } run_state_t;
+  run_state_t run_state;
 
   gthread_entry_t* entry;
   void* arg;
@@ -41,45 +75,38 @@ typedef struct gthread_task {
   void* stack;
   size_t total_stack_size;
 
-  union {
-    struct {
-      gthread_rb_node_t rb_node;
-      uint64_t vruntime;  // microseconds
-    } rq;
-    gthread_list_node_t wq;
-  } s;
-  uint64_t vruntime_save;  // used to save `vruntime` when adding the task to a
-                           // waitqueue
+  uint64_t vruntime;  // microseconds
 
   uint64_t priority_boost;
-} gthread_task_t;
 
-// constructs a stack and sets |task| to default values.
-gthread_task_t* gthread_task_construct(gthread_attr_t* attrs);
+ private:
+  // default constructor only for root task
+  task();
 
-typedef void gthread_task_divingboard_t(void*);
+  void record_time_slice(uint64_t elapsed);
 
-// quickly starts |task| and switches back to the caller. meant to just get
-// things primed.
-int gthread_task_start(gthread_task_t* task);
+  void reset_timer_and_record_time();
 
-int gthread_task_reset(gthread_task_t* task);
+  int switch_to_internal(uint64_t* elapsed);
 
-void gthread_task_destruct(gthread_task_t* task);
+  static void time_slice_trap_base(uint64_t elapsed);
 
-static inline gthread_task_t* gthread_task_current();
+  static void init();
 
-// suspends the currently running task and switches to |task|.
-int gthread_task_switch_to(gthread_task_t* task);
+  // task representing the initial context of execution
+  static task root_task;
+  static std::atomic<bool> is_root_task_init;
 
-typedef gthread_task_t* gthread_task_time_slice_trap_t(gthread_task_t*);
+  static end_handler_t* end_handler;
 
-int gthread_task_set_time_slice_trap(gthread_task_time_slice_trap_t* trap,
-                                     uint64_t usec);
+  // task switching MUST not be reentrant
+  static std::atomic<bool> lock;
 
-typedef void gthread_task_end_handler_t(gthread_task_t*);
+  static bool timer_enabled;
+  static time_slice_trap_t* time_slice_trap;
+};
 
-void gthread_task_set_end_handler(gthread_task_end_handler_t handler);
+}  // namespace gthread
 
 #include "sched/task_inline.h"
 

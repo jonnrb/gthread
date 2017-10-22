@@ -103,26 +103,27 @@ static stats<g_collect_stats, g_stats_interval> g_stats;
 }  // namespace
 
 std::atomic<bool> sched::is_init = ATOMIC_VAR_INIT(false);
-gthread_task_t* const sched::k_pointer_lock = (gthread_task_t*)-1;
-std::atomic<gthread_task_t*> sched::interrupt_lock = ATOMIC_VAR_INIT(nullptr);
-gthread_rb_tree_t sched::runqueue = nullptr;
+task* const sched::k_pointer_lock = (task*)-1;
+std::atomic<task*> sched::interrupt_lock = ATOMIC_VAR_INIT(nullptr);
+
+std::multimap<uint64_t, task*> sched::runqueue;
 uint64_t sched::min_vruntime = 0;
 
 uint64_t sched::freelist_r = 0;
 uint64_t sched::freelist_w = 0;
-gthread_task_t* sched::freelist[k_freelist_size] = {NULL};
+task* sched::freelist[k_freelist_size] = {NULL};
 
 /**
  * pushes the |last_running_task| to the `runqueue` if it is in a runnable
  * state and pops the task with the least virtual runtime from `runqueue` to
  * return
  */
-gthread_task_t* sched::next(gthread_task_t* last_running_task) {
+task* sched::next(task* last_running_task) {
   g_stats.maybe_start_interval();
 
   // if for some reason, a task that was about to switch gets interrupted,
   // switch to that task
-  gthread_task_t* waiter = nullptr;
+  task* waiter = nullptr;
   if (branch_unexpected(
           !interrupt_lock.compare_exchange_strong(waiter, k_pointer_lock))) {
     if (waiter == k_pointer_lock) {
@@ -136,28 +137,28 @@ gthread_task_t* sched::next(gthread_task_t* last_running_task) {
 
   // if the task was in a runnable state when the scheduler was invoked, push it
   // to the runqueue
-  if (last_running_task->run_state == GTHREAD_TASK_RUNNING) {
-    gthread_rb_push(&runqueue, &last_running_task->s.rq.rb_node);
+  if (last_running_task->run_state == task::RUNNING) {
+    runqueue.emplace(last_running_task->vruntime, last_running_task);
   }
-
-  gthread_rb_node_t* node = gthread_rb_pop_min(&runqueue);
-
-  interrupt_lock = nullptr;
 
   // XXX: remove the assumption that the runqueue is never empty. this is true
   // if all tasks are sleeping and there is actually nothing to do. right now
   // it is impossible to be in this state without some sort of deadlock.
-  if (branch_unexpected(node == NULL)) {
+  if (branch_unexpected(runqueue.empty())) {
     gthread_log_fatal("nothing to do. deadlock?");
   }
 
-  gthread_task_t* next_task = container_of(node, gthread_task_t, s.rq.rb_node);
+  auto begin = runqueue.begin();
+  task* next_task = begin->second;
+  runqueue.erase(begin);
+
+  interrupt_lock = nullptr;
 
   // the task that was just popped from the `runqueue` a priori is the task
   // with the minimum vruntime. since new tasks must start with a reasonable
   // vruntime, update `min_vruntime`.
-  if (min_vruntime < next_task->s.rq.vruntime) {
-    min_vruntime = next_task->s.rq.vruntime;
+  if (min_vruntime < next_task->vruntime) {
+    min_vruntime = next_task->vruntime;
   }
 
   g_stats.maybe_end_interval();
@@ -165,57 +166,55 @@ gthread_task_t* sched::next(gthread_task_t* last_running_task) {
   return next_task;
 }
 
-static void task_end_handler(gthread_task_t* task) {
-  sched::exit(task->return_value);
-}
+static void task_end_handler(task* task) { sched::exit(task->return_value); }
 
 int sched::init() {
   bool expected = false;
   if (!is_init.compare_exchange_strong(expected, true)) return -1;
 
-  gthread_task_set_time_slice_trap(&sched::next, 50 * 1000);
-  gthread_task_set_end_handler(task_end_handler);
+  task::set_time_slice_trap(&sched::next, 50 * 1000);
+  task::set_end_handler(task_end_handler);
 
   if (g_stats.maybe_init()) return -1;
 
   return 0;
 }
 
-gthread_task_t* sched::make_task(gthread_attr_t* attr) {
-  gthread_task_t* task;
+task* sched::make_task(gthread_attr_t* attr) {
+  task* t;
 
   g_stats.maybe_start_interval();
 
   // try to grab a task from the freelist
   if (freelist_w - freelist_r > 0) {
     uint64_t pos = freelist_r;
-    task = freelist[pos % k_freelist_size];
+    t = freelist[pos % k_freelist_size];
     ++freelist_r;
-    gthread_task_reset(task);
-    task->s.rq.vruntime = min_vruntime;
+    t->reset();
+    t->vruntime = min_vruntime;
     g_stats.maybe_end_interval();
-    return task;
+    return t;
   }
 
-  task = gthread_task_construct(attr);
-  if (branch_unexpected(task == NULL)) {
+  t = new task(attr);
+  if (branch_unexpected(t == nullptr)) {
     perror("task construction failed");
     g_stats.maybe_end_interval();
-    return NULL;
+    return nullptr;
   }
 
   g_stats.maybe_end_interval();
 
-  return task;
+  return t;
 }
 
-void sched::return_task(gthread_task_t* task) {
+void sched::return_task(task* t) {
   // don't deallocate task storage immediately if possible
   if (freelist_w - freelist_r < k_freelist_size) {
-    freelist[freelist_w % k_freelist_size] = task;
+    freelist[freelist_w % k_freelist_size] = t;
     ++freelist_w;
   } else {
-    gthread_task_destruct(task);
+    delete t;
   }
 }
 
@@ -248,14 +247,14 @@ sched_handle sched::spawn(gthread_attr_t* attr, gthread_entry_t* entry,
   // this will start the task and immediately return control
   handle.task->entry = entry;
   handle.task->arg = arg;
-  if (branch_unexpected(gthread_task_start(handle.task))) {
+  if (branch_unexpected(handle.task->start())) {
     return_task(handle.task);
     handle.task = nullptr;
     return handle;
   }
 
   uninterruptable_lock();
-  gthread_rb_push(&runqueue, &handle.task->s.rq.rb_node);
+  runqueue.emplace(handle.task->vruntime, handle.task);
   uninterruptable_unlock();
 
   return handle;
@@ -281,16 +280,16 @@ int sched::join(sched_handle* handle, void** return_value) {
     return -1;
   }
 
-  gthread_task_t* current = gthread_task_current();
+  task* current = task::current();
 
   // flag to |thread| that you are the joiner
-  for (gthread_task_t* current_joiner = nullptr;
+  for (task* current_joiner = nullptr;
        branch_unexpected(!handle->task->joiner.compare_exchange_strong(
            current_joiner, current));
        current_joiner = nullptr) {
     // if the joiner is not `nullptr` and is not locked, something else is
     // joining, which is undefined behavior
-    if (branch_unexpected(current_joiner != (gthread_task_t*)k_pointer_lock &&
+    if (branch_unexpected(current_joiner != (task*)k_pointer_lock &&
                           current_joiner != NULL)) {
       return -1;
     }
@@ -303,8 +302,8 @@ int sched::join(sched_handle* handle, void** return_value) {
   // |handle|'s task will reschedule us when it has stopped, in which case the
   // loop will break and we know we can read off the return value and
   // (optionally) destroy the thread memory.
-  while (handle->task->run_state != GTHREAD_TASK_STOPPED) {
-    current->run_state = GTHREAD_TASK_WAITING;
+  while (handle->task->run_state != task::STOPPED) {
+    current->run_state = task::WAITING;
     yield();
   }
 
@@ -323,7 +322,7 @@ int sched::join(sched_handle* handle, void** return_value) {
  * immediately exits the current thread with return value |return_value|
  */
 void sched::exit(void* return_value) {
-  gthread_task_t* current = gthread_task_current();
+  task* current = task::current();
 
   // indicative that the current task is the root task. abort reallly hard.
   if (branch_unexpected(current->stack == NULL)) {
@@ -331,23 +330,23 @@ void sched::exit(void* return_value) {
   }
 
   // lock the joiner with a flag
-  gthread_task_t* joiner = nullptr;
+  task* joiner = nullptr;
   current->joiner.compare_exchange_strong(joiner, k_pointer_lock);
 
-  current->return_value = return_value;       // save |return_value|
-  current->run_state = GTHREAD_TASK_STOPPED;  // deschedule permanently
+  current->return_value = return_value;  // save |return_value|
+  current->run_state = task::STOPPED;    // deschedule permanently
 
   if (joiner != NULL) {
     // consider the very weird case where join() locked `joiner` but hasn't
     // descheduled itself yet. it would be verrrryyy bad to put something in
     // the tree twice. if this task is running and `joiner` is in the waiting
     // state, it must be descheduled.
-    while (branch_unexpected(joiner->run_state != GTHREAD_TASK_WAITING)) {
+    while (branch_unexpected(joiner->run_state != task::WAITING)) {
       yield();
     }
 
     uninterruptable_lock();
-    gthread_rb_push(&runqueue, &joiner->s.rq.rb_node);
+    runqueue.emplace(joiner->vruntime, joiner);
     uninterruptable_unlock();
   } else {
     // if there wasn't a joiner that suspended itself, we entered a critical

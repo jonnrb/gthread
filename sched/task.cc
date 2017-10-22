@@ -14,70 +14,88 @@
 #include "util/log.h"
 #include "util/rb.h"
 
-// task representing the initial context of execution.
-static gthread_task_t g_root_task = {0};
+namespace gthread {
 
-static gthread_task_end_handler_t* g_task_end_handler = NULL;
+task::end_handler_t* task::end_handler = nullptr;
 
-// task switching MUST not be reentrant.
-static std::atomic<bool> g_lock = ATOMIC_VAR_INIT(false);
+// task switching MUST not be reentrant
+std::atomic<bool> task::lock = ATOMIC_VAR_INIT(false);
 
-static int g_timer_enabled = 0;
-static gthread_task_time_slice_trap_t* g_time_slice_trap = NULL;
+bool task::timer_enabled = false;
+task::time_slice_trap_t* task::time_slice_trap = nullptr;
 
-std::atomic<bool> gthread_task_is_root_task_init = ATOMIC_VAR_INIT(false);
+std::atomic<bool> task::is_root_task_init = ATOMIC_VAR_INIT(false);
+task task::root_task;
 
-void gthread_task_module_init();
+task::task(gthread_attr_t* attrs) {
+  tls = gthread_tls_allocate();
+  if (tls == NULL) return;  // TODO: throw here and at all short-circuits
 
-gthread_task_t* gthread_task_construct(gthread_attr_t* attrs) {
-  gthread_tls_t tls = gthread_tls_allocate();
-  if (tls == NULL) return NULL;
+  gthread_tls_set_thread(tls, this);
 
-  gthread_task_t* task =
-      (gthread_task_t*)gthread_allocate(sizeof(gthread_task_t));
-  if (task == NULL) {
+  run_state = STOPPED;
+  joiner = NULL;
+  return_value = NULL;
+
+  if (gthread_allocate_stack(attrs, &stack, &total_stack_size)) {
     gthread_tls_free(tls);
-    return NULL;
-  }
-  gthread_tls_set_thread(tls, task);
-  task->tls = tls;
-
-  task->run_state = GTHREAD_TASK_STOPPED;
-  task->joiner = NULL;
-  task->return_value = NULL;
-  if (gthread_allocate_stack(attrs, &task->stack, &task->total_stack_size)) {
-    gthread_tls_free(tls);
-    gthread_free(task);
-    return NULL;
+    return;
   }
 
   // prep for runqueue
-  gthread_rb_construct(&task->s.rq.rb_node);
-  task->s.rq.vruntime = 0;
-  task->vruntime_save = 0;
-  task->priority_boost = 0;
-
-  return task;
+  vruntime = 0;
+  priority_boost = 0;
 }
 
-static inline void record_time_slice(gthread_task_t* task, uint64_t elapsed) {
-  if (task->priority_boost > 0) {
-    elapsed /= (task->priority_boost + 1);
+task::task()
+    : tls(nullptr),
+      run_state(RUNNING),
+      entry(nullptr),
+      arg(nullptr),
+      return_value(nullptr),
+      ctx{0},
+      stack(nullptr),
+      total_stack_size(0),
+      vruntime(0),
+      priority_boost(0) {}
+
+task::~task() {
+  if (this == &root_task) return;
+  gthread_tls_free(tls);
+  gthread_free_stack((char*)stack - total_stack_size, total_stack_size);
+}
+
+int task::reset() {
+  if (gthread_tls_reset(tls)) return -1;
+
+  run_state = STOPPED;
+  return_value = nullptr;
+  joiner = nullptr;
+  vruntime = 0;
+  priority_boost = 0;
+
+  return 0;
+}
+
+void task::record_time_slice(uint64_t elapsed) {
+  if (priority_boost > 0) {
+    elapsed /= (priority_boost + 1);
   }
 
   // XXX hack to hurt spinlocks
   if (elapsed < 10) elapsed = 10;
 
-  task->s.rq.vruntime += elapsed;
+  vruntime += elapsed;
 }
 
-static inline void reset_timer_and_record_time(gthread_task_t* task) {
-  if (g_timer_enabled) {
+void task::reset_timer_and_record_time() {
+  if (timer_enabled) {
     uint64_t elapsed = gthread_timer_reset();
-    record_time_slice(task, elapsed);
+    record_time_slice(elapsed);
   }
 }
 
+extern "C" {
 // root of task stack trace! :)
 static void gthread_task_entry(void* arg) {
   // swtich back to the starter to clean up
@@ -85,140 +103,118 @@ static void gthread_task_entry(void* arg) {
   gthread_switch_to(from_and_to[0], from_and_to[1]);
 
   // when we are here, tls should be set up
-  gthread_task_t* current = gthread_task_current();
-  current->run_state = GTHREAD_TASK_RUNNING;
-  current->return_value = current->entry(current->arg);
-  g_task_end_handler(current);
+  auto* cur = task::current();
+  cur->run_state = task::RUNNING;
+  cur->stop(cur->entry(cur->arg));
 }
+};
 
-int gthread_task_start(gthread_task_t* task) {
-  gthread_task_t* current = gthread_task_current();
+int task::start() {
+  if (branch_unexpected(run_state != STOPPED)) {
+    return -1;
+  }
 
-  if (branch_unexpected(task == current)) {
+  auto* cur = current();
+
+  if (branch_unexpected(this == cur)) {
     gthread_log_fatal("cannot start current task from the current task!");
   }
 
   // slow path on being the first call in this module
-  if (branch_unexpected(!gthread_task_is_root_task_init)) {
-    gthread_task_module_init();
+  if (branch_unexpected(!is_root_task_init)) {
+    init();
   }
 
-  gthread_saved_ctx_t* new_and_cur[2] = {&task->ctx, &current->ctx};
-  gthread_switch_to_and_spawn(&current->ctx, &current->ctx, task->stack,
-                              gthread_task_entry, new_and_cur);
-  task->run_state = GTHREAD_TASK_SUSPENDED;
+  gthread_saved_ctx_t* new_and_cur[2] = {&this->ctx, &cur->ctx};
+  gthread_switch_to_and_spawn(&cur->ctx, nullptr, stack, gthread_task_entry,
+                              new_and_cur);
+  run_state = SUSPENDED;
 
   return 0;
 }
 
-int gthread_task_reset(gthread_task_t* task) {
-  if (gthread_tls_reset(task->tls)) return -1;
-  gthread_rb_construct(&task->s.rq.rb_node);
-  task->run_state = GTHREAD_TASK_STOPPED;
-  task->return_value = NULL;
-  task->joiner = NULL;
-  task->s.rq.vruntime = 0;
-  task->vruntime_save = 0;
-  task->priority_boost = 0;
-
-  return 0;
+void task::stop(void* return_value) {
+  this->return_value = return_value;
+  if (branch_expected(end_handler != nullptr)) {
+    end_handler(this);
+  }
+  gthread_log_fatal("task end handler did not stop the task!");
 }
 
-void gthread_task_destruct(gthread_task_t* task) {
-  gthread_tls_free(task->tls);
-  gthread_free_stack((char*)task->stack - task->total_stack_size,
-                     task->total_stack_size);
-  gthread_free(task);
-}
-
-static int switch_to_task(gthread_task_t* task, uint64_t* elapsed) {
-  gthread_task_t* prev_task = gthread_task_current();
-  if (task == prev_task) {
-    assert(0);  // DO NOT SUBMIT: test for now
+int task::switch_to_internal(uint64_t* elapsed) {
+  task* prev_task = current();
+  if (this == prev_task) {
+    gthread_log_fatal("switching to current task bad!");
     return 0;
   }
 
   // slow path on being the first call in this module
-  if (branch_unexpected(!gthread_task_is_root_task_init)) {
-    gthread_task_module_init();
+  if (branch_unexpected(!is_root_task_init)) {
+    init();
   }
 
   bool expected = false;
-  if (!g_lock.compare_exchange_strong(expected, true)) return -1;
+  if (!lock.compare_exchange_strong(expected, true)) return -1;
 
   // if the task sets its own `run_state`, respect that value
-  if (prev_task->run_state == GTHREAD_TASK_RUNNING) {
-    prev_task->run_state = GTHREAD_TASK_SUSPENDED;
+  if (prev_task->run_state == RUNNING) {
+    prev_task->run_state = SUSPENDED;
   }
 
-  if (elapsed == NULL) {
-    reset_timer_and_record_time(prev_task);
+  if (elapsed == nullptr) {
+    prev_task->reset_timer_and_record_time();
   } else {
-    record_time_slice(prev_task, *elapsed);
+    prev_task->record_time_slice(*elapsed);
   }
 
   // officially in the |task|'s context
-  gthread_tls_use(task->tls);
+  gthread_tls_use(tls);
 
-  g_lock = 0;
-  gthread_switch_to(&prev_task->ctx, &task->ctx);
+  lock = 0;
+  gthread_switch_to(&prev_task->ctx, &ctx);
 
-  assert(gthread_task_current() == prev_task);
-  prev_task->run_state = GTHREAD_TASK_RUNNING;
+  assert(current() == prev_task);
+  prev_task->run_state = RUNNING;
   return 0;
 }
 
-int gthread_task_switch_to(gthread_task_t* task) {
-  return switch_to_task(task, NULL);
-}
+int task::switch_to() { return switch_to_internal(nullptr); }
 
-static void time_slice_trap(uint64_t elapsed) {
-  gthread_task_t* current = gthread_task_current();
-  gthread_task_t* next_task = NULL;
+void task::time_slice_trap_base(uint64_t elapsed) {
+  task* next_task = nullptr;
+  task* cur = current();
 
-  if (g_time_slice_trap != NULL) {
-    next_task = g_time_slice_trap(current);
+  if (time_slice_trap != nullptr) {
+    next_task = time_slice_trap(cur);
   }
 
-  if (next_task != NULL && next_task != current) {
-    switch_to_task(next_task, &elapsed);
+  if (next_task != nullptr && next_task != cur) {
+    next_task->switch_to_internal(&elapsed);
   } else {
-    record_time_slice(current, elapsed);
+    cur->record_time_slice(elapsed);
   }
 }
 
-int gthread_task_set_time_slice_trap(gthread_task_time_slice_trap_t* trap,
-                                     uint64_t usec) {
-  g_timer_enabled = usec != 0;
-  g_time_slice_trap = trap;
-  gthread_timer_set_trap(time_slice_trap);
+int task::set_time_slice_trap(time_slice_trap_t trap, uint64_t usec) {
+  timer_enabled = usec != 0;
+  time_slice_trap = trap;
+  gthread_timer_set_trap(&time_slice_trap_base);
   return gthread_timer_set_interval(usec);
 }
 
-void gthread_task_set_end_handler(gthread_task_end_handler_t handler) {
-  g_task_end_handler = handler;
-}
+void task::set_end_handler(end_handler_t handler) { end_handler = handler; }
 
-static void default_task_end_handler(gthread_task_t* _) {
-  gthread_log_fatal("no task end handler set!");
-}
-
-void gthread_task_module_init() {
+void task::init() {
   bool expected = false;
-  if (branch_unexpected(!gthread_task_is_root_task_init &&
-                        gthread_task_is_root_task_init.compare_exchange_strong(
-                            expected, true))) {
-    g_lock = false;
-
+  if (branch_unexpected(
+          !is_root_task_init &&
+          is_root_task_init.compare_exchange_strong(expected, true))) {
     // most of struct is zero-initialized
-    g_root_task.tls = gthread_tls_current();
-    g_root_task.run_state = GTHREAD_TASK_RUNNING;
-    gthread_rb_construct(&g_root_task.s.rq.rb_node);
+    root_task.tls = gthread_tls_current();
+    root_task.run_state = RUNNING;
 
-    gthread_tls_set_thread(g_root_task.tls, &g_root_task);
-
-    if (g_task_end_handler == NULL) {
-      gthread_task_set_end_handler(default_task_end_handler);
-    }
+    gthread_tls_set_thread(root_task.tls, &root_task);
   }
 }
+
+}  // namespace gthread

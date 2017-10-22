@@ -13,16 +13,15 @@
 #include "platform/tls.h"
 #include "util/compiler.h"
 
-static inline gthread_task_t* gthread_task_current() {
-  extern void gthread_task_module_init();
-  extern std::atomic<bool> gthread_task_is_root_task_init;
-
+namespace gthread {
+inline task* task::current() {
   // slow path on being the first call in this module
-  if (branch_unexpected(!gthread_task_is_root_task_init)) {
-    gthread_task_module_init();
+  if (branch_unexpected(!is_root_task_init)) {
+    init();
   }
 
-  return (gthread_task_t*)gthread_tls_current_thread();
+  return (task*)gthread_tls_current_thread();
 }
+}  // namespace gthread
 
 #endif  // SCHED_TASK_INLINE_H_

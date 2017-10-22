@@ -9,6 +9,7 @@
 #define SCHED_SCHED_H_
 
 #include <atomic>
+#include <map>
 
 #include "gthread.h"
 #include "sched/task.h"
@@ -29,7 +30,7 @@ class sched_handle {
   constexpr operator bool() const { return task != nullptr; }
 
  private:
-  gthread_task_t* task;
+  task* task;
 
   friend class sched;
 };
@@ -95,24 +96,29 @@ class sched {
   static inline void uninterruptable_unlock();
 
  private:
-  static gthread_task_t* make_task(gthread_attr_t* attr);
+  static task* make_task(gthread_attr_t* attr);
 
-  static void return_task(gthread_task_t* task);
+  static void return_task(task* task);
 
   static int init();
 
-  static gthread_task_t* next(gthread_task_t* last_running_task);
+  static task* next(task* last_running_task);
 
   static std::atomic<bool> is_init;
 
-  static gthread_task_t* const k_pointer_lock;
-  static std::atomic<gthread_task_t*> interrupt_lock;
+  static task* const k_pointer_lock;
+  static std::atomic<task*> interrupt_lock;
 
   /**
    * tasks that can be switched to with the expectation that they will make
    * progress
+   *
+   * implementation details:
+   *
+   * `std::multimap` is used because it usually is built on a pretty robust
+   * red-black tree, which has good performance for a runqueue
    */
-  static gthread_rb_tree_t runqueue;
+  static std::multimap<uint64_t, task*> runqueue;
 
   static uint64_t min_vruntime;
 
@@ -120,7 +126,7 @@ class sched {
   static constexpr uint64_t k_freelist_size = 64;
   static uint64_t freelist_r;  // reader is `make_task()`
   static uint64_t freelist_w;  // writer is `return_task()`
-  static gthread_task_t* freelist[k_freelist_size];
+  static task* freelist[k_freelist_size];
 };
 }  // namespace gthread
 

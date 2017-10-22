@@ -14,9 +14,9 @@
 
 namespace gthread {
 inline void sched::uninterruptable_lock() {
-  gthread_task_t* current = gthread_task_current();
+  task* current = task::current();
 
-  gthread_task_t* expected = nullptr;
+  task* expected = nullptr;
   if (!branch_unexpected(
           interrupt_lock.compare_exchange_strong(expected, current))) {
     gthread_log_fatal("contention on scheduler from uninterruptable code!");
