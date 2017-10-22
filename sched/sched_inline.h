@@ -12,20 +12,18 @@
 
 #include "util/log.h"
 
-static inline void gthread_sched_uninterruptable_lock() {
-  extern std::atomic<gthread_task_t*> g_interrupt_lock;
+namespace gthread {
+inline void sched::uninterruptable_lock() {
   gthread_task_t* current = gthread_task_current();
 
   gthread_task_t* expected = nullptr;
   if (!branch_unexpected(
-          g_interrupt_lock.compare_exchange_strong(expected, current))) {
-    gthread_log_fatal("contention on rb tree from uninterruptable code!");
+          interrupt_lock.compare_exchange_strong(expected, current))) {
+    gthread_log_fatal("contention on scheduler from uninterruptable code!");
   }
 }
 
-static inline void gthread_sched_uninterruptable_unlock() {
-  extern std::atomic<gthread_task_t*> g_interrupt_lock;
-  g_interrupt_lock = nullptr;
-}
+inline void sched::uninterruptable_unlock() { interrupt_lock = nullptr; }
+}  // namespace gthread
 
 #endif  // SCHED_SCHED_INLINE_H_

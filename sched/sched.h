@@ -8,75 +8,121 @@
 #ifndef SCHED_SCHED_H_
 #define SCHED_SCHED_H_
 
+#include <atomic>
+
 #include "gthread.h"
 #include "sched/task.h"
 
+namespace gthread {
 /**
- * a handle to a currently running thread
+ * a handle to a currently running task
  *
  * example: ```
- *   gthread_sched_handle_t task;                          // declares handle
- *   gthread_sched_spawn(&task, NULL, my_function, NULL);  // spawns a task
- *   gthread_sched_join(task, NULL);                       // joins the task
+ *   gthread::sched_handle task =
+ *       gthread::sched::spawn(nullptr, my_function, arg);
+ *   gthread::sched::join(&task, NULL);
  * ```
  */
-typedef gthread_task_t* gthread_sched_handle_t;
+class sched_handle {
+ public:
+  constexpr sched_handle() : task(nullptr) {}
+  constexpr operator bool() const { return task != nullptr; }
 
-/**
- * stops the current task and invokes the scheduler
- *
- * the scheduler will pick the task that has had the minimum amount of
- * proportional processor time and run that task. when the current task meets
- * that condition, it will be resume on the line following this call.
- */
-int gthread_sched_yield();
+ private:
+  gthread_task_t* task;
 
-/**
- * spawns a gthread, storing a handle in |handle|, where |entry| will be
- * invoked with argument |arg|. `gthread_sched_join()` must be called
- * eventually to clean up the called thread when it finishes
- *
- * TODO: gthread_sched_detach()
- */
-int gthread_sched_spawn(gthread_sched_handle_t* handle, gthread_attr_t* attr,
-                        gthread_entry_t entry, void* arg);
+  friend class sched;
+};
 
-/**
- * disables preemption by the scheduler
- *
- * helper function for things that implement cooperative functionality
- * to make themselves uninterruptable for the *only* purpose of marking the
- * current task as waiting and putting it on a waitqueue of some kind
- *
- * this *disables* the scheduler in the sense that when the scheduler is
- * invoked, the locking task will be resumed
- */
-static inline void gthread_sched_uninterruptable_lock();
+class sched {
+ public:
+  sched() = delete;
 
-/**
- * resumes preemption by the scheduler if it has been disabled
- *
- * if `gthread_sched_uninterruptable_lock()` is called, this must be called to
- * allow preemption to happen again
- */
-static inline void gthread_sched_uninterruptable_unlock();
+  /**
+   * stops the current task and invokes the scheduler
+   *
+   * the scheduler will pick the task that has had the minimum amount of
+   * proportional processor time and run that task. when the current task meets
+   * that condition, it will be resume on the line following this call.
+   */
+  static int yield();
 
-/**
- * joins |task| when it finishes running (the caller will be suspended)
- *
- * |return_value| can be NULL. when |return_value| is not NULL, `*return_value`
- * will contain the return value of |task|, either from the returning entry
- * point, or passed in via `gthread_sched_exit()`.
- */
-int gthread_sched_join(gthread_sched_handle_t task, void** return_value);
+  /**
+   * spawns a gthread, storing a handle in |handle|, where |entry| will be
+   * invoked with argument |arg|. `gthread::sched::join()` must be called
+   * eventually to clean up the called thread when it finishes
+   *
+   * TODO: sched::detach()
+   */
+  static sched_handle spawn(gthread_attr_t* attr, gthread_entry_t entry,
+                            void* arg);
 
-/**
- * ends the current task with return value |return_value|
- *
- * the current task normally ends by returning a value from its entry point.
- * however, if it must end abruptly, this function must be used.
- */
-void gthread_sched_exit(void* return_value);
+  /**
+   * joins |task| when it finishes running (the caller will be suspended)
+   *
+   * |return_value| can be NULL. when |return_value| is not NULL,
+   * `*return_value` will contain the return value of |task|, either from the
+   * returning entry point, or passed in via `gthread_sched_exit()`.
+   */
+  static int join(sched_handle* task, void** return_value);
+
+  /**
+   * ends the current task with return value |return_value|
+   *
+   * the current task normally ends by returning a value from its entry point.
+   * however, if it must end abruptly, this function must be used.
+   */
+  static void exit(void* return_value);
+
+  /**
+   * disables preemption by the scheduler
+   *
+   * helper function for things that implement cooperative functionality
+   * to make themselves uninterruptable for the *only* purpose of marking the
+   * current task as waiting and putting it on a waitqueue of some kind
+   *
+   * this *disables* the scheduler in the sense that when the scheduler is
+   * invoked, the locking task will be resumed
+   */
+  static inline void uninterruptable_lock();
+
+  /**
+   * resumes preemption by the scheduler if it has been disabled
+   *
+   * if `gthread_sched_uninterruptable_lock()` is called, this must be called to
+   * allow preemption to happen again
+   */
+  static inline void uninterruptable_unlock();
+
+ private:
+  static gthread_task_t* make_task(gthread_attr_t* attr);
+
+  static void return_task(gthread_task_t* task);
+
+  static int init();
+
+  static gthread_task_t* next(gthread_task_t* last_running_task);
+
+  static std::atomic<bool> is_init;
+
+  static gthread_task_t* const k_pointer_lock;
+  static std::atomic<gthread_task_t*> interrupt_lock;
+
+  /**
+   * tasks that can be switched to with the expectation that they will make
+   * progress
+   */
+  static gthread_rb_tree_t runqueue;
+
+  static uint64_t min_vruntime;
+
+  // ring buffer for free tasks
+  static constexpr uint64_t k_freelist_size = 64;
+  static uint64_t freelist_r;  // reader is `make_task()`
+  static uint64_t freelist_w;  // writer is `return_task()`
+  static gthread_task_t* freelist[k_freelist_size];
+};
+}  // namespace gthread
 
 #include "sched/sched_inline.h"
 
