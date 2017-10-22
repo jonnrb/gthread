@@ -5,9 +5,6 @@
  * info: implements Linux specific functionality
  */
 
-// lets us build in C11 mode
-#define _GNU_SOURCE
-
 #include "platform/memory.h"
 
 #include <errno.h>
@@ -20,7 +17,7 @@
 const size_t GTHREAD_STACK_MIN = 0x2000;
 
 // same as nptl
-const static size_t k_stack_default = 2 << 20;
+static constexpr size_t k_stack_default = 2 << 20;
 
 static inline size_t page_size() {
   static size_t k = 0;
@@ -37,27 +34,26 @@ static inline size_t page_size() {
 // use mmap() to allocate a stack and mprotect() for the guard page
 int gthread_allocate_stack(gthread_attr_t *attrs, void **stack,
                            size_t *total_stack_size) {
-  gthread_attr_t defaults = {.stack = {.addr = NULL,
-                                       .size = k_stack_default,
-                                       .guardsize = GTHREAD_STACK_MIN}};
+  static gthread_attr_t defaults = {
+      {GTHREAD_STACK_MIN, k_stack_default, nullptr}};
   attrs = attrs ?: &defaults;
 
   // user provided stack space. no guard pages setup in this case.
-  if (attrs->stack.addr != NULL) {
+  if (attrs->stack.addr != nullptr) {
     assert(((uintptr_t)attrs->stack.addr % page_size()) == 0);
     *stack = attrs->stack.addr;
     return 0;
   }
 
   size_t t;
-  if (total_stack_size == NULL) total_stack_size = &t;
+  if (total_stack_size == nullptr) total_stack_size = &t;
   *total_stack_size = attrs->stack.size + attrs->stack.guardsize;
 
   // mmap the region as a stack using MAP_GROWSDOWN magic
-  void *stackaddr = mmap(NULL, *total_stack_size, PROT_READ | PROT_WRITE,
+  void *stackaddr = mmap(nullptr, *total_stack_size, PROT_READ | PROT_WRITE,
                          MAP_PRIVATE | MAP_ANONYMOUS | MAP_GROWSDOWN, -1, 0);
 
-  if (stackaddr == NULL) {
+  if (stackaddr == nullptr) {
     return -1;
   }
 
@@ -67,12 +63,12 @@ int gthread_allocate_stack(gthread_attr_t *attrs, void **stack,
       return -1;
     }
   }
-  *stack = (void *)(stackaddr + *total_stack_size);
+  *stack = (void *)((char *)stackaddr + *total_stack_size);
   return 0;
 }
 
 int gthread_free_stack(void *stack_base, size_t total_stack_size) {
-  return munmap(stack_base, total_stack_size);
+  return munmap((char *)stack_base, total_stack_size);
 }
 
 #ifdef MACOS_STACK_TEST

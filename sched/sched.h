@@ -26,11 +26,11 @@ namespace gthread {
  */
 class sched_handle {
  public:
-  constexpr sched_handle() : task(nullptr) {}
-  constexpr operator bool() const { return task != nullptr; }
+  constexpr sched_handle() : t(nullptr) {}
+  constexpr operator bool() const { return t != nullptr; }
 
  private:
-  task* task;
+  task* t;
 
   friend class sched;
 };

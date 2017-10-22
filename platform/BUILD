@@ -19,6 +19,7 @@ cc_library(
     name = "memory",
     srcs = select({
         "@bazel_tools//src:darwin": ["memory_macos.cc"],
+        "//conditions:default": ["memory_linux.cc"],
     }) + [
         "memory_inline.h",
     ],
@@ -80,6 +81,10 @@ cc_library(
         "@bazel_tools//src:darwin": [
             "tls_macos.cc",
             "tls_inline_macos.h",
+        ],
+        "//conditions:default": [
+            "tls_inline_linux.h",
+            "tls_linux.cc",
         ],
     }),
     hdrs = ["tls.h"],

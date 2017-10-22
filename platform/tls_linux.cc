@@ -5,8 +5,6 @@
  * info: implement thread local storage (ELF spec) on linux piggybacking glibc
  */
 
-#define _GNU_SOURCE
-
 #include "platform/tls.h"
 
 #include <asm/prctl.h>
@@ -142,7 +140,7 @@ gthread_tls_t gthread_tls_allocate() {
   size_t tcb_offset = alloc_size;  // save the offset for the `tcbhead_t`
   alloc_size += sizeof(tcbhead_t) + (k_num_slots + 2) * sizeof(dtv_t);
 
-  char* alloc_base = calloc(alloc_size, 1);
+  char* alloc_base = (char*)calloc(alloc_size, 1);
   tcbhead_t* tcbhead = (tcbhead_t*)(alloc_base + tcb_offset);
   tcbhead->self = tcbhead;
 
@@ -200,7 +198,7 @@ int gthread_tls_reset(gthread_tls_t tls) {
   }
 
   // zero-initialize data not in the image
-  char* old_base = dtv[0].head.base;
+  char* old_base = (char*)dtv[0].head.base;
   memset(old_base, '\0', (char*)tls - old_base);
 
   char* image_base = (char*)tls;

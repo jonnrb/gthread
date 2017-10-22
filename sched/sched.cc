@@ -239,22 +239,22 @@ sched_handle sched::spawn(gthread_attr_t* attr, gthread_entry_t* entry,
     if (init()) return handle;
   }
 
-  handle.task = make_task(attr);
+  handle.t = make_task(attr);
   if (branch_unexpected(!handle)) {
     return handle;
   }
 
   // this will start the task and immediately return control
-  handle.task->entry = entry;
-  handle.task->arg = arg;
-  if (branch_unexpected(handle.task->start())) {
-    return_task(handle.task);
-    handle.task = nullptr;
+  handle.t->entry = entry;
+  handle.t->arg = arg;
+  if (branch_unexpected(handle.t->start())) {
+    return_task(handle.t);
+    handle.t = nullptr;
     return handle;
   }
 
   uninterruptable_lock();
-  runqueue.emplace(handle.task->vruntime, handle.task);
+  runqueue.emplace(handle.t->vruntime, handle.t);
   uninterruptable_unlock();
 
   return handle;
@@ -283,14 +283,13 @@ int sched::join(sched_handle* handle, void** return_value) {
   task* current = task::current();
 
   // flag to |thread| that you are the joiner
-  for (task* current_joiner = nullptr;
-       branch_unexpected(!handle->task->joiner.compare_exchange_strong(
-           current_joiner, current));
+  for (task* current_joiner = nullptr; branch_unexpected(
+           !handle->t->joiner.compare_exchange_strong(current_joiner, current));
        current_joiner = nullptr) {
     // if the joiner is not `nullptr` and is not locked, something else is
     // joining, which is undefined behavior
     if (branch_unexpected(current_joiner != (task*)k_pointer_lock &&
-                          current_joiner != NULL)) {
+                          current_joiner != nullptr)) {
       return -1;
     }
 
@@ -302,18 +301,18 @@ int sched::join(sched_handle* handle, void** return_value) {
   // |handle|'s task will reschedule us when it has stopped, in which case the
   // loop will break and we know we can read off the return value and
   // (optionally) destroy the thread memory.
-  while (handle->task->run_state != task::STOPPED) {
+  while (handle->t->run_state != task::STOPPED) {
     current->run_state = task::WAITING;
     yield();
   }
 
   // take the return value of |thread| if |return_value| is given
   if (return_value != NULL) {
-    *return_value = handle->task->return_value;
+    *return_value = handle->t->return_value;
   }
 
-  return_task(handle->task);
-  handle->task = nullptr;
+  return_task(handle->t);
+  handle->t = nullptr;
 
   return 0;
 }
