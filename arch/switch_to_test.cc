@@ -57,7 +57,7 @@ void utest_func() {
 int main() {
   void* stack;
   size_t stack_size;
-  gthread::allocate_stack(k_default_attr, &stack, &stack_size);
+  gthread::allocate_stack(gthread::k_default_attr, &stack, &stack_size);
 
   gthread_switch_to_and_spawn(&main_ctx, stack, test_func, (void*)test_str);
 

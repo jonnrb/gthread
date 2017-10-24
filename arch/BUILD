@@ -34,7 +34,7 @@ cc_test(
     name = "switch_to_test",
     srcs = ["switch_to_test.cc"],
     copts = [
-        "-Wdeprecated-declarations",  # uses ucontext.h which is deprecated
+        "-Wno-deprecated-declarations",  # uses ucontext.h which is deprecated
     ],
     deps = [
         ":switch_to",
