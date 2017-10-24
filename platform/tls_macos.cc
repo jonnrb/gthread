@@ -2,7 +2,6 @@
 
 #include "platform/tls.h"
 
-#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/syscall.h>
@@ -123,5 +122,6 @@ void* gthread_tls_get_thread(gthread_tls_t tls) {
 }
 
 void gthread_tls_use(gthread_tls_t tls) {
-  _thread_set_tsd_base((void*)((char*)tls + get_pthread_slots_offset()));
+  void** tls_slots = (void**)((char*)tls + get_pthread_slots_offset());
+  _thread_set_tsd_base((void*)tls_slots);
 }

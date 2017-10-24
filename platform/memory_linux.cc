@@ -40,7 +40,9 @@ int gthread_allocate_stack(gthread_attr_t *attrs, void **stack,
 
   // user provided stack space. no guard pages setup in this case.
   if (attrs->stack.addr != nullptr) {
-    assert(((uintptr_t)attrs->stack.addr % page_size()) == 0);
+    if (branch_unexpected(((uintptr_t)attrs->stack.addr % page_size()) != 0)) {
+      return -1;
+    }
     *stack = attrs->stack.addr;
     return 0;
   }

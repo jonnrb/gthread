@@ -14,6 +14,7 @@
 
 #include "arch/bit_twiddle.h"
 #include "gthread.h"
+#include "util/compiler.h"
 
 static const mach_vm_address_t GTHREAD_STACK_HINT = 0xB0000000;
 
@@ -29,7 +30,9 @@ int gthread_allocate_stack(gthread_attr_t *attrs, void **stack,
 
   // user provided stack space. no guard pages setup in this case.
   if (attrs->stack.addr != NULL) {
-    assert(((uintptr_t)attrs->stack.addr % vm_page_size) == 0);
+    if (branch_unexpected(((uintptr_t)attrs->stack.addr % vm_page_size) != 0)) {
+      return -1;
+    }
     *stack = attrs->stack.addr;
     return 0;
   }

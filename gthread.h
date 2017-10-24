@@ -8,8 +8,6 @@
 #ifndef GTHREAD_H_
 #define GTHREAD_H_
 
-#include <assert.h>
-#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 

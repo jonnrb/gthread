@@ -16,8 +16,6 @@
 #include "platform/timer.h"
 #include "platform/tls.h"
 #include "util/compiler.h"
-#include "util/list.h"
-#include "util/rb.h"
 
 namespace gthread {
 
