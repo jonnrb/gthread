@@ -10,62 +10,71 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdio.h>
 
 #include "platform/clock.h"
 #include "sched/sched.h"
 
-static gthread_mutex_t mutex;
+static gthread::mutex mu{gthread::k_default_mutexattr};
 static char last_task_with_mutex = '-';
+static uint64_t mutex_tight_loops = 0;
 static uint64_t mutextarget = 0;
 static bool go = false;
 
-#define k_num_loops 10 * 1000 * 1000
+constexpr uint64_t k_num_loops = 100 * 1000;
+constexpr uint64_t k_num_inner_loops = 1000;
 
 void* important_task(void* arg) {
   const char* msg = (const char*)arg;
 
-  while (!go) gthread_sched_yield();
+  while (!go) gthread::sched::yield();
 
   for (int i = 0; i < k_num_loops; ++i) {
-    assert(!gthread_mutex_lock(&mutex));
-    if (last_task_with_mutex != *msg) {
-      printf("mutex hot potato! %c -> %c\n", last_task_with_mutex, *msg);
+    if (branch_unexpected(mu.lock())) {
+      gthread_log_fatal("lock failed");
     }
-    last_task_with_mutex = *msg;
-    mutextarget = mutextarget + 1;
-    assert(!gthread_mutex_unlock(&mutex));
+
+    for (int j = 0; j < k_num_inner_loops; ++j, ++i) {
+      if (last_task_with_mutex != *msg) {
+        std::cout << "mutex hot potato! " << last_task_with_mutex << " ("
+                  << mutex_tight_loops << ") -> " << *msg << " * "
+                  << gthread::task::current()->priority_boost << std::endl;
+        mutex_tight_loops = 0;
+      }
+      ++mutex_tight_loops;
+      last_task_with_mutex = *msg;
+
+      mutextarget = mutextarget + 1;
+    }
+
+    if (branch_unexpected(mu.unlock())) {
+      gthread_log_fatal("unlock failed");
+    }
   }
 
   return NULL;
 }
 
-int init() {
-  gthread_sched_handle_t tasks[26];
+int main() {
+  gthread::sched_handle tasks[26];
   char msgs[26] = {'A'};
   for (int i = 0; i < 26; ++i) {
-    printf("creating task %d\n", i);
+    std::cout << "creating task " << i << std::endl;
     msgs[i] = msgs[0] + i;
-    assert(!gthread_sched_spawn(&tasks[i], NULL, important_task,
-                                (void*)(&msgs[i])));
+    tasks[i] = gthread::sched::spawn(gthread::k_default_attr, important_task,
+                                     (void*)(&msgs[i]));
+    assert(tasks[i]);
   }
 
   go = true;
 
   for (int i = 0; i < 26; ++i) {
-    gthread_sched_join(tasks[i], NULL);
+    gthread::sched::join(&tasks[i], nullptr);
   }
-  printf("done and stuff\n");
-  assert(mutextarget == 26 * k_num_loops);
-  return 0;
-}
+  std::cout << "done" << std::endl;
 
-int main() {
-  mutextarget = 0;
-  assert(!gthread_mutex_init(&mutex, NULL));
-  init();
-  assert(!gthread_mutex_destroy(&mutex));
-  fprintf(stderr, "destroying destroyed mutex should err: ");
-  assert(gthread_mutex_destroy(&mutex));
+  if (mutextarget != 26 * k_num_loops) {
+    gthread_log_fatal("missed target!");
+  }
+
   return 0;
 }

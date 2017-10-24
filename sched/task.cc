@@ -77,12 +77,12 @@ int task::reset() {
 }
 
 void task::record_time_slice(uint64_t elapsed) {
+  // XXX hack to hurt spinlocks
+  if (elapsed < 10) elapsed = 10;
+
   if (priority_boost > 0) {
     elapsed /= (priority_boost + 1);
   }
-
-  // XXX hack to hurt spinlocks
-  if (elapsed < 10) elapsed = 10;
 
   vruntime += elapsed;
 }

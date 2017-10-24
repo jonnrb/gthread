@@ -33,7 +33,7 @@ void* test_thread(void* arg) {
 int main() {
   printf("spawning %d threads\n", k_num_threads);
   for (uint64_t i = 0; i < k_num_threads; ++i) {
-    threads[i] = sched::spawn(NULL, test_thread, (void*)i);
+    threads[i] = sched::spawn(k_default_attr, test_thread, (void*)i);
   }
 
   printf("joining ALL the threads\n");

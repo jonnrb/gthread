@@ -15,126 +15,92 @@
 #include "sched/sched.h"
 #include "sched/task.h"
 #include "util/compiler.h"
-#include "util/list.h"
-#include "util/rb.h"
 
-static inline void spin_acquire(std::atomic<bool> *lock) {
-  for (bool expected = false; !lock->compare_exchange_weak(expected, true);
-       expected = false) {
-    gthread_sched_yield();
-  }
+namespace gthread {
+
+namespace {
+static inline void spin_acquire(std::atomic_flag* lock) {
+  while (!lock->test_and_set()) sched::yield();
 }
+}  // namespace
 
-// Initializes a my_pthread_mutex_t created by the calling thread. Attributes
-// are ignored.
-int gthread_mutex_init(gthread_mutex_t *mutex,
-                       const gthread_mutexattr_t *mutexattr) {
-  mutex->init = 1;  // initialized state
-  mutex->owner = NULL;
-  mutex->lock = false;
-  mutex->priority_boost = 0;
-  return 0;
-}
+mutex::mutex(const mutexattr& a)
+    : _lock{false}, _owner{nullptr}, _priority_boost{0} {}
 
-// Locks a given mutex, other threads attempting to access this mutex will not
-// run until it is unlocked.
-int gthread_mutex_lock(gthread_mutex_t *mutex) {
-  if (branch_unexpected(mutex->init != 1)) {
-    errno = EINVAL;
-    perror("Invalid mutex, must initialize first.");
-    return errno;
-  }
+mutex::~mutex() {}
 
-  gthread_task_t *current = gthread_task_current();
+// locks the mutex. will wait if the lock is contended.
+int mutex::lock() {
+  task* cur = task::current();
 
   // spin acquire lock
-  spin_acquire(&mutex->lock);
+  spin_acquire(&_lock);
 
   // slow path
-  while (branch_unexpected(mutex->owner != NULL)) {
-    ++mutex->priority_boost;
-    ++mutex->owner->priority_boost;
+  while (branch_unexpected(_owner != nullptr)) {
+    ++_priority_boost;
+    ++_owner->priority_boost;
 
     // put the thread on the waitqueue
-    gthread_sched_uninterruptable_lock();
-    current->vruntime_save = current->s.rq.vruntime;
-    current->run_state = GTHREAD_TASK_WAITING;
-    gthread_list_push(&mutex->waitqueue, &current->s.wq);
-    gthread_sched_uninterruptable_unlock();
+    sched::uninterruptable_lock();
+    cur->run_state = task::WAITING;
+    _waitqueue.push_back(cur);
+    sched::uninterruptable_unlock();
 
-    mutex->lock = false;
+    _lock.clear();
 
     // deschedule self until woken up
-    gthread_sched_yield();
+    sched::yield();
 
     // reacquire mutex lock
-    spin_acquire(&mutex->lock);
+    spin_acquire(&_lock);
 
-    --mutex->priority_boost;
+    --_priority_boost;
   }
 
-  mutex->owner = current;
-  current->priority_boost = mutex->priority_boost;
+  _owner = cur;
+  cur->priority_boost = _priority_boost;
 
   // release lock
-  mutex->lock = 0;
+  _lock.clear();
 
   return 0;
 }
 
 // Unlocks a given mutex.
-int gthread_mutex_unlock(gthread_mutex_t *mutex) {
-  if (branch_unexpected(mutex->init != 1)) {
+int mutex::unlock() {
+  task* cur = task::current();
+  if (branch_unexpected(_owner != cur)) {
     errno = EINVAL;
-    perror("Invalid mutex, must initialize first.");
     return -1;
   }
 
-  gthread_task_t *current = gthread_task_current();
-  if (branch_unexpected(current != mutex->owner)) {
-    errno = EINVAL;
-    perror("Unlock attempted by a thread/task in which mutex does not belong.");
-    return -1;
-  }
-
-  spin_acquire(&mutex->lock);
+  spin_acquire(&_lock);
 
   // fast path
-  if (branch_expected(mutex->waitqueue == NULL)) {
-    mutex->owner = NULL;
-    mutex->lock = 0;
+  if (branch_expected(_waitqueue.empty())) {
+    _owner = nullptr;
+    _lock.clear();
     return 0;
   }
 
-  gthread_task_t *waiter =
-      container_of(gthread_list_pop(&mutex->waitqueue), gthread_task_t, s.wq);
-  gthread_rb_construct(&waiter->s.rq.rb_node);
-  waiter->s.rq.vruntime = waiter->vruntime_save;
-  waiter->run_state = GTHREAD_TASK_SUSPENDED;
+  task* waiter = *_waitqueue.begin();
+  _waitqueue.pop_front();
 
-  gthread_sched_uninterruptable_lock();
-  extern gthread_rb_tree_t gthread_sched_runqueue;
-  gthread_rb_push(&gthread_sched_runqueue, &waiter->s.rq.rb_node);
-  gthread_sched_uninterruptable_unlock();
+  waiter->run_state = task::SUSPENDED;
 
-  mutex->owner = NULL;
-  current->priority_boost = 0;
-  mutex->lock = false;
-  gthread_sched_yield();
+  sched::uninterruptable_lock();
+  sched::runqueue_push(waiter);
+  sched::uninterruptable_unlock();
+
+  _owner = nullptr;
+  cur->priority_boost = 0;
+
+  _lock.clear();
+
+  sched::yield();
 
   return 0;
 }
 
-// Destroys a given mutex. Mutex should be unlocked before doing so.
-int gthread_mutex_destroy(gthread_mutex_t *mutex) {
-  if (branch_unexpected(mutex->init == 1)) {
-    mutex->init = 0;
-    mutex->lock = false;
-    mutex->owner = nullptr;
-    return 0;
-  } else {
-    errno = EINVAL;
-    perror("Mutex was not initialized to begin with");
-    return -1;
-  }
-}
+}  // namespace gthread

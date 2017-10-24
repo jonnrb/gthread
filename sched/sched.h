@@ -94,6 +94,8 @@ class sched {
    */
   static inline void uninterruptable_unlock();
 
+  static inline void runqueue_push(task* t);
+
  private:
   static task* make_task(const attr& a);
 

@@ -138,7 +138,7 @@ task* sched::next(task* last_running_task) {
   // if the task was in a runnable state when the scheduler was invoked, push it
   // to the runqueue
   if (last_running_task->run_state == task::RUNNING) {
-    runqueue.emplace(last_running_task->vruntime, last_running_task);
+    runqueue_push(last_running_task);
   }
 
   // XXX: remove the assumption that the runqueue is never empty. this is true
@@ -254,7 +254,7 @@ sched_handle sched::spawn(const attr& attr, task::entry_t* entry, void* arg) {
     return handle;
   }
 
-  runqueue.emplace(handle.t->vruntime, handle.t);
+  runqueue_push(handle.t);
 
   uninterruptable_unlock();
 
@@ -346,7 +346,7 @@ void sched::exit(void* return_value) {
     }
 
     uninterruptable_lock();
-    runqueue.emplace(joiner->vruntime, joiner);
+    runqueue_push(joiner);
     uninterruptable_unlock();
   } else {
     // if there wasn't a joiner that suspended itself, we entered a critical

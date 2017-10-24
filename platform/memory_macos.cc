@@ -34,8 +34,11 @@ int allocate_stack(const attr& a, void** stack, size_t* total_stack_size) {
   }
 
   size_t t;
+  size_t guardsize = a.stack.guardsize != static_cast<size_t>(-1)
+                         ? a.stack.guardsize
+                         : k_stack_min;
   if (total_stack_size == NULL) total_stack_size = &t;
-  *total_stack_size = a.stack.size + a.stack.guardsize;
+  *total_stack_size = a.stack.size + guardsize;
 
   // tags the region as a stack. could also be done with mmap() but would
   // require different flags than linux and xnu doesnt have MAP_GROWSDOWN so why
@@ -57,10 +60,7 @@ int allocate_stack(const attr& a, void** stack, size_t* total_stack_size) {
   }
 
   // the guard page is at the lowest address. apply protection to segv there.
-  if (a.stack.guardsize != 0) {
-    size_t guardsize = a.stack.guardsize != static_cast<size_t>(-1)
-                           ? a.stack.guardsize
-                           : k_stack_min;
+  if (guardsize != 0) {
     kr = mach_vm_protect(mach_task_self(), stackaddr, guardsize, FALSE,
                          VM_PROT_NONE);
   }
