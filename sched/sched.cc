@@ -16,7 +16,6 @@
 #include "platform/memory.h"
 #include "util/compiler.h"
 #include "util/log.h"
-#include "util/rb.h"
 
 namespace gthread {
 namespace {
@@ -243,18 +242,20 @@ sched_handle sched::spawn(gthread_attr_t* attr, gthread_entry_t* entry,
   if (branch_unexpected(!handle)) {
     return handle;
   }
-
-  // this will start the task and immediately return control
   handle.t->entry = entry;
   handle.t->arg = arg;
+
+  uninterruptable_lock();
+
+  // this will start the task and immediately return control
   if (branch_unexpected(handle.t->start())) {
     return_task(handle.t);
     handle.t = nullptr;
     return handle;
   }
 
-  uninterruptable_lock();
   runqueue.emplace(handle.t->vruntime, handle.t);
+
   uninterruptable_unlock();
 
   return handle;

@@ -12,7 +12,6 @@
 #include "gthread.h"
 #include "platform/memory.h"
 #include "util/log.h"
-#include "util/rb.h"
 
 namespace gthread {
 
@@ -117,18 +116,18 @@ int task::start() {
   auto* cur = current();
 
   if (branch_unexpected(this == cur)) {
-    gthread_log_fatal("cannot start current task from the current task!");
+    return -1;
   }
 
-  // slow path on being the first call in this module
-  if (branch_unexpected(!is_root_task_init)) {
-    init();
-  }
+  bool expected = false;
+  if (!lock.compare_exchange_strong(expected, true)) return -1;
 
   gthread_saved_ctx_t* new_and_cur[2] = {&this->ctx, &cur->ctx};
-  gthread_switch_to_and_spawn(&cur->ctx, nullptr, stack, gthread_task_entry,
+  gthread_switch_to_and_spawn(&cur->ctx, stack, gthread_task_entry,
                               new_and_cur);
   run_state = SUSPENDED;
+
+  lock = 0;
 
   return 0;
 }
@@ -142,7 +141,7 @@ void task::stop(void* return_value) {
 }
 
 int task::switch_to_internal(uint64_t* elapsed) {
-  task* prev_task = current();
+  auto prev_task = current();
   if (this == prev_task) {
     gthread_log_fatal("switching to current task bad!");
     return 0;
@@ -173,7 +172,10 @@ int task::switch_to_internal(uint64_t* elapsed) {
   lock = 0;
   gthread_switch_to(&prev_task->ctx, &ctx);
 
-  assert(current() == prev_task);
+  if (branch_unexpected(prev_task != current())) {
+    gthread_log_fatal("task was not switched back to properly");
+  }
+
   prev_task->run_state = RUNNING;
   return 0;
 }
@@ -189,7 +191,9 @@ void task::time_slice_trap_base(uint64_t elapsed) {
   }
 
   if (next_task != nullptr && next_task != cur) {
-    next_task->switch_to_internal(&elapsed);
+    if (branch_unexpected(next_task->switch_to_internal(&elapsed))) {
+      gthread_log_fatal("error switching to next task");
+    }
   } else {
     cur->record_time_slice(elapsed);
   }
@@ -206,9 +210,8 @@ void task::set_end_handler(end_handler_t handler) { end_handler = handler; }
 
 void task::init() {
   bool expected = false;
-  if (branch_unexpected(
-          !is_root_task_init &&
-          is_root_task_init.compare_exchange_strong(expected, true))) {
+  if (!is_root_task_init &&
+      is_root_task_init.compare_exchange_strong(expected, true)) {
     // most of struct is zero-initialized
     root_task.tls = gthread_tls_current();
     root_task.run_state = RUNNING;
