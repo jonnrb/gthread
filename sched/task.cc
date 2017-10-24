@@ -18,15 +18,15 @@ namespace gthread {
 task::end_handler_t* task::end_handler = nullptr;
 
 // task switching MUST not be reentrant
-std::atomic<bool> task::lock = ATOMIC_VAR_INIT(false);
+std::atomic<bool> task::lock{false};
 
 bool task::timer_enabled = false;
 task::time_slice_trap_t* task::time_slice_trap = nullptr;
 
-std::atomic<bool> task::is_root_task_init = ATOMIC_VAR_INIT(false);
+std::atomic<bool> task::is_root_task_init{false};
 task task::root_task;
 
-task::task(gthread_attr_t* attrs) {
+task::task(const attr& a) {
   tls = gthread_tls_allocate();
   if (tls == NULL) return;  // TODO: throw here and at all short-circuits
 
@@ -36,7 +36,7 @@ task::task(gthread_attr_t* attrs) {
   joiner = NULL;
   return_value = NULL;
 
-  if (gthread_allocate_stack(attrs, &stack, &total_stack_size)) {
+  if (allocate_stack(a, &stack, &total_stack_size)) {
     gthread_tls_free(tls);
     return;
   }
@@ -61,7 +61,7 @@ task::task()
 task::~task() {
   if (this == &root_task) return;
   gthread_tls_free(tls);
-  gthread_free_stack((char*)stack - total_stack_size, total_stack_size);
+  free_stack((char*)stack - total_stack_size, total_stack_size);
 }
 
 int task::reset() {

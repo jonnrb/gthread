@@ -22,14 +22,14 @@ int main() {
   signal(SIGSEGV, segv_handler);
   signal(SIGBUS, segv_handler);
 
-  gthread_attr_t t_attr;
-  t_attr.stack.size = GTHREAD_STACK_MIN;
-  t_attr.stack.guardsize = GTHREAD_STACK_MIN;
+  gthread::attr t_attr;
+  t_attr.stack.size = gthread::k_stack_min;
+  t_attr.stack.guardsize = gthread::k_stack_min;
   t_attr.stack.addr = NULL;
   size_t total_stack_size;
 
-  printf("%d ", gthread_allocate_stack(&t_attr, &t_attr.stack.addr,
-                                       &total_stack_size));
+  printf("%d ", gthread::allocate_stack(t_attr, &t_attr.stack.addr,
+                                        &total_stack_size));
   printf("%p\n\n", t_attr.stack.addr);
 
   for (uint64_t* i = (uint64_t*)t_attr.stack.addr - 1;; --i) {

@@ -18,6 +18,7 @@
 #include "util/log.h"
 
 namespace gthread {
+
 namespace {
 
 template <bool enabled = false, uint64_t interval = 0>
@@ -101,9 +102,9 @@ static stats<g_collect_stats, g_stats_interval> g_stats;
 
 }  // namespace
 
-std::atomic<bool> sched::is_init = ATOMIC_VAR_INIT(false);
+std::atomic<bool> sched::is_init{false};
 task* const sched::k_pointer_lock = (task*)-1;
-std::atomic<task*> sched::interrupt_lock = ATOMIC_VAR_INIT(nullptr);
+std::atomic<task*> sched::interrupt_lock{nullptr};
 
 std::multimap<uint64_t, task*> sched::runqueue;
 uint64_t sched::min_vruntime = 0;
@@ -179,7 +180,7 @@ int sched::init() {
   return 0;
 }
 
-task* sched::make_task(gthread_attr_t* attr) {
+task* sched::make_task(const attr& a) {
   task* t;
 
   g_stats.maybe_start_interval();
@@ -195,7 +196,7 @@ task* sched::make_task(gthread_attr_t* attr) {
     return t;
   }
 
-  t = new task(attr);
+  t = new task(a);
   if (branch_unexpected(t == nullptr)) {
     perror("task construction failed");
     g_stats.maybe_end_interval();
@@ -225,8 +226,7 @@ int sched::yield() {
 // TODO: this would be nice (nanosleep sleeps the whole process)
 // int64_t gthread_sched_nanosleep(uint64_t ns) {}
 
-sched_handle sched::spawn(gthread_attr_t* attr, gthread_entry_t* entry,
-                          void* arg) {
+sched_handle sched::spawn(const attr& attr, task::entry_t* entry, void* arg) {
   sched_handle handle;
 
   if (branch_unexpected(entry == NULL)) {

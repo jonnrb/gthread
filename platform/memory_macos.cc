@@ -16,35 +16,31 @@
 #include "gthread.h"
 #include "util/compiler.h"
 
-static const mach_vm_address_t GTHREAD_STACK_HINT = 0xB0000000;
+namespace gthread {
 
-const size_t GTHREAD_STACK_MIN = 0x2000;
+static constexpr mach_vm_address_t k_stack_hint = 0xB0000000;
+
+const size_t k_stack_min = 0x2000;
 
 // use mach_vm_map for xnu. based on what apple libc pthreads.
-int gthread_allocate_stack(gthread_attr_t *attrs, void **stack,
-                           size_t *total_stack_size) {
-  gthread_attr_t defaults = {.stack = {.addr = NULL,
-                                       .size = 1024 * 1024,  // 1 MB stack.
-                                       .guardsize = GTHREAD_STACK_MIN}};
-  attrs = attrs ?: &defaults;
-
+int allocate_stack(const attr& a, void** stack, size_t* total_stack_size) {
   // user provided stack space. no guard pages setup in this case.
-  if (attrs->stack.addr != NULL) {
-    if (branch_unexpected(((uintptr_t)attrs->stack.addr % vm_page_size) != 0)) {
+  if (a.stack.addr != NULL) {
+    if (branch_unexpected(((uintptr_t)a.stack.addr % vm_page_size) != 0)) {
       return -1;
     }
-    *stack = attrs->stack.addr;
+    *stack = a.stack.addr;
     return 0;
   }
 
   size_t t;
   if (total_stack_size == NULL) total_stack_size = &t;
-  *total_stack_size = attrs->stack.size + attrs->stack.guardsize;
-  mach_vm_address_t stackaddr = GTHREAD_STACK_HINT;
+  *total_stack_size = a.stack.size + a.stack.guardsize;
 
   // tags the region as a stack. could also be done with mmap() but would
   // require different flags than linux and xnu doesnt have MAP_GROWSDOWN so why
   // bother.
+  mach_vm_address_t stackaddr = k_stack_hint;  // actual stack gets put here
   kern_return_t kr = mach_vm_map(
       mach_task_self(), &stackaddr, *total_stack_size,
       right_mask(*total_stack_size),
@@ -61,17 +57,23 @@ int gthread_allocate_stack(gthread_attr_t *attrs, void **stack,
   }
 
   // the guard page is at the lowest address. apply protection to segv there.
-  if (attrs->stack.guardsize)
-    kr = mach_vm_protect(mach_task_self(), stackaddr, attrs->stack.guardsize,
-                         FALSE, VM_PROT_NONE);
-  *stack = (void *)(stackaddr + *total_stack_size);
+  if (a.stack.guardsize != 0) {
+    size_t guardsize = a.stack.guardsize != static_cast<size_t>(-1)
+                           ? a.stack.guardsize
+                           : k_stack_min;
+    kr = mach_vm_protect(mach_task_self(), stackaddr, guardsize, FALSE,
+                         VM_PROT_NONE);
+  }
+  *stack = (void*)(stackaddr + *total_stack_size);
   return 0;
 }
 
-int gthread_free_stack(void *stack_base, size_t total_stack_size) {
+int free_stack(void* stack_base, size_t total_stack_size) {
   if (mach_vm_deallocate(mach_task_self(), (mach_vm_address_t)stack_base,
                          total_stack_size)) {
     return EAGAIN;
   }
   return 0;
 }
+
+}  // namespace gthread

@@ -11,23 +11,23 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-typedef void* gthread_t;
+namespace gthread {
 
-typedef void* gthread_entry_t(void*);
-
-typedef struct _gthread_attr {
+struct attr {
   struct stack_t {
     size_t guardsize;
     size_t size;
     void* addr;
   } stack;
-} gthread_attr_t;
+};
 
-gthread_t gthread_create(gthread_t* gthread, gthread_attr_t* attr,
-                         gthread_entry_t* entry, void* arg);
+constexpr attr k_default_attr = {
+    .stack = {
+        .addr = NULL,
+        .size = 4 * 1024 * 1024,              // 4 MB stack
+        .guardsize = static_cast<size_t>(-1)  // auto guard
+    }};
 
-bool gthread_detach(gthread_t* t);
-
-bool gthread_join(gthread_t* t);
+};  // namespace gthread
 
 #endif  // GTHREAD_H_

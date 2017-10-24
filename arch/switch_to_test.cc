@@ -18,7 +18,7 @@
 #include "platform/clock.h"
 #include "platform/memory.h"
 
-#define k_num_context_switches ((uint64_t)1000 * 1000)
+constexpr uint64_t k_num_context_switches = 1000 * 1000;
 
 const char* test_str = "hello world";
 
@@ -57,7 +57,7 @@ void utest_func() {
 int main() {
   void* stack;
   size_t stack_size;
-  gthread_allocate_stack(NULL, &stack, &stack_size);
+  gthread::allocate_stack(k_default_attr, &stack, &stack_size);
 
   gthread_switch_to_and_spawn(&main_ctx, stack, test_func, (void*)test_str);
 
@@ -68,7 +68,6 @@ int main() {
 
   uint64_t start = gthread_clock_process();
   for (uint64_t i = 0; i < k_num_context_switches; ++i) {
-    __asm__ __volatile__("" ::: "memory");
     gthread_switch_to(&main_ctx, &test_func_ctx);
   }
   uint64_t end = gthread_clock_process();
@@ -87,7 +86,6 @@ int main() {
 
   start = gthread_clock_process();
   for (uint64_t i = 0; i < k_num_context_switches; ++i) {
-    __asm__ __volatile__("" ::: "memory");
     swapcontext(&main_uctx, &utest_func_uctx);
   }
   end = gthread_clock_process();

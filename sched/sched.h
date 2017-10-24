@@ -55,8 +55,7 @@ class sched {
    *
    * TODO: sched::detach()
    */
-  static sched_handle spawn(gthread_attr_t* attr, gthread_entry_t entry,
-                            void* arg);
+  static sched_handle spawn(const attr& a, task::entry_t entry, void* arg);
 
   /**
    * joins |task| when it finishes running (the caller will be suspended)
@@ -96,7 +95,7 @@ class sched {
   static inline void uninterruptable_unlock();
 
  private:
-  static task* make_task(gthread_attr_t* attr);
+  static task* make_task(const attr& a);
 
   static void return_task(task* task);
 

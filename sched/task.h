@@ -22,7 +22,7 @@ namespace gthread {
 struct task {
  public:
   // constructs a stack and sets default values
-  task(gthread_attr_t* attrs);
+  task(const attr& a);
 
   ~task();
 
@@ -65,7 +65,8 @@ struct task {
   typedef enum { RUNNING, SUSPENDED, STOPPED, WAITING } run_state_t;
   run_state_t run_state;
 
-  gthread_entry_t* entry;
+  typedef void* entry_t(void*);
+  entry_t* entry;
   void* arg;
   void* return_value;
 
