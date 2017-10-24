@@ -26,7 +26,7 @@ cc_test(
 
 cc_library(
     name = "switch_to",
-    srcs = ["switch_to.c"],
+    srcs = ["switch_to.S"],
     hdrs = ["switch_to.h"],
 )
 

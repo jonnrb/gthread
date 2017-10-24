@@ -22,8 +22,8 @@ extern "C" {
  */
 typedef struct _gthread_saved_ctx {
   uint64_t rbx;
-  uint64_t rbp;
   uint64_t rsp;
+  uint64_t rbp;
   uint64_t r12;
   uint64_t r13;
   uint64_t r14;
@@ -39,15 +39,16 @@ typedef struct _gthread_saved_ctx {
  * control with `gthread_switch_to()` by another context, the saved context
  * will resume control after the point where it called `gthread_switch_to()`.
  */
-void gthread_switch_to(gthread_saved_ctx_t* from, gthread_saved_ctx_t* to);
+extern void gthread_switch_to(gthread_saved_ctx_t* from,
+                              gthread_saved_ctx_t* to);
 
 /**
  * saves the current context to |self_ctx| and runs the function |entry| with
  * the specified argument (`entry(arg)`).
  */
-void gthread_switch_to_and_spawn(gthread_saved_ctx_t* self_ctx,
-                                 gthread_saved_ctx_t* ret_ctx, void* stack,
-                                 void (*entry)(void*), void* arg);
+extern void gthread_switch_to_and_spawn(gthread_saved_ctx_t* self_ctx,
+                                        void* stack, void (*entry)(void*),
+                                        void* arg);
 
 #ifdef __cplusplus
 };

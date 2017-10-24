@@ -40,6 +40,9 @@ void test_func(void* arg) {
     __asm__ __volatile__("" ::: "memory");
     gthread_switch_to(&test_func_ctx, &main_ctx);
   }
+
+  gthread_switch_to(nullptr, &main_ctx);
+  abort();
 }
 
 void utest_func() {
@@ -56,8 +59,7 @@ int main() {
   size_t stack_size;
   gthread_allocate_stack(NULL, &stack, &stack_size);
 
-  gthread_switch_to_and_spawn(&main_ctx, &main_ctx, stack, test_func,
-                              (void*)test_str);
+  gthread_switch_to_and_spawn(&main_ctx, stack, test_func, (void*)test_str);
 
   if (!good) {
     printf("bad\n");
