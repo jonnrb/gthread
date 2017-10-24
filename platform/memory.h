@@ -42,7 +42,7 @@ int allocate_stack(const gthread::attr& a, void** stack,
  */
 int free_stack(void* stack_addr, size_t total_stack_size);
 
-};  // namespace gthread
+}  // namespace gthread
 
 #include "platform/memory_inline.h"
 
