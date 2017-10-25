@@ -8,6 +8,7 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <cstddef>
 
 #include "platform/memory.h"
 
@@ -33,7 +34,8 @@ int main() {
   printf("%p\n\n", t_attr.stack.addr);
 
   for (uint64_t* i = (uint64_t*)t_attr.stack.addr - 1;; --i) {
-    if ((char*)t_attr.stack.addr - (char*)i > t_attr.stack.size) {
+    if ((char*)t_attr.stack.addr - (char*)i >
+        (std::ptrdiff_t)t_attr.stack.size) {
       printf("next should segfault\n");
       printf("writing to %#tx\n", (char*)t_attr.stack.addr - (char*)i);
       ok = 1;

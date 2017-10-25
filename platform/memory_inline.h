@@ -29,7 +29,7 @@ static inline void *allocate_aligned(size_t alignment, size_t bytes) {
 }
 
 // wrapper for free
-static inline void free(void *data) { free(data); }
+static inline void free(void *data) { ::free(data); }
 }  // namespace gthread
 
 #endif  // PLATFORM_MEMORY_INLINE_H_

@@ -62,7 +62,7 @@ static inline size_t get_pthread_slots_offset() {
 gthread_tls_t gthread_tls_allocate() {
   size_t pthread_t_size = get_pthread_slots_offset();
 
-  void* tls = gthread_allocate(k_num_slots * sizeof(void*) + pthread_t_size);
+  void* tls = gthread::allocate(k_num_slots * sizeof(void*) + pthread_t_size);
   if (tls == NULL) {
     return NULL;
   }
@@ -99,10 +99,10 @@ void gthread_tls_free(gthread_tls_t tls) {
 
   // TODO(jonnrb): do we have to free the low slots?
   for (int i = k_num_copied_slots; i < k_num_slots; ++i) {
-    if (tls_slots[i] != NULL) gthread_free(tls_slots[i]);
+    if (tls_slots[i] != NULL) gthread::free(tls_slots[i]);
   }
 
-  gthread_free(tls);
+  gthread::free(tls);
 }
 
 gthread_tls_t gthread_tls_current() {

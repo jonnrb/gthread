@@ -28,12 +28,12 @@ void* important_task(void* arg) {
 
   while (!go) gthread::sched::yield();
 
-  for (int i = 0; i < k_num_loops; ++i) {
+  for (unsigned i = 0; i < k_num_loops; ++i) {
     if (branch_unexpected(mu.lock())) {
       gthread_log_fatal("lock failed");
     }
 
-    for (int j = 0; j < k_num_inner_loops; ++j, ++i) {
+    for (unsigned j = 0; j < k_num_inner_loops; ++j, ++i) {
       if (last_task_with_mutex != *msg) {
         std::cout << "mutex hot potato! " << last_task_with_mutex << " ("
                   << mutex_tight_loops << ") -> " << *msg << " * "
