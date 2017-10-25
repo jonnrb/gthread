@@ -17,8 +17,6 @@
 
 using namespace gthread;
 
-static sched_handle threads[k_num_threads];
-
 void* test_thread(void* arg) {
   uint64_t i = (uint64_t)arg;
   for (uint64_t s = gthread_clock_process();
@@ -26,17 +24,19 @@ void* test_thread(void* arg) {
     sched::yield();
   }
   sched::exit((void*)(i + 1));
-  assert(!"cannot be here!");
+  gthread_log_fatal("cannot be here!");
   return NULL;
 }
 
 int main() {
-  printf("spawning %d threads\n", k_num_threads);
+  sched_handle threads[k_num_threads];
+
+  std::cout << "spawning " << k_num_threads << " threads" << std::endl;
   for (uint64_t i = 0; i < k_num_threads; ++i) {
     threads[i] = sched::spawn(k_default_attr, test_thread, (void*)i);
   }
 
-  printf("joining ALL the threads\n");
+  std::cout << "joining ALL the threads" << std::endl;
   for (uint64_t i = 0; i < k_num_threads; ++i) {
     void* ret;
     sched::join(&threads[i], &ret);
