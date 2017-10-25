@@ -15,9 +15,9 @@ namespace gthread {
 
 struct attr {
   struct stack_t {
-    size_t guardsize;
-    size_t size;
     void* addr;
+    size_t size;
+    size_t guardsize;
   } stack;
 };
 

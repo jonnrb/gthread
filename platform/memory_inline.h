@@ -12,6 +12,7 @@
 
 #include "util/compiler.h"
 
+namespace gthread {
 // wrapper for malloc
 static inline void *gthread_allocate(size_t bytes) { return malloc(bytes); }
 
@@ -29,5 +30,6 @@ static inline void *gthread_allocate_aligned(size_t alignment, size_t bytes) {
 
 // wrapper for free
 static inline void gthread_free(void *data) { free(data); }
+}  // namespace gthread
 
 #endif  // PLATFORM_MEMORY_INLINE_H_
