@@ -5,9 +5,6 @@
  * info: platform timer utilities
  */
 
-// let's us build in C11 mode
-#define _GNU_SOURCE
-
 #include "platform/timer.h"
 
 #include <signal.h>
