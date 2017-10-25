@@ -25,7 +25,7 @@ inline void sched::uninterruptable_lock() {
 
 inline void sched::uninterruptable_unlock() { interrupt_lock = nullptr; }
 
-inline void sched::runqueue_push(task* t) { runqueue.emplace(t->vruntime, t); }
+inline void sched::runqueue_push(task* t) { runqueue.emplace(t); }
 }  // namespace gthread
 
 #endif  // SCHED_SCHED_INLINE_H_

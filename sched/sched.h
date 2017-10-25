@@ -9,7 +9,7 @@
 #define SCHED_SCHED_H_
 
 #include <atomic>
-#include <map>
+#include <set>
 
 #include "gthread.h"
 #include "sched/task.h"
@@ -116,10 +116,15 @@ class sched {
    *
    * implementation details:
    *
-   * `std::multimap` is used because it usually is built on a pretty robust
+   * `std::multiset` is used because it usually is built on a pretty robust
    * red-black tree, which has good performance for a runqueue
    */
-  static std::multimap<uint64_t, task*> runqueue;
+  struct time_ordered_compare {
+    constexpr bool operator()(const task* a, const task* b) const {
+      return a->vruntime < b->vruntime;
+    }
+  };
+  static std::multiset<task*, time_ordered_compare> runqueue;
 
   static uint64_t min_vruntime;
 

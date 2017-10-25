@@ -11,6 +11,7 @@
 #include <inttypes.h>
 #include <atomic>
 #include <iostream>
+#include <set>
 
 #include "platform/clock.h"
 #include "platform/memory.h"
@@ -106,7 +107,7 @@ std::atomic<bool> sched::is_init{false};
 task* const sched::k_pointer_lock = (task*)-1;
 std::atomic<task*> sched::interrupt_lock{nullptr};
 
-std::multimap<uint64_t, task*> sched::runqueue;
+std::multiset<task*, sched::time_ordered_compare> sched::runqueue;
 uint64_t sched::min_vruntime = 0;
 
 uint64_t sched::freelist_r = 0;
@@ -149,7 +150,7 @@ task* sched::next(task* last_running_task) {
   }
 
   auto begin = runqueue.begin();
-  task* next_task = begin->second;
+  task* next_task = *begin;
   runqueue.erase(begin);
 
   interrupt_lock = nullptr;
