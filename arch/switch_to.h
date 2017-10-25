@@ -40,15 +40,15 @@ typedef struct _gthread_saved_ctx {
  * will resume control after the point where it called `gthread_switch_to()`.
  */
 extern void gthread_switch_to(gthread_saved_ctx_t* from,
-                              gthread_saved_ctx_t* to);
+                              gthread_saved_ctx_t* to) asm("gthread_switch_to");
 
 /**
  * saves the current context to |self_ctx| and runs the function |entry| with
  * the specified argument (`entry(arg)`).
  */
-extern void gthread_switch_to_and_spawn(gthread_saved_ctx_t* self_ctx,
-                                        void* stack, void (*entry)(void*),
-                                        void* arg);
+extern void gthread_switch_to_and_spawn(
+    gthread_saved_ctx_t* self_ctx, void* stack, void (*entry)(void*),
+    void* arg) asm("gthread_switch_to_and_spawn");
 
 #ifdef __cplusplus
 };

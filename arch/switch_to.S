@@ -5,10 +5,8 @@
  * info: AT&T assembly for switching to and spawning new contexts
  */
 
-.text
-
-.global _gthread_switch_to
-_gthread_switch_to:
+.global gthread_switch_to
+gthread_switch_to:
   test %rdi, %rdi
   jz 1f
   mov %rbx, 0x00(%rdi)
@@ -28,8 +26,8 @@ _gthread_switch_to:
   mov 0x30(%rsi), %r15
   ret
 
-.global _gthread_switch_to_and_spawn
-_gthread_switch_to_and_spawn:
+.global gthread_switch_to_and_spawn
+gthread_switch_to_and_spawn:
   test %rdi, %rdi
   jz 1f
   mov %rbx, 0x00(%rdi)
