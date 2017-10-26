@@ -13,7 +13,7 @@
 
 #include "platform/clock.h"
 
-#define k_num_threads 5000
+constexpr uint64_t k_num_threads = 5000;
 
 using namespace gthread;
 
