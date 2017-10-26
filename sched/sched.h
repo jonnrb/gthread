@@ -116,15 +116,15 @@ class sched {
    *
    * implementation details:
    *
-   * `std::multiset` is used because it usually is built on a pretty robust
+   * `std::set` is used because it usually is built on a pretty robust
    * red-black tree, which has good performance for a runqueue
    */
   struct time_ordered_compare {
     constexpr bool operator()(const task* a, const task* b) const {
-      return a->vruntime < b->vruntime;
+      return a->vruntime != b->vruntime ? a->vruntime < b->vruntime : a < b;
     }
   };
-  static std::multiset<task*, time_ordered_compare> runqueue;
+  static std::set<task*, time_ordered_compare> runqueue;
 
   static uint64_t min_vruntime;
 

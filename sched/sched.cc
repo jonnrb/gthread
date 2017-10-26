@@ -107,7 +107,7 @@ std::atomic<bool> sched::is_init{false};
 task* const sched::k_pointer_lock = (task*)-1;
 std::atomic<task*> sched::interrupt_lock{nullptr};
 
-std::multiset<task*, sched::time_ordered_compare> sched::runqueue;
+std::set<task*, sched::time_ordered_compare> sched::runqueue;
 uint64_t sched::min_vruntime = 0;
 
 uint64_t sched::freelist_r = 0;
