@@ -18,6 +18,10 @@
 
 #include "util/compiler.h"
 
+extern "C" {
+void __ctype_init();
+}
+
 // has to be the same as glibc right now so we can use their internal functions
 typedef union dtv {
   struct {
@@ -36,7 +40,11 @@ typedef struct gthread_tls {
                // `dtv_t` will be immediately after the `tcbhead_t`.
   void* thread;
 
-  char padding_a[8];
+  // `__ctype_init()` must be called upon entry to a new tls context
+  char did_ctype_init;
+
+  char padding_a[7];
+
   // more glibc required MAGIC
   void* sysinfo;
   void* stack_guard;
@@ -49,7 +57,7 @@ typedef struct gthread_tls {
 // should be enough slots i hope. it is dangerous if the runtime calls a
 // `realloc()` on the `dtv_t` right now, but i can't forsee more than 16
 // modules being loaded at a time.
-#define k_num_slots 16
+constexpr int k_num_slots = 16;
 
 static inline int get_thread_vector(tcbhead_t** tcbhead) {
   return syscall(SYS_arch_prctl, ARCH_GET_FS, tcbhead);
@@ -173,6 +181,7 @@ gthread_tls_t gthread_tls_allocate() {
   tcbhead->sysinfo = magic_pointers.sysinfo;
   tcbhead->stack_guard = magic_pointers.stack_guard;
   tcbhead->pointer_guard = magic_pointers.pointer_guard;
+  tcbhead->did_ctype_init = 0;
 
   return tcbhead;
 }
@@ -245,4 +254,10 @@ gthread_tls_t gthread_tls_current() {
   return tcbhead;
 }
 
-void gthread_tls_use(gthread_tls_t tls) { set_thread_vector(tls); }
+void gthread_tls_use(gthread_tls_t tls) {
+  set_thread_vector(tls);
+  if (branch_unexpected(!tls->did_ctype_init)) {
+    __ctype_init();
+    tls->did_ctype_init = 1;
+  }
+}
