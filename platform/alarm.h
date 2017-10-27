@@ -6,7 +6,6 @@
 #include "platform/clock.h"
 
 namespace gthread {
-
 /**
  * an alarm that sends a signal to the process at a predefined interval
  */
@@ -59,5 +58,4 @@ class alarm {
 
   static thread_clock::time_point _last_alarm;
 };
-
 }  // namespace gthread
