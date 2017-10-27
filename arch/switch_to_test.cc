@@ -1,18 +1,10 @@
-/**
- * author: JonNRb <jonbetti@gmail.com>
- * license: MIT
- * file: @gthread//arch/switch_to_test.cc
- * info: tests switching between and spawning new contexts
- */
-
 #define _XOPEN_SOURCE
 
 #include "arch/switch_to.h"
 
-#include <assert.h>
-#include <inttypes.h>
-#include <stdint.h>
-#include <stdio.h>
+#include <cassert>
+#include <iostream>
+
 #include <ucontext.h>
 
 #include "platform/clock.h"
@@ -33,7 +25,7 @@ static ucontext_t utest_func_uctx;
 
 void test_func(void* arg) {
   char* c_arg = (char*)arg;
-  printf("%s\n", c_arg);
+  std::cout << c_arg << std::endl;
   good = 1;
 
   for (uint64_t i = 0; i < k_num_context_switches; ++i) {
@@ -55,6 +47,8 @@ void utest_func() {
 }
 
 int main() {
+  using namespace gthread;
+
   void* stack;
   size_t stack_size;
   gthread::allocate_stack(gthread::k_default_attr, &stack, &stack_size);
@@ -62,21 +56,23 @@ int main() {
   gthread_switch_to_and_spawn(&main_ctx, stack, test_func, (void*)test_str);
 
   if (!good) {
-    printf("bad\n");
+    std::cout << "bad" << std::endl;
     return -1;
   }
 
-  uint64_t start = gthread_clock_process();
+  auto start = thread_clock::now();
   for (uint64_t i = 0; i < k_num_context_switches; ++i) {
     gthread_switch_to(&main_ctx, &test_func_ctx);
   }
-  uint64_t end = gthread_clock_process();
+  auto end = thread_clock::now();
+  auto us = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
 
-  printf("gthread_switch_to() microbenchmark:\n");
-  printf("  %" PRIu64 " context switches in %.3f microseconds\n",
-         k_num_context_switches * 2, (double)(end - start) / 1000);
-  printf("  %.0f context switches / microsecond\n",
-         k_num_context_switches * 2 / ((double)(end - start) / 1000));
+  std::cout << "gthread_switch_to() microbenchmark:\n  "
+            << (k_num_context_switches * 2) << " context switches in "
+            << us.count() << " microseconds"
+            << "\n  " << (k_num_context_switches * 2 / (double)us.count())
+            << " context switches / microsecond\n"
+            << std::endl;
 
   assert(!getcontext(&utest_func_uctx));
   utest_func_uctx.uc_stack.ss_sp = &((char*)stack)[-stack_size];
@@ -84,17 +80,18 @@ int main() {
   utest_func_uctx.uc_link = &main_uctx;
   makecontext(&utest_func_uctx, utest_func, 0);
 
-  start = gthread_clock_process();
+  start = thread_clock::now();
   for (uint64_t i = 0; i < k_num_context_switches; ++i) {
     swapcontext(&main_uctx, &utest_func_uctx);
   }
-  end = gthread_clock_process();
+  end = thread_clock::now();
 
-  printf("swapcontext() microbenchmark:\n");
-  printf("  %" PRIu64 " context switches in %.3f microseconds\n",
-         k_num_context_switches * 2, (double)(end - start) / 1000);
-  printf("  %.0f context switches / microsecond\n",
-         k_num_context_switches * 2 / ((double)(end - start) / 1000));
+  std::cout << "swapcontext() microbenchmark:\n  "
+            << (k_num_context_switches * 2) << " context switches in "
+            << us.count() << " microseconds"
+            << "\n  " << (k_num_context_switches * 2 / (double)us.count())
+            << " context switches / microsecond\n"
+            << std::endl;
 
   return !good;
 }

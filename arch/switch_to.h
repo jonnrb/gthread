@@ -1,19 +1,8 @@
-/**
- * author: JonNRb <jonbetti@gmail.com>
- * license: MIT
- * file: @gthread//arch/switch_to.h
- * info: inline assembler for switching to and spawning new contexts
- */
+#pragma once
 
-#ifndef ARCH_SWITCH_TO_H_
-#define ARCH_SWITCH_TO_H_
+#include <cstdint>
 
-#include <stdint.h>
-
-#ifdef __cplusplus
 extern "C" {
-#endif
-
 /**
  * non-volatile registers must be saved by switch_to().
  * MS ABI (not used): https: *msdn.microsoft.com/en-us/library/6t169e9c.aspx
@@ -49,9 +38,4 @@ extern void gthread_switch_to(gthread_saved_ctx_t* from,
 extern void gthread_switch_to_and_spawn(
     gthread_saved_ctx_t* self_ctx, void* stack, void (*entry)(void*),
     void* arg) asm("gthread_switch_to_and_spawn");
-
-#ifdef __cplusplus
 };
-#endif
-
-#endif  // ARCH_SWITCH_TO_H_

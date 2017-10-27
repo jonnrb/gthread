@@ -1,12 +1,4 @@
-/**
- * author: JonNRb <jonbetti@gmail.com>
- * license: MIT
- * file: @gthread//platform/memory_inline.h
- * info: inlines for platform specific memory allocation
- */
-
-#ifndef PLATFORM_MEMORY_INLINE_H_
-#define PLATFORM_MEMORY_INLINE_H_
+#pragma once
 
 #include <stdlib.h>
 
@@ -31,5 +23,3 @@ static inline void *allocate_aligned(size_t alignment, size_t bytes) {
 // wrapper for free
 static inline void free(void *data) { ::free(data); }
 }  // namespace gthread
-
-#endif  // PLATFORM_MEMORY_INLINE_H_

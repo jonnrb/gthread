@@ -1,10 +1,3 @@
-/**
- * author: JonNRb <jonbetti@gmail.com>
- * license: MIT
- * file: @gthread//platform/allocate_stack_test.cc
- * info: tests stack allocation by allocating a stack and writing to it
- */
-
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>

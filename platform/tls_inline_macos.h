@@ -1,12 +1,4 @@
-/**
- * author: JonNRb <jonbetti@gmail.com>
- * license: MIT
- * file: @gthread//platform/tls_inline_macos.h
- * info: thread local storage inlines for macOS
- */
-
-#ifndef PLATFORM_TLS_INLINE_MACOS_H_
-#define PLATFORM_TLS_INLINE_MACOS_H_
+#pragma once
 
 // slots 6 and 11 are reserved for WINE (so we're gonna steal em)
 // DUPLICATED IN ./tls_macos.c
@@ -23,5 +15,3 @@ static inline void *gthread_tls_current_thread() {
 #undef k_thread_slot_a
 #undef k_thread_slot_b
 #undef gs_relative
-
-#endif  // PLATFORM_TLS_INLINE_MACOS_H_

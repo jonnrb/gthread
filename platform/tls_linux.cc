@@ -1,10 +1,3 @@
-/**
- * author: JonNRb <jonbetti@gmail.com>
- * license: MIT
- * file: @gthread//platform/tls_linux.c
- * info: implement thread local storage (ELF spec) on linux piggybacking glibc
- */
-
 #include "platform/tls.h"
 
 #include <asm/prctl.h>

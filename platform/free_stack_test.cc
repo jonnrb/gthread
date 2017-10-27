@@ -1,21 +1,14 @@
-/**
- * author: JonNRb <jonbetti@gmail.com>
- * license: MIT
- * file: @gthread//platform/free_stack_test.cc
- * info: tests allocating a stack and then freeing it
- */
-
-#include <assert.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-
 #include "platform/memory.h"
+
+#include <cassert>
+#include <iostream>
+
+#include <signal.h>
 
 volatile int ok = 0;
 
 void segv_handler(int s) {
-  printf("segfault here (expected=%d)\n", ok);
+  std::cout << "segfault here (expected=" << ok << ")" << std::endl;
   exit(ok == 0);
 }
 
@@ -29,11 +22,14 @@ int main() {
   t_attr.stack.addr = NULL;
   size_t total_stack_size;
 
-  printf("ret:   %d\n", gthread::allocate_stack(t_attr, &t_attr.stack.addr,
-                                                &total_stack_size));
-  printf("size:  0x%zu\n", total_stack_size);
-  printf("stack: %p\n", t_attr.stack.addr);
-  printf("base:  %p\n", (char*)t_attr.stack.addr - total_stack_size);
+  std::cout << "ret:   "
+            << gthread::allocate_stack(t_attr, &t_attr.stack.addr,
+                                       &total_stack_size)
+            << std::endl;
+  std::cout << "size:  " << total_stack_size << std::endl;
+  std::cout << "stack: " << t_attr.stack.addr << std::endl;
+  std::cout << "base:  " << (void*)((char*)t_attr.stack.addr - total_stack_size)
+            << std::endl;
 
   // can write to stack now
   ((uint64_t*)t_attr.stack.addr)[-1] = 4;

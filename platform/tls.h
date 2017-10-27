@@ -1,22 +1,14 @@
 /**
- * author: JonNRb <jonbetti@gmail.com>
- * license: MIT
- * file: @gthread//platform/tls.h
- * info: implement thread local storage (mostly ELF spec)
- */
-
-/**
  * Thread Local Storage allows for global data that is relatively local to a
  * context, i.e. the values can be all switched during a context switch.
  *
- * the standard gnu extension allows declaring static variables with a
- * `__thread` prefix and C11 uses the `_Thread_local` prefix
+ * C++ allows declaring these with the `thread_local` keyword. this doesn't
+ * support thread local objects with non-trivial constructors.
  *
  * ELF TLS ABI document: https://www.akkadia.org/drepper/tls.pdf
  */
 
-#ifndef PLATFORM_TLS_H_
-#define PLATFORM_TLS_H_
+#pragma once
 
 #include <stdbool.h>
 #include <stdlib.h>
@@ -71,5 +63,3 @@ void gthread_tls_use(gthread_tls_t tls);
 #else
 #error "tls not supported :("
 #endif
-
-#endif  // PLATFORM_TLS_H_

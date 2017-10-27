@@ -11,6 +11,7 @@ cc_library(
         ":alarm",
         ":clock",
         ":memory",
+        ":timer",
         ":tls",
     ],
 )

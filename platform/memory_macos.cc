@@ -1,10 +1,3 @@
-/**
- * author: JonNRb <jonbetti@gmail.com>
- * license: MIT
- * file: @gthread//platform/memory_macos.cc
- * info: implements macOS specific functionality
- */
-
 #include "platform/memory.h"
 
 #include <errno.h>

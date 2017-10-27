@@ -1,5 +1,4 @@
-#ifndef PLATFORM_CLOCK_H_
-#define PLATFORM_CLOCK_H_
+#pragma once
 
 #include <chrono>
 #include <ratio>
@@ -26,5 +25,3 @@ class thread_clock {
   static duration resolution() noexcept;
 };
 };  // namespace gthread
-
-#endif  // PLATFORM_CLOCK_H_

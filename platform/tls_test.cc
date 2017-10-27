@@ -1,10 +1,3 @@
-/**
- * author: JonNRb <jonbetti@gmail.com>
- * license: MIT
- * file: @gthread//platform/tls.cc
- * info: text-includes platform-specific tls stuff (for make easy gnu)
- */
-
 #include "platform/tls.h"
 
 #include <cassert>

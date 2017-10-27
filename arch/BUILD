@@ -20,7 +20,7 @@ cc_inc_library(
 
 cc_test(
     name = "bit_twiddle_test",
-    srcs = ["bit_twiddle_test.c"],
+    srcs = ["bit_twiddle_test.cc"],
     deps = [":bit_twiddle"],
 )
 

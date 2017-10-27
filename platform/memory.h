@@ -1,14 +1,4 @@
-/**
- * author: JonNRb <jonbetti@gmail.com>
- * license: MIT
- * file: @gthread//platform/memory.h
- * info: implements platform specific functionality
- */
-
-#ifndef PLATFORM_MEMORY_H_
-#define PLATFORM_MEMORY_H_
-
-#include <stdlib.h>
+#pragma once
 
 #include "gthread.h"
 
@@ -45,5 +35,3 @@ int free_stack(void* stack_addr, size_t total_stack_size);
 }  // namespace gthread
 
 #include "platform/memory_inline.h"
-
-#endif  // PLATFORM_MEMORY_H_
