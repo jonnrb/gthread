@@ -47,7 +47,6 @@ class sched_stats {
 };
 
 #ifdef GTHREAD_SCHED_COLLECT_STATS
-
 static constexpr bool k_collect_stats = true;
 #ifndef GTHREAD_SCHED_STATS_INTERVAL_MILLISECONDS
 static constexpr std::chrono::seconds k_stats_interval{5};
@@ -55,12 +54,9 @@ static constexpr std::chrono::seconds k_stats_interval{5};
 static constexpr std::chrono::milliseconds k_stats_interval{
     GTHREAD_SCHED_STATS_INTERVAL_MILLISECONDS};
 #endif  // GTHREAD_SCHED_STATS_INTERVAL_MILLISECONDS
-
 #else
-
 static constexpr bool k_collect_stats = false;
 static constexpr std::chrono::seconds k_stats_interval{0};
-
 #endif  // GTHREAD_SCHED_COLLECT_STATS
 
 }  // namespace internal

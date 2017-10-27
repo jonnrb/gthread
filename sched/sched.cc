@@ -14,7 +14,7 @@
 
 namespace gthread {
 namespace {
-static internal::sched_stats<internal::k_collect_stats> g_stats(
+internal::sched_stats<internal::k_collect_stats> g_stats(
     internal::k_stats_interval);
 }  // namespace
 

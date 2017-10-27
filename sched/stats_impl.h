@@ -36,7 +36,7 @@ void sched_stats<enabled>::print() {
   auto last = now;
 
   while (true) {
-    if (now - last < std::chrono::seconds{5}) {
+    if (now - last < _interval) {
       sched::yield();
       now = thread_clock::now();
       continue;
