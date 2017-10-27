@@ -1,10 +1,12 @@
 #include "sched/sched.h"
 
-#include <errno.h>
-#include <inttypes.h>
 #include <atomic>
 #include <iostream>
 #include <set>
+#include <thread>
+
+#include <errno.h>
+#include <inttypes.h>
 
 #include "platform/clock.h"
 #include "platform/memory.h"
@@ -23,6 +25,7 @@ task* const sched::k_pointer_lock = (task*)-1;
 std::atomic<task*> sched::_interrupt_lock{nullptr};
 
 std::set<task*, sched::time_ordered_compare> sched::_runqueue;
+std::multimap<sched::sleepqueue_clock::time_point, task*> sched::_sleepqueue;
 std::chrono::microseconds sched::_min_vruntime{0};
 
 uint64_t sched::_freelist_r = 0;
@@ -56,10 +59,20 @@ task* sched::next(task* last_running_task) {
     runqueue_push(last_running_task);
   }
 
-  // XXX: remove the assumption that the runqueue is never empty. this is true
-  // if all tasks are sleeping and there is actually nothing to do. right now
-  // it is impossible to be in this state without some sort of deadlock.
-  if (branch_unexpected(_runqueue.empty())) {
+  // NOTE: it may be more cache efficient to bulk remove items from the
+  // sleepqueue
+  if (!_sleepqueue.empty()) {
+    auto sleeper = _sleepqueue.begin();
+    if (sleeper->first <= sleepqueue_clock::now()) {
+      _runqueue.emplace(sleeper->second);
+      _sleepqueue.erase(sleeper);
+    } else if (_runqueue.empty()) {
+      // XXX: remove this if there other kinds of externally wakeable tasks
+      _sleepqueue.erase(sleeper);
+      std::this_thread::sleep_until(sleeper->first);
+      _runqueue.emplace(sleeper->second);
+    }
+  } else if (_runqueue.empty()) {
     gthread_log_fatal("nothing to do. deadlock?");
   }
 
@@ -125,8 +138,17 @@ void sched::yield() {
   alarm::ring_now();
 }
 
-// TODO: this would be nice (nanosleep sleeps the whole process)
-// int64_t gthread_sched_nanosleep(uint64_t ns) {}
+void sched::sleep_for_impl(sleepqueue_clock::duration sleep_duration) {
+  auto earliest_wake_time = sleepqueue_clock::now() + sleep_duration;
+  auto* cur = task::current();
+
+  uninterruptable_lock();
+  cur->run_state = task::WAITING;
+  _sleepqueue.emplace(earliest_wake_time, cur);
+  uninterruptable_unlock();
+
+  yield();
+}
 
 sched_handle sched::spawn(const attr& attr, task::entry_t* entry, void* arg) {
   unused_value auto stats_timer = g_stats.get_timer();

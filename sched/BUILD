@@ -19,7 +19,7 @@ cc_library(
     name = "sched",
     srcs = [
         "sched.cc",
-        "sched_inline.h",
+        "sched_impl.h",
         "stats.h",
         "stats_impl.h",
     ],

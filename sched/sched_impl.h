@@ -18,4 +18,11 @@ inline void sched::uninterruptable_lock() {
 inline void sched::uninterruptable_unlock() { _interrupt_lock = nullptr; }
 
 inline void sched::runqueue_push(task* t) { _runqueue.emplace(t); }
+
+template <class Rep, class Period>
+void sched::sleep_for(
+    const std::chrono::duration<Rep, Period>& sleep_duration) {
+  sleep_for_impl(
+      std::chrono::duration_cast<sleepqueue_clock::duration>(sleep_duration));
+}
 }  // namespace gthread

@@ -1,6 +1,8 @@
 #pragma once
 
 #include <atomic>
+#include <list>
+#include <map>
 #include <set>
 
 #include "gthread.h"
@@ -50,6 +52,13 @@ class sched {
   static sched_handle spawn(const attr& a, task::entry_t entry, void* arg);
 
   /**
+   * sleeps the current task until |sleep_duration| has passed
+   */
+  template <class Rep, class Period>
+  static void sleep_for(
+      const std::chrono::duration<Rep, Period>& sleep_duration);
+
+  /**
    * joins |task| when it finishes running (the caller will be suspended)
    *
    * |return_value| can be NULL. when |return_value| is not NULL,
@@ -95,6 +104,9 @@ class sched {
 
   static int init();
 
+  using sleepqueue_clock = std::chrono::system_clock;
+  static void sleep_for_impl(sleepqueue_clock::duration sleep_duration);
+
   static task* next(task* last_running_task);
 
   static std::atomic<bool> _is_init;
@@ -118,6 +130,10 @@ class sched {
   };
   static std::set<task*, time_ordered_compare> _runqueue;
 
+  // tasks that will be woken up after a point in time
+  static std::multimap<sleepqueue_clock::time_point, task*> _sleepqueue;
+
+  // default age for new tasks
   static std::chrono::microseconds _min_vruntime;
 
   // ring buffer for free tasks
@@ -128,4 +144,4 @@ class sched {
 };
 }  // namespace gthread
 
-#include "sched/sched_inline.h"
+#include "sched/sched_impl.h"
