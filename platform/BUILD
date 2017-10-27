@@ -8,9 +8,9 @@ package(default_visibility = ["//:__subpackages__"])
 cc_library(
     name = "platform",
     deps = [
+        ":alarm",
         ":clock",
         ":memory",
-        ":timer",
         ":tls",
     ],
 )
