@@ -1,32 +1,35 @@
 #include "platform/clock.h"
 
-#include <assert.h>
-#include <inttypes.h>
-#include <stdio.h>
-#include <time.h>
-#include <unistd.h>
+#include <cassert>
+#include <chrono>
+#include <iostream>
+#include <thread>
+
+using float_sec = std::chrono::duration<float>;
+
+template <typename T>
+float_sec sleep_for(T t) {
+  using namespace std::chrono;
+  auto start = high_resolution_clock::now();
+  std::this_thread::sleep_for(t);
+  float_sec fsec = high_resolution_clock::now() - start;
+  std::cout << "slept for " << (fsec.count() * 1E3) << " ms" << std::endl;
+  return fsec;
+}
 
 int main() {
-  for (int i = 0; i < 10; ++i) {
-    int64_t t = gthread_clock_real();
-    assert(t >= 0);
-    t = t / (1000 * 1000) * (1000 * 1000);
-    printf("realtime clock masked to ms: %" PRId64 "\n", t);
-    printf("slept for %" PRIu64 " real ns\n", gthread_nsleep(10 * 1000 * 1000));
-  }
+  using namespace gthread;
+  using milliseconds = std::chrono::milliseconds;
 
-  int64_t last = gthread_clock_process();
-  assert(last >= 0);
-  last = last / (1000 * 1000) * (1000 * 1000);
-  printf("slept for %" PRIu64 " real ns\n", gthread_nsleep(10 * 1000 * 1000));
+  auto last = thread_clock::now();
+  std::cout << "sizeof(thread_clock::now()) => " << sizeof(last) << std::endl;
   for (int i = 0; i < 10; ++i) {
-    int64_t t = gthread_clock_process();
-    assert(t >= 0);
-    t = t / (1000 * 1000) * (1000 * 1000);
-    printf("process clock masked to ms: %" PRId64 "\n", t);
-    printf("process clock elapsed in ms: %" PRId64 "\n", t - last);
+    auto sleep_time = sleep_for(milliseconds{10});
+    auto t = thread_clock::now();
+    float_sec elapsed = t - last;
+    assert(sleep_time > elapsed);
+    std::cout << "elapsed: " << (elapsed.count() * 1E3) << "ms" << std::endl;
     last = t;
-    printf("slept for %" PRIu64 " real ns\n", gthread_nsleep(10 * 1000 * 1000));
   }
 
   return 0;

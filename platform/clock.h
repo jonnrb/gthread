@@ -1,32 +1,30 @@
 #ifndef PLATFORM_CLOCK_H_
 #define PLATFORM_CLOCK_H_
 
-#include <stdint.h>
+#include <chrono>
+#include <ratio>
 
-/**
- * "real" time (i.e. time on the wall time)
- */
-int64_t gthread_clock_real();
-
-int64_t gthread_clock_resolution_real();
-
-/**
- * time value that is monotonically increasing in the system
- */
-int64_t gthread_clock_monotonic();
-
-int64_t gthread_clock_resolution_monotonic();
-
+namespace gthread {
 /**
  * time that increases while the process is running
  */
-int64_t gthread_clock_process();
+class thread_clock {
+ public:
+  // large enough for nanosecond values
+  using rep = uint64_t;
 
-int64_t gthread_clock_resolution_process();
+  // thread clock MAY not be steady
+  // see: https://linux.die.net/man/3/clock_gettime
+  static constexpr bool is_steady = false;
 
-/**
- * sleep the kernel process for |ns| nanoseconds
- */
-uint64_t gthread_nsleep(uint64_t ns);
+  using period = std::nano;
+  using duration = std::chrono::nanoseconds;
+
+  using time_point = std::chrono::time_point<thread_clock>;
+
+  static time_point now() noexcept;
+  static duration resolution() noexcept;
+};
+};  // namespace gthread
 
 #endif  // PLATFORM_CLOCK_H_

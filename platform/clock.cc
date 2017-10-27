@@ -1,56 +1,34 @@
-#define _POSIX_C_SOURCE 199309L
-
 #include "platform/clock.h"
 
-#include <stdint.h>
-#include <time.h>
+#include <cerrno>
+#include <ctime>
 
 #include "util/compiler.h"
 
-static inline int64_t posix_time_from_type(clockid_t c) {
+namespace gthread {
+
+namespace {
+uint64_t posix_time_from_type(clockid_t c) {
   struct timespec t;
-  if (branch_unexpected(clock_gettime(c, &t))) {
-    return -1;
-  }
+  clock_gettime(c, &t);
   return t.tv_sec * 1000 * 1000 * 1000 + t.tv_nsec;
 }
 
-static inline int64_t posix_time_resolution_from_type(clockid_t c) {
+uint64_t posix_time_resolution_from_type(clockid_t c) {
   struct timespec t;
-  if (branch_unexpected(clock_getres(c, &t))) {
-    return -1;
-  }
+  clock_getres(c, &t);
   return t.tv_sec * 1000 * 1000 * 1000 + t.tv_nsec;
 }
+}  // namespace
 
-int64_t gthread_clock_real() { return posix_time_from_type(CLOCK_REALTIME); }
-
-int64_t gthread_clock_resolution_real() {
-  return posix_time_resolution_from_type(CLOCK_REALTIME);
+thread_clock::time_point thread_clock::now() noexcept {
+  return thread_clock::time_point(
+      std::chrono::nanoseconds{posix_time_from_type(CLOCK_THREAD_CPUTIME_ID)});
 }
 
-int64_t gthread_clock_monotonic() {
-  return posix_time_from_type(CLOCK_MONOTONIC);
+thread_clock::duration thread_clock::resolution() noexcept {
+  return std::chrono::nanoseconds{
+      posix_time_resolution_from_type(CLOCK_THREAD_CPUTIME_ID)};
 }
 
-int64_t gthread_clock_resolution_monotonic() {
-  return posix_time_resolution_from_type(CLOCK_MONOTONIC);
-}
-
-int64_t gthread_clock_process() {
-  return posix_time_from_type(CLOCK_PROCESS_CPUTIME_ID);
-}
-
-int64_t gthread_clock_resolution_process() {
-  return posix_time_resolution_from_type(CLOCK_PROCESS_CPUTIME_ID);
-}
-
-uint64_t gthread_nsleep(uint64_t ns) {
-  struct timespec t = {static_cast<time_t>(ns / (1000 * 1000 * 1000)),
-                       static_cast<long>(ns % (1000 * 1000 * 1000))};
-  if (branch_unexpected(nanosleep(&t, &t))) {
-    return ns - t.tv_sec * 1000 * 1000 * 1000 - t.tv_nsec;
-  } else {
-    return t.tv_sec * 1000 * 1000 * 1000 + t.tv_nsec;
-  }
-}
+}  // namespace gthread
