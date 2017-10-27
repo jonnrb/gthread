@@ -22,6 +22,7 @@ cc_library(
 
 cc_test(
     name = "alarm_test",
+    timeout = "short",
     srcs = ["alarm_test.cc"],
     deps = [":alarm"],
 )
@@ -37,6 +38,7 @@ cc_library(
 
 cc_test(
     name = "clock_test",
+    timeout = "short",
     srcs = ["clock_test.cc"],
     deps = [
         ":clock",
@@ -61,12 +63,14 @@ cc_library(
 
 cc_test(
     name = "allocate_stack_test",
+    timeout = "short",
     srcs = ["allocate_stack_test.cc"],
     deps = [":platform"],
 )
 
 cc_test(
     name = "free_stack_test",
+    timeout = "short",
     srcs = ["free_stack_test.cc"],
     deps = [":platform"],
 )
@@ -78,6 +82,7 @@ cc_library(
 
 cc_test(
     name = "timer_test",
+    timeout = "short",
     srcs = ["timer_test.cc"],
     deps = [":timer"],
 )
@@ -103,6 +108,7 @@ cc_library(
 
 cc_test(
     name = "tls_test",
+    timeout = "short",
     srcs = ["tls_test.cc"],
     deps = [":tls"],
 )

@@ -35,6 +35,7 @@ cc_library(
 
 cc_test(
     name = "sched_test",
+    timeout = "short",
     srcs = ["sched_test.cc"],
     deps = [":sched"],
 )

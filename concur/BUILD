@@ -21,6 +21,7 @@ cc_library(
 
 cc_test(
     name = "mutex_test",
+    timeout = "short",
     srcs = ["mutex_test.cc"],
     deps = [":mutex"],
 )

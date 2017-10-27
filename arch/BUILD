@@ -15,6 +15,7 @@ cc_inc_library(
 
 cc_test(
     name = "bit_twiddle_test",
+    timeout = "short",
     srcs = ["bit_twiddle_test.cc"],
     deps = [":bit_twiddle"],
 )
@@ -27,6 +28,7 @@ cc_library(
 
 cc_test(
     name = "switch_to_test",
+    timeout = "short",
     srcs = ["switch_to_test.cc"],
     copts = [
         "-Wno-deprecated-declarations",  # uses ucontext.h which is deprecated
