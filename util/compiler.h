@@ -1,5 +1,4 @@
-#ifndef UTIL_COMPILER_H_
-#define UTIL_COMPILER_H_
+#pragma once
 
 /**
  * these macros hint to the compiler if a branch is expected or unexpected to
@@ -12,23 +11,8 @@
 #define offsetof(type, member) __builtin_offsetof(type, member)
 #endif
 
+#ifndef typeof
 #define typeof(type) __typeof__(type)
+#endif
 
-/**
- * this macro subtracts off the offset of |member| within |type| from |ptr|,
- * allowing you to easily get a pointer to the containing struct of |ptr|
- *
- *           ┌─────────────┬──────────┬──────┐
- * |type| -> │ XXXXXXXXXXX │ |member| │ YYYY │
- *           └─────────────┴──────────┴──────┘
- *           ^             ^
- *        returns        |ptr|
- */
-#define container_of(ptr, type, member)                \
-  ({                                                   \
-    const typeof(((type *)0)->member) *__mptr =        \
-        (const typeof(((type *)0)->member) *)(__mptr); \
-    (type *)((char *)ptr - offsetof(type, member));    \
-  })
-
-#endif  // UTIL_COMPILER_H_
+#define unused_value __attribute__((unused))

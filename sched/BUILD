@@ -1,8 +1,3 @@
-# author: JonNRb <jonbetti@gmail.com>
-# license: MIT
-# file: @gthread//util/BUILD
-# info: utilities and data structures
-
 package(default_visibility = ["//:__subpackages__"])
 
 cc_library(
@@ -25,6 +20,8 @@ cc_library(
     srcs = [
         "sched.cc",
         "sched_inline.h",
+        "stats.h",
+        "stats_impl.h",
     ],
     hdrs = ["sched.h"],
     deps = [

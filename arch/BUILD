@@ -1,8 +1,3 @@
-# author: JonNRb <jonbetti@gmail.com>
-# license: MIT
-# file: @gthread//arch/BUILD
-# info: inline assembly libraries
-
 package(default_visibility = ["//:__subpackages__"])
 
 cc_library(

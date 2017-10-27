@@ -1,8 +1,3 @@
-# author: JonNRb <jonbetti@gmail.com>
-# license: MIT
-# file: @gthread//platform/BUILD
-# info: platform specific libraries
-
 package(default_visibility = ["//:__subpackages__"])
 
 cc_library(

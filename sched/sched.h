@@ -1,12 +1,4 @@
-/**
- * author: JonNRb <jonbetti@gmail.com>, Matthew Handzy <matthewhandzy@gmail.com>
- * license: MIT
- * file: @gthread//sched/sched.h
- * info: scheduler for uniprocessors
- */
-
-#ifndef SCHED_SCHED_H_
-#define SCHED_SCHED_H_
+#pragma once
 
 #include <atomic>
 #include <set>
@@ -46,7 +38,7 @@ class sched {
    * proportional processor time and run that task. when the current task meets
    * that condition, it will be resume on the line following this call.
    */
-  static int yield();
+  static void yield();
 
   /**
    * spawns a gthread, storing a handle in |handle|, where |entry| will be
@@ -64,7 +56,7 @@ class sched {
    * `*return_value` will contain the return value of |task|, either from the
    * returning entry point, or passed in via `gthread_sched_exit()`.
    */
-  static int join(sched_handle* task, void** return_value);
+  static void join(sched_handle* task, void** return_value);
 
   /**
    * ends the current task with return value |return_value|
@@ -105,10 +97,10 @@ class sched {
 
   static task* next(task* last_running_task);
 
-  static std::atomic<bool> is_init;
+  static std::atomic<bool> _is_init;
 
   static task* const k_pointer_lock;
-  static std::atomic<task*> interrupt_lock;
+  static std::atomic<task*> _interrupt_lock;
 
   /**
    * tasks that can be switched to with the expectation that they will make
@@ -124,18 +116,16 @@ class sched {
       return a->vruntime != b->vruntime ? a->vruntime < b->vruntime : a < b;
     }
   };
-  static std::set<task*, time_ordered_compare> runqueue;
+  static std::set<task*, time_ordered_compare> _runqueue;
 
-  static uint64_t min_vruntime;
+  static std::chrono::microseconds _min_vruntime;
 
   // ring buffer for free tasks
   static constexpr uint64_t k_freelist_size = 64;
-  static uint64_t freelist_r;  // reader is `make_task()`
-  static uint64_t freelist_w;  // writer is `return_task()`
-  static task* freelist[k_freelist_size];
+  static uint64_t _freelist_r;  // reader is `make_task()`
+  static uint64_t _freelist_w;  // writer is `return_task()`
+  static task* _freelist[k_freelist_size];
 };
 }  // namespace gthread
 
 #include "sched/sched_inline.h"
-
-#endif  // SCHED_SCHED_H_

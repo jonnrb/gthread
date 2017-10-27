@@ -1,10 +1,3 @@
-/**
- * author: JonNRb <jonbetti@gmail.com>, Matthew Handzy <matthewhandzy@gmail.com>
- * license: MIT
- * file: @gthread//sched/task_test.cc
- * info: test task switching and spawning (WIP)
- */
-
 #include "sched/sched.h"
 
 #include <assert.h>
@@ -19,8 +12,8 @@ using namespace gthread;
 
 void* test_thread(void* arg) {
   uint64_t i = (uint64_t)arg;
-  for (uint64_t s = gthread_clock_process();
-       gthread_clock_process() - s < (uint64_t)1000 * 1000;) {
+  for (auto s = thread_clock::now();
+       thread_clock::now() - s < std::chrono::milliseconds{5};) {
     sched::yield();
   }
   sched::exit((void*)(i + 1));

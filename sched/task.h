@@ -1,19 +1,11 @@
-/**
- * author: JonNRb <jonbetti@gmail.com>, Matthew Handzy <matthewhandzy@gmail.com>
- * license: MIT
- * file: @gthread//sched/task.h
- * info: generic task switching functions for a scheduler
- */
+#pragma once
 
-#ifndef SCHED_TASK_H_
-#define SCHED_TASK_H_
-
-#include <stdlib.h>
 #include <atomic>
+#include <chrono>
+#include <functional>
 
 #include "arch/switch_to.h"
 #include "gthread.h"
-#include "platform/timer.h"
 #include "platform/tls.h"
 #include "util/compiler.h"
 
@@ -51,11 +43,15 @@ struct task {
    */
   int switch_to();
 
-  typedef task* time_slice_trap_t(task*);
-  static int set_time_slice_trap(time_slice_trap_t trap, uint64_t usec);
+  using time_slice_trap = std::function<task*(task*)>;
 
-  typedef void end_handler_t(task*);
-  static void set_end_handler(end_handler_t handler);
+  template <typename Duration>
+  static void set_time_slice_trap(const time_slice_trap& trap,
+                                  Duration interval);
+
+  using end_handler = std::function<void(task*)>;
+
+  static void set_end_handler(end_handler handler);
 
  public:
   gthread_tls_t tls;
@@ -74,7 +70,7 @@ struct task {
   void* stack;
   size_t total_stack_size;
 
-  uint64_t vruntime;  // microseconds
+  std::chrono::microseconds vruntime;
 
   uint64_t priority_boost;
 
@@ -82,31 +78,29 @@ struct task {
   // default constructor only for root task
   task();
 
-  void record_time_slice(uint64_t elapsed);
+  void record_time_slice(std::chrono::microseconds elapsed);
 
   void reset_timer_and_record_time();
 
-  int switch_to_internal(uint64_t* elapsed);
+  int switch_to_internal(std::chrono::microseconds* elapsed);
 
-  static void time_slice_trap_base(uint64_t elapsed);
+  static void time_slice_trap_base(std::chrono::microseconds elapsed);
 
   static void init();
 
   // task representing the initial context of execution
-  static task root_task;
-  static std::atomic<bool> is_root_task_init;
+  static task _root_task;
+  static std::atomic<bool> _is_root_task_init;
 
-  static end_handler_t* end_handler;
+  static end_handler _end_handler;
 
   // task switching MUST not be reentrant
-  static std::atomic<bool> lock;
+  static std::atomic_flag _lock;
 
-  static bool timer_enabled;
-  static time_slice_trap_t* time_slice_trap;
+  static bool _timer_enabled;
+  static time_slice_trap _time_slice_trap;
 };
 
 }  // namespace gthread
 
 #include "sched/task_inline.h"
-
-#endif  // SCHED_TASK_H_
