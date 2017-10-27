@@ -16,6 +16,38 @@ cc_library(
 )
 
 cc_library(
+    name = "alarm",
+    srcs = ["alarm.cc"],
+    hdrs = ["alarm.h"],
+    deps = [
+        ":clock",
+    ],
+)
+
+cc_test(
+    name = "alarm_test",
+    srcs = ["alarm_test.cc"],
+    deps = [":alarm"],
+)
+
+cc_library(
+    name = "clock",
+    srcs = ["clock.cc"],
+    hdrs = ["clock.h"],
+    deps = [
+        "//util:compiler",
+    ],
+)
+
+cc_test(
+    name = "clock_test",
+    srcs = ["clock_test.cc"],
+    deps = [
+        ":clock",
+    ],
+)
+
+cc_library(
     name = "memory",
     srcs = select({
         "@bazel_tools//src:darwin": ["memory_macos.cc"],
@@ -44,35 +76,14 @@ cc_test(
 )
 
 cc_library(
-    name = "clock",
-    srcs = ["clock.cc"],
-    hdrs = ["clock.h"],
-    deps = [
-        "//util:compiler",
-    ],
+    name = "timer",
+    hdrs = ["timer.h"],
 )
 
 cc_test(
-    name = "clock_test",
-    srcs = ["clock_test.cc"],
-    deps = [
-        ":clock",
-    ],
-)
-
-cc_library(
-    name = "alarm",
-    srcs = ["alarm.cc"],
-    hdrs = ["alarm.h"],
-    deps = [
-        ":clock",
-    ],
-)
-
-cc_test(
-    name = "alarm_test",
-    srcs = ["alarm_test.cc"],
-    deps = [":alarm"],
+    name = "timer_test",
+    srcs = ["timer_test.cc"],
+    deps = [":timer"],
 )
 
 cc_library(
