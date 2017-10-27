@@ -61,18 +61,18 @@ cc_test(
 )
 
 cc_library(
-    name = "timer",
-    srcs = ["timer.cc"],
-    hdrs = ["timer.h"],
+    name = "alarm",
+    srcs = ["alarm.cc"],
+    hdrs = ["alarm.h"],
     deps = [
         ":clock",
     ],
 )
 
 cc_test(
-    name = "timer_test",
-    srcs = ["timer_test.cc"],
-    deps = [":timer"],
+    name = "alarm_test",
+    srcs = ["alarm_test.cc"],
+    deps = [":alarm"],
 )
 
 cc_library(
