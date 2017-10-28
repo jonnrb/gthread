@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #include "util/compiler.h"
+#include "util/log.h"
 
 extern "C" {
 void __ctype_init();
@@ -44,6 +45,10 @@ struct tcbhead {
   void* sysinfo;
   void* stack_guard;
   void* pointer_guard;
+
+  char padding_b[1632];  // yes glibc's pthread_t is horrifically large
+
+  size_t glibc_stack_size;
 };
 
 // this is how glibc detects unallocated slots for dynamic loading
@@ -122,6 +127,7 @@ tls_image* find_tls_images() {
   magic_pointers.sysinfo = og_tcb_head->sysinfo;
   magic_pointers.stack_guard = og_tcb_head->stack_guard;
   magic_pointers.pointer_guard = og_tcb_head->pointer_guard;
+  magic_pointers.glibc_stack_size = og_tcb_head->glibc_stack_size;
 
   has = true;
 
@@ -136,7 +142,7 @@ tls::tls() {
   dtv* thread_vector = new dtv[k_num_slots + 2];
   tcb->thread_vector = thread_vector;
   thread_vector[0].head.num_modules = k_num_slots;
-  thread_vector[0].head.base = alloc_base;
+  thread_vector[0].head.base = _after - prefix_bytes();
   thread_vector[1].pointer.v = (void*)tcb;
   thread_vector[1].pointer.is_static = false;
   for (int i = 0; i < k_num_slots; ++i) {
@@ -163,10 +169,11 @@ tls::tls() {
   tcb->sysinfo = magic_pointers.sysinfo;
   tcb->stack_guard = magic_pointers.stack_guard;
   tcb->pointer_guard = magic_pointers.pointer_guard;
+  tcb->glibc_stack_size = magic_pointers.glibc_stack_size;
   tcb->did_ctype_init = 0;
 }
 
-tls::~tls(gthread_tls_t tls) {
+tls::~tls() {
   dtv* thread_vector = ((tcbhead*)_after)->thread_vector;
   for (int i = 0; i < k_num_slots; ++i) {
     if (!thread_vector[i + 2].pointer.is_static &&
@@ -224,6 +231,8 @@ void tls::reset() {
     thread_vector[module + 1].pointer.is_static = true;
     thread_vector[module + 1].pointer.v = image_base;
   }
+
+  ((tcbhead*)_after)->did_ctype_init = 0;
 }
 
 void tls::set_thread(void* thread) { ((tcbhead*)_after)->thread = thread; }
@@ -233,12 +242,12 @@ void* tls::get_thread() { return ((tcbhead*)_after)->thread; }
 tls* tls::current() {
   tcbhead* cur = nullptr;
   get_tcb(&cur);
-  return cur;
+  return (tls*)((char*)cur - offsetof(tls, _after));
 }
 
 void tls::use() {
-  set_tcb(this);
-  if (branch_unexpected(!tls->did_ctype_init)) {
+  set_tcb((tcbhead*)_after);
+  if (branch_unexpected(!((tcbhead*)_after)->did_ctype_init)) {
     __ctype_init();
     ((tcbhead*)_after)->did_ctype_init = 1;
   }

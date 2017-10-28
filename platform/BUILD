@@ -103,6 +103,7 @@ cc_library(
     deps = [
         ":clock",
         ":memory",
+        "//util",
     ],
 )
 

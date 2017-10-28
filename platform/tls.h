@@ -77,7 +77,7 @@ class tls {
    * currently everything is implemented by platforms with very special bytes
    * hanging off this pointer
    */
-  char _after[];
+  char _after[0];
 };
 }  // namespace gthread
 
