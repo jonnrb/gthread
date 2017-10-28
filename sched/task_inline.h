@@ -13,7 +13,7 @@ inline task* task::current() {
     init();
   }
 
-  return (task*)gthread_tls_current_thread();
+  return (task*)tls::current_thread();
 }
 
 template <typename Duration>

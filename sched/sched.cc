@@ -30,7 +30,7 @@ std::chrono::microseconds sched::_min_vruntime{0};
 
 uint64_t sched::_freelist_r = 0;
 uint64_t sched::_freelist_w = 0;
-task* sched::_freelist[k_freelist_size] = {NULL};
+task* sched::_freelist[k_freelist_size] = {nullptr};
 
 /**
  * pushes the |last_running_task| to the `runqueue` if it is in a runnable
@@ -114,11 +114,10 @@ task* sched::make_task(const attr& a) {
     task* t = _freelist[_freelist_r % k_freelist_size];
     ++_freelist_r;
     t->reset();
-    t->vruntime = _min_vruntime;
     return t;
   }
 
-  return new task(a);
+  return task::create(a);
 }
 
 void sched::return_task(task* t) {
@@ -129,7 +128,7 @@ void sched::return_task(task* t) {
     _freelist[_freelist_w % k_freelist_size] = t;
     ++_freelist_w;
   } else {
-    delete t;
+    t->destroy();
   }
 }
 
@@ -154,7 +153,7 @@ sched_handle sched::spawn(const attr& attr, task::entry_t* entry, void* arg) {
   unused_value auto stats_timer = g_stats.get_timer();
   sched_handle handle;
 
-  if (branch_unexpected(entry == NULL)) {
+  if (branch_unexpected(entry == nullptr)) {
     throw std::domain_error("must supply entry function");
   }
 
@@ -165,6 +164,7 @@ sched_handle sched::spawn(const attr& attr, task::entry_t* entry, void* arg) {
   handle.t = make_task(attr);
   handle.t->entry = entry;
   handle.t->arg = arg;
+  handle.t->vruntime = _min_vruntime;
 
   uninterruptable_lock();
 
@@ -230,7 +230,7 @@ void sched::join(sched_handle* handle, void** return_value) {
   }
 
   // take the return value of |thread| if |return_value| is given
-  if (return_value != NULL) {
+  if (return_value != nullptr) {
     *return_value = handle->t->return_value;
   }
 
@@ -245,7 +245,7 @@ void sched::exit(void* return_value) {
   task* current = task::current();
 
   // indicative that the current task is the root task. abort reallly hard.
-  if (branch_unexpected(current->stack == NULL)) {
+  if (branch_unexpected(current->entry == nullptr)) {
     gthread_log_fatal("cannot exit from the root task!");
   }
 
@@ -256,7 +256,7 @@ void sched::exit(void* return_value) {
   current->return_value = return_value;  // save |return_value|
   current->run_state = task::STOPPED;    // deschedule permanently
 
-  if (joiner != NULL) {
+  if (joiner != nullptr) {
     // consider the very weird case where join() locked `joiner` but hasn't
     // descheduled itself yet. it would be verrrryyy bad to put something in
     // the tree twice. if this task is running and `joiner` is in the waiting
@@ -271,7 +271,7 @@ void sched::exit(void* return_value) {
   } else {
     // if there wasn't a joiner that suspended itself, we entered a critical
     // section and we should unlock
-    current->joiner = NULL;
+    current->joiner = nullptr;
   }
 
   yield();  // deschedule

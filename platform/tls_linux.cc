@@ -15,8 +15,10 @@ extern "C" {
 void __ctype_init();
 }
 
+namespace gthread {
+namespace {
 // has to be the same as glibc right now so we can use their internal functions
-typedef union dtv {
+union dtv {
   struct {
     size_t num_modules;
     void* base;
@@ -25,12 +27,12 @@ typedef union dtv {
     void* v;
     bool is_static;  // for now, don't care about this
   } pointer;
-} dtv_t;
+};
 
-typedef struct gthread_tls {
+struct tcbhead {
   void* self;
-  dtv_t* dtv;  // maintain compatability with glibc. for our purposes, the
-               // `dtv_t` will be immediately after the `tcbhead_t`.
+  dtv* thread_vector;  // maintain compatability with glibc. for our purposes,
+                       // the `dtv` will be immediately after the `tcbhead`.
   void* thread;
 
   // `__ctype_init()` must be called upon entry to a new tls context
@@ -42,40 +44,36 @@ typedef struct gthread_tls {
   void* sysinfo;
   void* stack_guard;
   void* pointer_guard;
-} tcbhead_t;
+};
 
 // this is how glibc detects unallocated slots for dynamic loading
 #define TLS_DTV_UNALLOCATED ((void*)-1l)
 
 // should be enough slots i hope. it is dangerous if the runtime calls a
-// `realloc()` on the `dtv_t` right now, but i can't forsee more than 16
+// `realloc()` on the `dtv` right now, but i can't forsee more than 16
 // modules being loaded at a time.
 constexpr int k_num_slots = 16;
 
-static inline int get_thread_vector(tcbhead_t** tcbhead) {
-  return syscall(SYS_arch_prctl, ARCH_GET_FS, tcbhead);
-}
+int get_tcb(tcbhead** tcb) { return syscall(SYS_arch_prctl, ARCH_GET_FS, tcb); }
 
-static inline int set_thread_vector(tcbhead_t* tcbhead) {
-  return syscall(SYS_arch_prctl, ARCH_SET_FS, tcbhead);
-}
+int set_tcb(tcbhead* tcb) { return syscall(SYS_arch_prctl, ARCH_SET_FS, tcb); }
 
-typedef struct {
+struct tls_image {
   void* data;
   size_t image_size;
   size_t mem_offset;
   size_t reserve;  // the tls image contains initialized data. the tls segments
                    // often need uninitialized space reserved.
-} tls_image_t;
+};
 
 /**
  * finds the ELF TLS header for each loaded module.
  *
- * |data| is a `tls_image_t` array big enough for all the tls modules.
+ * |data| is a `tls_image` array big enough for all the tls modules.
  */
-static int dl_iterate_phdr_init_cb(struct dl_phdr_info* info, size_t size,
-                                   void* data) {
-  tls_image_t* images = (tls_image_t*)data;
+int dl_iterate_phdr_init_cb(struct dl_phdr_info* info, size_t size,
+                            void* data) {
+  tls_image* images = (tls_image*)data;
   const ElfW(Phdr)* phdr_base = info->dlpi_phdr;
   const int phdr_num = info->dlpi_phnum;
 
@@ -103,24 +101,24 @@ static int dl_iterate_phdr_init_cb(struct dl_phdr_info* info, size_t size,
 }
 
 // initialized in `find_tls_images()`
-static tcbhead_t magic_pointers;
+tcbhead magic_pointers;
 
 // needed to get consistent values after the context has been switched
-static tls_image_t* find_tls_images() {
+tls_image* find_tls_images() {
   static bool has = false;
-  static tls_image_t images[k_num_slots];
+  static tls_image images[k_num_slots];
 
   if (branch_expected(has)) return images;
 
   for (int i = 0; i < k_num_slots; ++i) {
-    images[i].data = NULL;
+    images[i].data = nullptr;
   }
 
   // discover tls images in the binary
   if (dl_iterate_phdr(dl_iterate_phdr_init_cb, images)) return NULL;
 
-  tcbhead_t* og_tcb_head;
-  get_thread_vector(&og_tcb_head);
+  tcbhead* og_tcb_head;
+  get_tcb(&og_tcb_head);
   magic_pointers.sysinfo = og_tcb_head->sysinfo;
   magic_pointers.stack_guard = og_tcb_head->stack_guard;
   magic_pointers.pointer_guard = og_tcb_head->pointer_guard;
@@ -129,34 +127,25 @@ static tls_image_t* find_tls_images() {
 
   return images;
 }
+}  // namespace
 
-gthread_tls_t gthread_tls_allocate() {
-  tls_image_t* images = find_tls_images();
+tls::tls() {
+  tcbhead* tcb = (tcbhead*)_after;
+  tcb->self = tcb;
 
-  size_t alloc_size = 0;
+  dtv* thread_vector = new dtv[k_num_slots + 2];
+  tcb->thread_vector = thread_vector;
+  thread_vector[0].head.num_modules = k_num_slots;
+  thread_vector[0].head.base = alloc_base;
+  thread_vector[1].pointer.v = (void*)tcb;
+  thread_vector[1].pointer.is_static = false;
   for (int i = 0; i < k_num_slots; ++i) {
-    if (images[i].data == NULL) break;
-    alloc_size += images[i].reserve;
-  }
-  size_t tcb_offset = alloc_size;  // save the offset for the `tcbhead_t`
-  alloc_size += sizeof(tcbhead_t) + (k_num_slots + 2) * sizeof(dtv_t);
-
-  char* alloc_base = (char*)calloc(alloc_size, 1);
-  tcbhead_t* tcbhead = (tcbhead_t*)(alloc_base + tcb_offset);
-  tcbhead->self = tcbhead;
-
-  dtv_t* dtv = (dtv_t*)(tcbhead + 1);
-  tcbhead->dtv = dtv;
-  dtv[0].head.num_modules = k_num_slots;
-  dtv[0].head.base = alloc_base;
-  dtv[1].pointer.v = (void*)tcbhead;
-  dtv[1].pointer.is_static = false;
-  for (int i = 0; i < k_num_slots; ++i) {
-    dtv[i + 2].pointer.v = TLS_DTV_UNALLOCATED;
-    dtv[i + 2].pointer.is_static = false;
+    thread_vector[i + 2].pointer.v = TLS_DTV_UNALLOCATED;
+    thread_vector[i + 2].pointer.is_static = false;
   }
 
-  char* image_base = (char*)tcbhead;
+  tls_image* images = find_tls_images();
+  char* image_base = _after;
   int module = 0;
   for (int i = 0; i < k_num_slots; ++i) {
     if (images[i].data == NULL) continue;
@@ -164,93 +153,95 @@ gthread_tls_t gthread_tls_allocate() {
 
     // this data ordering *seems* to work and models gnu and musl libcs
     image_base -= images[i].reserve;
-    memcpy((char*)image_base + images[i].mem_offset,
+    memcpy(image_base + images[i].mem_offset,
            (char*)images[i].data + images[i].mem_offset, images[i].image_size);
 
-    dtv[module + 1].pointer.is_static = true;
-    dtv[module + 1].pointer.v = image_base;
+    thread_vector[module + 1].pointer.is_static = true;
+    thread_vector[module + 1].pointer.v = image_base;
   }
 
-  tcbhead->sysinfo = magic_pointers.sysinfo;
-  tcbhead->stack_guard = magic_pointers.stack_guard;
-  tcbhead->pointer_guard = magic_pointers.pointer_guard;
-  tcbhead->did_ctype_init = 0;
-
-  return tcbhead;
+  tcb->sysinfo = magic_pointers.sysinfo;
+  tcb->stack_guard = magic_pointers.stack_guard;
+  tcb->pointer_guard = magic_pointers.pointer_guard;
+  tcb->did_ctype_init = 0;
 }
 
-int gthread_tls_reset(gthread_tls_t tls) {
-  // free dynamically allocated modules
-  dtv_t* dtv = tls->dtv;
+tls::~tls(gthread_tls_t tls) {
+  dtv* thread_vector = ((tcbhead*)_after)->thread_vector;
   for (int i = 0; i < k_num_slots; ++i) {
-    if (dtv[i + 2].pointer.v != TLS_DTV_UNALLOCATED &&
-        !dtv[i + 2].pointer.is_static) {
-      free(dtv[i + 2].pointer.v);
+    if (!thread_vector[i + 2].pointer.is_static &&
+        thread_vector[i + 2].pointer.v != TLS_DTV_UNALLOCATED) {
+      free(thread_vector[i + 2].pointer.v);
     }
-    dtv[i + 2].pointer.v = TLS_DTV_UNALLOCATED;
-    dtv[i + 2].pointer.is_static = false;
   }
 
-  tls_image_t* images = find_tls_images();
+  delete[] thread_vector;
+}
 
-  size_t total_size = 0;
+size_t tls::prefix_bytes() {
+  tls_image* images = find_tls_images();
+  size_t static_images_size = 0;
   for (int i = 0; i < k_num_slots; ++i) {
-    if (images[i].data == NULL) break;
-    total_size += images[i].reserve;
+    if (images[i].data == nullptr) break;
+    static_images_size += images[i].reserve;
   }
+  return static_images_size;
+}
+
+size_t tls::postfix_bytes() { return offsetof(tls, _after) + sizeof(tcbhead); }
+
+void tls::reset() {
+  // free dynamically allocated modules
+  dtv* thread_vector = ((tcbhead*)_after)->thread_vector;
+  for (int i = 0; i < k_num_slots; ++i) {
+    if (thread_vector[i + 2].pointer.v != TLS_DTV_UNALLOCATED &&
+        !thread_vector[i + 2].pointer.is_static) {
+      free(thread_vector[i + 2].pointer.v);
+    }
+    thread_vector[i + 2].pointer.v = TLS_DTV_UNALLOCATED;
+    thread_vector[i + 2].pointer.is_static = false;
+  }
+
+  tls_image* images = find_tls_images();
 
   // zero-initialize data not in the image
-  char* old_base = (char*)dtv[0].head.base;
-  memset(old_base, '\0', (char*)tls - old_base);
+  char* old_base = (char*)thread_vector[0].head.base;
+  memset(old_base, '\0', _after - old_base);
 
-  char* image_base = (char*)tls;
+  char* image_base = _after;
   int module = 0;
   for (int i = 0; image_base > old_base && i < k_num_slots; ++i) {
-    if (images[i].data == NULL) continue;
+    if (images[i].data == nullptr) continue;
     ++module;
 
     // this data ordering *seems* to work and models gnu and musl libcs
     image_base -= images[i].reserve;
-    if (image_base < old_base) return -1;
+    if (branch_unexpected(image_base < old_base)) {
+      gthread_log_fatal("tls images inconsistent");
+    }
     memcpy(image_base, images[i].data, images[i].image_size);
 
-    dtv[module + 1].pointer.is_static = true;
-    dtv[module + 1].pointer.v = image_base;
+    thread_vector[module + 1].pointer.is_static = true;
+    thread_vector[module + 1].pointer.v = image_base;
   }
-
-  return 0;
 }
 
-void gthread_tls_free(gthread_tls_t tls) {
-  if (tls == NULL) return;
+void tls::set_thread(void* thread) { ((tcbhead*)_after)->thread = thread; }
 
-  dtv_t* dtv = tls->dtv;
-  for (int i = 0; i < k_num_slots; ++i) {
-    if (!dtv[i + 2].pointer.is_static &&
-        dtv[i + 2].pointer.v != TLS_DTV_UNALLOCATED) {
-      free(dtv[i + 2].pointer.v);
-    }
-  }
+void* tls::get_thread() { return ((tcbhead*)_after)->thread; }
 
-  free(tls->dtv[0].head.base);
+tls* tls::current() {
+  tcbhead* cur = nullptr;
+  get_tcb(&cur);
+  return cur;
 }
 
-void gthread_tls_set_thread(gthread_tls_t tls, void* thread) {
-  tls->thread = thread;
-}
-
-void* gthread_tls_get_thread(gthread_tls_t tls) { return tls->thread; }
-
-gthread_tls_t gthread_tls_current() {
-  tcbhead_t* tcbhead = NULL;
-  get_thread_vector(&tcbhead);
-  return tcbhead;
-}
-
-void gthread_tls_use(gthread_tls_t tls) {
-  set_thread_vector(tls);
+void tls::use() {
+  set_tcb(this);
   if (branch_unexpected(!tls->did_ctype_init)) {
     __ctype_init();
-    tls->did_ctype_init = 1;
+    ((tcbhead*)_after)->did_ctype_init = 1;
   }
 }
+
+}  // namespace gthread

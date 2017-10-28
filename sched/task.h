@@ -13,12 +13,13 @@ namespace gthread {
 
 struct task {
  public:
-  // constructs a stack and sets default values
-  task(const attr& a);
+  /**
+   * factory that constructs and destructs a task on its own stack
+   */
+  static task* create(const attr& a);
+  void destroy();
 
-  ~task();
-
-  int reset();
+  void reset();
 
   /**
    * quickly starts task and switches back to the caller. meant to just get
@@ -53,9 +54,15 @@ struct task {
 
   static void set_end_handler(end_handler handler);
 
- public:
-  gthread_tls_t tls;
+ private:
+  tls* _tls;
 
+  gthread_saved_ctx_t _ctx;
+  void* _stack;
+  void* _stack_begin;
+  size_t _total_stack_size;
+
+ public:
   std::atomic<task*> joiner;
 
   typedef enum { RUNNING, SUSPENDED, STOPPED, WAITING } run_state_t;
@@ -66,10 +73,6 @@ struct task {
   void* arg;
   void* return_value;
 
-  gthread_saved_ctx_t ctx;
-  void* stack;
-  size_t total_stack_size;
-
   std::chrono::microseconds vruntime;
 
   uint64_t priority_boost;
@@ -77,6 +80,9 @@ struct task {
  private:
   // default constructor only for root task
   task();
+
+  task(void* stack, void* stack_begin, size_t total_stack_size);
+  ~task();
 
   void record_time_slice(std::chrono::microseconds elapsed);
 

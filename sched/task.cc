@@ -19,54 +19,68 @@ task::time_slice_trap task::_time_slice_trap{nullptr};
 std::atomic<bool> task::_is_root_task_init{false};
 task task::_root_task;
 
-task::task(const attr& a) {
-  tls = gthread_tls_allocate();
-  if (tls == NULL) return;  // TODO: throw here and at all short-circuits
+task* task::create(const attr& a) {
+  void* stack;
+  size_t total_stack_size;
+  allocate_stack(a, &stack, &total_stack_size);
 
-  gthread_tls_set_thread(tls, this);
-
-  run_state = STOPPED;
-  joiner = NULL;
-  return_value = NULL;
-
-  if (allocate_stack(a, &stack, &total_stack_size)) {
-    gthread_tls_free(tls);
-    return;
-  }
-
-  // prep for runqueue
-  vruntime = std::chrono::microseconds{0};
-  priority_boost = 0;
+  void* task_place = (void*)((char*)stack - sizeof(task));
+  return new (task_place) task(stack, task_place, total_stack_size);
 }
 
+void task::destroy() {
+  void* stack = this->_stack;
+  size_t total_stack_size = this->_total_stack_size;
+  this->~task();
+  free_stack((char*)stack - total_stack_size, total_stack_size);
+}
+
+// root task constructor
 task::task()
-    : tls{nullptr},
+    : _tls{nullptr},
+      _ctx{0},
+      _stack{nullptr},
+      _stack_begin{nullptr},
+      _total_stack_size{0},
+      joiner{nullptr},
       run_state{RUNNING},
       entry{nullptr},
       arg{nullptr},
       return_value{nullptr},
-      ctx{0},
-      stack{nullptr},
-      total_stack_size{0},
       vruntime{0},
       priority_boost{0} {}
 
-task::~task() {
-  if (this == &_root_task) return;
-  gthread_tls_free(tls);
-  free_stack((char*)stack - total_stack_size, total_stack_size);
+task::task(void* stack, void* stack_begin, size_t total_stack_size)
+    : _ctx{0},
+      _stack{stack},
+      _stack_begin{stack_begin},
+      _total_stack_size{total_stack_size},
+      joiner{nullptr},
+      run_state{STOPPED},
+      entry{nullptr},
+      arg{nullptr},
+      return_value{nullptr},
+      vruntime{0},
+      priority_boost{0} {
+  void* tls_begin = (void*)((char*)_stack_begin - tls::postfix_bytes());
+  _tls = new (tls_begin) tls();
+  _stack_begin = (void*)((char*)tls_begin - tls::prefix_bytes());
+  _tls->set_thread(this);
 }
 
-int task::reset() {
-  if (gthread_tls_reset(tls)) return -1;
+task::~task() {
+  if (this == &_root_task) return;
+  _tls->~tls();
+}
+
+void task::reset() {
+  _tls->reset();
 
   run_state = STOPPED;
   return_value = nullptr;
   joiner = nullptr;
   vruntime = std::chrono::microseconds{0};
   priority_boost = 0;
-
-  return 0;
 }
 
 void task::record_time_slice(std::chrono::microseconds elapsed) {
@@ -114,8 +128,8 @@ int task::start() {
 
   if (_lock.test_and_set()) return -1;
 
-  gthread_saved_ctx_t* new_and_cur[2] = {&this->ctx, &cur->ctx};
-  gthread_switch_to_and_spawn(&cur->ctx, stack, gthread_task_entry,
+  gthread_saved_ctx_t* new_and_cur[2] = {&this->_ctx, &cur->_ctx};
+  gthread_switch_to_and_spawn(&cur->_ctx, _stack_begin, gthread_task_entry,
                               new_and_cur);
   run_state = SUSPENDED;
 
@@ -158,10 +172,10 @@ int task::switch_to_internal(std::chrono::microseconds* elapsed) {
   }
 
   // officially in the |task|'s context
-  gthread_tls_use(tls);
+  _tls->use();
 
   _lock.clear();
-  gthread_switch_to(&prev_task->ctx, &ctx);
+  gthread_switch_to(&prev_task->_ctx, &_ctx);
 
   if (branch_unexpected(prev_task != current())) {
     gthread_log_fatal("task was not switched back to properly");
@@ -197,10 +211,10 @@ void task::init() {
   if (!_is_root_task_init &&
       _is_root_task_init.compare_exchange_strong(expected, true)) {
     // most of struct is zero-initialized
-    _root_task.tls = gthread_tls_current();
+    _root_task._tls = tls::current();
     _root_task.run_state = RUNNING;
 
-    gthread_tls_set_thread(_root_task.tls, &_root_task);
+    _root_task._tls->set_thread(&_root_task);
   }
 }
 

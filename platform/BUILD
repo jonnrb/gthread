@@ -92,10 +92,10 @@ cc_library(
     srcs = select({
         "@bazel_tools//src:darwin": [
             "tls_macos.cc",
-            "tls_inline_macos.h",
+            "tls_impl_macos.h",
         ],
         "//conditions:default": [
-            "tls_inline_linux.h",
+            "tls_impl_linux.h",
             "tls_linux.cc",
         ],
     }),

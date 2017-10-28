@@ -11,11 +11,24 @@
 #include "platform/clock.h"
 #include "platform/memory.h"
 
+using namespace gthread;
+
+tls* alloc_tls() {
+  size_t prefix = tls::prefix_bytes();
+  char* storage = new char[prefix + sizeof(tls) + tls::postfix_bytes()];
+  return new (storage + prefix) tls();
+}
+
+void free_tls(tls* t) {
+  size_t prefix = tls::prefix_bytes();
+  delete[]((char*)t - prefix);
+}
+
 constexpr int baseval = 15;
 thread_local int x = baseval;
 
-void x_inc(gthread_tls_t tls, int asserted_value) {
-  if (tls != NULL) gthread_tls_use(tls);
+void x_inc(tls* t, int asserted_value) {
+  if (t != nullptr) t->use();
   std::cout << "&x: " << &x << std::endl;
   ++x;
   std::cout << "x: " << (x - baseval) << std::endl;
@@ -27,8 +40,8 @@ thread_local struct {
   const char* str;
 } y = {{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, "initial val"};
 
-void y_inc(gthread_tls_t tls, int start_val, const char* str) {
-  if (tls != NULL) gthread_tls_use(tls);
+void y_inc(tls* t, int start_val, const char* str) {
+  if (t != nullptr) t->use();
   for (int i = 0; i < 10; ++i) {
     std::cout << y.nums[i] << " ";
     assert(y.nums[i] == (i + start_val) % 10);
@@ -40,8 +53,8 @@ void y_inc(gthread_tls_t tls, int start_val, const char* str) {
 }
 
 int main() {
-  std::cout << gthread_tls_current_thread() << std::endl;
-  gthread_tls_set_thread(gthread_tls_current(), (void*)0xbacabacaL);
+  std::cout << tls::current_thread() << std::endl;
+  tls::current()->set_thread((void*)0xbacabacaL);
 
   int fd = open("./abc", O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
   if (fd < 0) {
@@ -49,7 +62,7 @@ int main() {
     return -1;
   }
 
-  gthread_tls_t old = gthread_tls_current();
+  tls* old = tls::current();
   assert(old != NULL);
 
   if (write(fd, "abc", 3) < 0) {
@@ -57,22 +70,21 @@ int main() {
     return -1;
   }
 
-  gthread_tls_t tls = gthread_tls_allocate();
-  assert(tls != NULL);
+  tls* my_tls = alloc_tls();
 
   void* tcb = (void*)0xDEADBEEFL;
-  gthread_tls_set_thread(tls, tcb);
+  my_tls->set_thread(tcb);
 
-  assert(gthread_tls_get_thread(tls) == tcb);
-  assert(gthread_tls_current_thread() != tcb);
-  gthread_tls_use(tls);
-  assert(gthread_tls_current_thread() == tcb);
+  assert(my_tls->get_thread() == tcb);
+  assert(tls::current_thread() != tcb);
+  my_tls->use();
+  assert(tls::current_thread() == tcb);
 
-  gthread_tls_t other = gthread_tls_allocate();
+  tls* other = alloc_tls();
   void* other_tcb = (void*)0xf00dea7e5L;
-  gthread_tls_set_thread(other, other_tcb);
-  gthread_tls_use(other);
-  assert(gthread_tls_current_thread() == other_tcb);
+  other->set_thread(other_tcb);
+  other->use();
+  assert(tls::current_thread() == other_tcb);
 
   if (write(fd, "def", 4) < 0) {
     perror("");
@@ -89,7 +101,7 @@ int main() {
   }
 
   std::cout << "mine :)" << std::endl;
-  x_inc(tls, 1);
+  x_inc(my_tls, 1);
   x_inc(NULL, 2);
   x_inc(NULL, 3);
   x_inc(NULL, 4);
@@ -123,7 +135,7 @@ int main() {
   }
 
   std::cout << "mine :)" << std::endl;
-  y_inc(tls, 0, "some other thread");
+  y_inc(my_tls, 0, "some other thread");
   y_inc(NULL, 1, "some other thread");
   y_inc(NULL, 2, "some other thread");
   y_inc(NULL, 3, "some other thread");
@@ -145,9 +157,9 @@ int main() {
   y.nums[5] = -3;
 
   std::cout << "resetting mine" << std::endl;
-  assert(!gthread_tls_reset(tls));
+  my_tls->reset();
 
-  x_inc(tls, 1);
+  x_inc(my_tls, 1);
   x_inc(NULL, 2);
   x_inc(NULL, 3);
   x_inc(NULL, 4);
@@ -156,17 +168,17 @@ int main() {
   y_inc(NULL, 1, "some other thread");
   y_inc(NULL, 2, "some other thread");
   y_inc(NULL, 3, "some other thread");
-  gthread_tls_use(old);
+  old->use();
 
   constexpr uint64_t k_num_tls_switches = 1000 * 1000;
-  auto start = gthread::thread_clock::now();
+  auto start = thread_clock::now();
   for (uint64_t i = 0; i < k_num_tls_switches; ++i) {
-    gthread_tls_use(tls);
+    my_tls->use();
     __asm__ __volatile__("" ::: "memory");
-    gthread_tls_use(old);
+    old->use();
     __asm__ __volatile__("" ::: "memory");
   }
-  auto end = gthread::thread_clock::now();
+  auto end = thread_clock::now();
   auto elapsed =
       std::chrono::duration_cast<std::chrono::microseconds>(end - start);
 
@@ -176,7 +188,8 @@ int main() {
   std::cout << "  " << k_num_tls_switches * 2 / ((double)elapsed.count())
             << " tls switches / microsecond" << std::endl;
 
-  gthread_tls_free(tls);
+  free_tls(my_tls);
+  free_tls(other);
 
   return 0;
 }

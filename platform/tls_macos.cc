@@ -16,24 +16,23 @@
  * it will be dynamically allocated.
  */
 
+namespace gthread {
+namespace {
 // https://github.com/apple/darwin-libpthread/blob/master/src/internal.h
-#define k_num_slots 768
-
-#define k_num_copied_slots 256
+constexpr int k_num_slots = 768;
+constexpr int k_num_copied_slots = 256;
 
 // slots 6 and 11 are reserved for WINE (so we're gonna steal em)
-// DUPLICATED IN ./tls_inline_macos.h
-#define k_thread_slot_a 6
-#define k_thread_slot_b 11
+constexpr int k_thread_slot_a = 6;
+// slot b is currently unused
+// constexpr int k_thread_slot_b = 11;
 
 // nicey clang attribute allows using gs segment relative pointer vars
 #define gs_relative __attribute__((address_space(256)))
 
 typedef void* gs_relative* tls_slot_t;
 
-static tls_slot_t g_pthread_self_slot = (tls_slot_t)0;
-// static tls_slot_t g_thread_slot_a = ((tls_slot_t)0) + k_thread_slot_a;
-// static tls_slot_t g_thread_slot_b = ((tls_slot_t)0) + k_thread_slot_b;
+tls_slot_t g_pthread_self_slot = (tls_slot_t)0;
 
 /**
  * so xnu doesn't document its syscalls so good
@@ -48,7 +47,7 @@ extern void _thread_set_tsd_base(void*);
 };
 
 // this is terrible on several levels, but mono does it so it's okay
-static inline size_t get_pthread_slots_offset() {
+size_t get_pthread_slots_offset() {
   static size_t pthread_t_size = 0;
   if (pthread_t_size != 0) return pthread_t_size;
 
@@ -58,29 +57,37 @@ static inline size_t get_pthread_slots_offset() {
 
   return pthread_t_size = (char*)search - (char*)pthread_self;
 }
+}  // namespace
 
-gthread_tls_t gthread_tls_allocate() {
+tls::tls() {
   size_t pthread_t_size = get_pthread_slots_offset();
-
-  void* tls = gthread::allocate(k_num_slots * sizeof(void*) + pthread_t_size);
-  if (tls == NULL) {
-    return NULL;
-  }
-
-  memcpy(tls, *g_pthread_self_slot, pthread_t_size);
-  memset((char*)tls + pthread_t_size, 0, k_num_slots * sizeof(void*));
+  memcpy(_after, *g_pthread_self_slot, pthread_t_size);
+  memset(_after + pthread_t_size, 0, k_num_slots * sizeof(void*));
 
   // set the user tcb to be this tls block
-  void** tls_slots = (void**)((char*)tls + pthread_t_size);
-  tls_slots[0] = tls;
-
-  return (gthread_tls_t)tls;
+  void** tls_slots = (void**)(_after + pthread_t_size);
+  tls_slots[0] = _after;
 }
 
-int gthread_tls_reset(gthread_tls_t tls) {
-  if (tls == NULL) return -1;
+tls::~tls() {
+  void** tls_slots = (void**)(_after + get_pthread_slots_offset());
 
-  void** tls_slots = (void**)((char*)tls + get_pthread_slots_offset());
+  // TODO(jonnrb): do we have to free the low slots?
+  for (int i = k_num_copied_slots; i < k_num_slots; ++i) {
+    if (tls_slots[i] != NULL) gthread::free(tls_slots[i]);
+  }
+}
+
+size_t tls::prefix_bytes() { return 0; }
+
+size_t tls::postfix_bytes() {
+  return offsetof(tls, _after) + k_num_slots * sizeof(void*) +
+         get_pthread_slots_offset();
+}
+
+void tls::reset() {
+  void** tls_slots = (void**)(_after + get_pthread_slots_offset());
+
   // TODO(jonnrb): do we have to free the low slots?
   for (int i = k_num_copied_slots; i < k_num_slots; ++i) {
     if (tls_slots[i] != NULL) {
@@ -88,38 +95,25 @@ int gthread_tls_reset(gthread_tls_t tls) {
       tls_slots[i] = NULL;
     }
   }
-
-  return 0;
 }
 
-void gthread_tls_free(gthread_tls_t tls) {
-  if (tls == NULL) return;
-
-  void** tls_slots = (void**)((char*)tls + get_pthread_slots_offset());
-
-  // TODO(jonnrb): do we have to free the low slots?
-  for (int i = k_num_copied_slots; i < k_num_slots; ++i) {
-    if (tls_slots[i] != NULL) gthread::free(tls_slots[i]);
-  }
-
-  gthread::free(tls);
+tls* tls::current() {
+  return (tls*)((char*)*g_pthread_self_slot - sizeof(tls));
 }
 
-gthread_tls_t gthread_tls_current() {
-  return (gthread_tls_t)*g_pthread_self_slot;
-}
-
-void gthread_tls_set_thread(gthread_tls_t tls, void* thread) {
-  void** tls_slots = (void**)((char*)tls + get_pthread_slots_offset());
+void tls::set_thread(void* thread) {
+  void** tls_slots = (void**)(_after + get_pthread_slots_offset());
   tls_slots[k_thread_slot_a] = thread;
 }
 
-void* gthread_tls_get_thread(gthread_tls_t tls) {
-  void** tls_slots = (void**)((char*)tls + get_pthread_slots_offset());
+void* tls::get_thread() {
+  void** tls_slots = (void**)(_after + get_pthread_slots_offset());
   return tls_slots[k_thread_slot_a];
 }
 
-void gthread_tls_use(gthread_tls_t tls) {
-  void** tls_slots = (void**)((char*)tls + get_pthread_slots_offset());
+void tls::use() {
+  void** tls_slots = (void**)(_after + get_pthread_slots_offset());
   _thread_set_tsd_base((void*)tls_slots);
 }
+
+}  // namespace gthread
