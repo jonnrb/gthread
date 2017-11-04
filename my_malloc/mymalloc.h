@@ -2,7 +2,7 @@
 #define _MYMALLOC_H
 #define malloc(x) mymalloc(x)
 #define free(x) myfree(x)
-
+#define MAX_SIZE 8388608
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
@@ -14,7 +14,7 @@ typedef struct _node{
     int space;
     BOOLEAN used;
 } Node;
-static char myblock[5000];
+static char myblock[MAX_SIZE];
 
 
-#endif //_HEADER_H
+#endif //_MYMALLOC_H

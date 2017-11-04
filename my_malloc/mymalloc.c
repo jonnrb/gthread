@@ -1,7 +1,8 @@
 #include "mymalloc.h"
 
 
-static char myblock[5000] = {};
+static char myblock[MAX_SIZE] = {};
+static int max_size = MAX_SIZE;
 //////////////////////////////////////////////////////////////////////
 //MALLOC//
 //////////////////////////////////////////////////////////////////////
@@ -30,13 +31,13 @@ if(start->space == 0 && start->used == FALSE){
 //initializes the array
 //creates a start node, and an end node
 void initblock(){
-	int total = 5000;
+	int total = max_size;
 	int sizeNode = sizeof(Node);
 	total = total - 2*sizeNode; //1 node for the start node, and 1 for the end
 	Node* start = (Node*)&myblock[0];
 	start->space = total;
 	start->used = FALSE;
-	total = 5000;
+	total = max_size;
 	Node* end = (Node*)&myblock[(total - sizeof(Node))];
 	end->space = 0;
 	end->used = FALSE;
