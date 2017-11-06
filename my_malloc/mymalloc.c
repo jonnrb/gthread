@@ -160,6 +160,7 @@ void* allocateNewInsidePage(Node* nodeptr, int size){
 }
 
 
+//if thread page is found, returns first node inside the page
 void* findThreadPage(gthread_task_t *owner){
 	int number_of_threads = threads_allocated;
 	Node* page = (Node*)&myblock[0];
@@ -260,16 +261,17 @@ void* mymalloc(size_t size, gthread_task_t *owner){
 //Checks left of the pointer, if a node exists, returns it
 //used for concatenation of two unused nodes in the main free function
 //returns a pointer to the node that is before the node being freed
-Node* checkLeft(Node* ptr){
+Node* checkLeft(Node* ptr, Node* page){
 	//ptr is already the left most node
 if(ptr == NULL){
 	//error
 	return NULL;
 }
-if(ptr ==(Node*) &myblock[0]){
+if(ptr == page){
 	return NULL;
 }
-Node* leftp = (Node*)&myblock[0];
+Node* leftp = page;
+printPageStructure(leftp);
 //while the next node does not = the node currently being worked on
 while(((Node*)((char*)(leftp+1)+leftp->space)) != ptr) {
 	leftp = (Node*)((char*)(leftp+1)+leftp->space);
@@ -288,7 +290,7 @@ if(ptr == NULL){
 	}
 		//ptr is already the rightmost node
 	Node* temp = (Node*)((char*)(ptr+1)+ptr->space);
-if(temp->space == 0 && temp->used == FALSE){
+if(temp->type == PAGE_END){
 	return NULL;
 }
 return temp;
@@ -300,6 +302,10 @@ return temp;
 //returns TRUE if it is, false if it is not
 BOOLEAN checkpoint(void* p, gthread_task_t* owner){
 Node* current = findThreadPage(owner);
+if(current == NULL){
+	return FALSE;
+}
+current = current - 1;
 if(current->used == FALSE){ //if page is indicated to be FALSE, no pointer should be allocated
 	printf("Thread does not have an allocated page!\n");
 	return FALSE;
@@ -331,6 +337,7 @@ void myfree(void* p, gthread_task_t *owner){
         printf("Invalid input pointer. Pointer must be at the start of a previously allocated area of the memory array\n");
         return;
     }
+
     //converts pointer to a node type, and subtracts it by 1 to get to the node that corresponds to it
     Node* ptr = (Node*)p;
     ptr = ptr-1;
@@ -345,10 +352,13 @@ void myfree(void* p, gthread_task_t *owner){
 	//At this point, the pointer exists, and the node corresponding to it is valid
 	//The node's flag is set to unused = 'FALSE'
 	ptr -> used = FALSE;
+
+	Node* page = findThreadPage(owner);
 	//Finds the pointer left the node
-	Node* leftp = checkLeft(ptr);
+	Node* leftp = checkLeft(ptr, page);
 	//	//Finds the pointer right the node
 	Node* rightp = checkRight(ptr);
+
 	//concatenates the space of the right node, and the current node
 	if(rightp != NULL && rightp->used == FALSE ){
 		ptr->space = ptr->space + rightp->space + sizeof(Node);
@@ -359,6 +369,7 @@ void myfree(void* p, gthread_task_t *owner){
 		leftp->space = leftp->space + ptr->space + sizeof(Node);
 		ptr = NULL;
 	}
+
 	return;
 }
 
