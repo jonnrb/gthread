@@ -1,9 +1,10 @@
 #include "mymalloc.h"
 
 static const long max_size = MAX_SIZE; //Maximum size for Virtual Memory
-static char myblock[MAX_SIZE] = {}; //8MB memory block
+extern char myblock[MAX_SIZE] = {}; //8MB memory block
 static long page_size; //Page size for system
 static int threads_allocated; //number of threads that allocated space in Virtual Memory currently
+extern Node* shallocRegion;
 //////////////////////////////////////////////////////////////////////
 //MALLOC//
 //////////////////////////////////////////////////////////////////////
@@ -41,6 +42,32 @@ void printpagemem(){
 		pageCount++;
 	}
 }
+
+
+
+
+void swapPages(Node* source, Node* target){
+	if(source == target){
+		printf("Can't swap the same pages!\n");
+		return;
+	}
+	else if(source->type != PAGE_START || target->type != PAGE_START){
+		printf("Either the source, or target inputs arent the start of pages.\n");
+		return;
+	}
+	char temp[page_size+2*sizeof(Node)]; //temporary holder of source page
+	memcpy(temp, source, page_size+2*sizeof(Node)); //copy source to temporary array
+	memcpy(source, target, page_size+2*sizeof(Node)); //copy target page over to source page
+	memcpy(target, temp, page_size+2*sizeof(Node)); //copy source page over to target page
+	//swap complete
+	return;
+}
+
+
+
+
+
+
 
 
 
@@ -87,6 +114,12 @@ void initblock(){
 	end->space = 0;
 	end->used = FALSE;
 	end->type = VM;
+	//shalloc region creation
+	Node* shallocNode = end - (8*sizeof(Node) + 4 * page_size); //backtrack four pages
+	shallocNode->space = 4*page_size + 7*sizeof(Node); //create shalloc metadata
+	shallocNode->used = FALSE;
+	shallocNode->type = SHALLOC;
+
 }
 
 

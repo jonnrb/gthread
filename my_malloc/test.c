@@ -20,11 +20,13 @@
 
 void* important_task(void* arg) {
   const char* msg = (const char*)arg;
+   void* p;
+   for (int i = 0; i < 26; ++i) {
+ 	 if('A'+i == *msg){
+ 		  void* c = (int*)mymalloc(i, (gthread_task_t*)gthread_tls_current_thread());
+ 	 }
+   }
 
-  for (int i = 0; i < 26; ++i) {
-	  void* p = mymalloc(i+1, (gthread_task_t*)gthread_tls_current_thread());
-	  myfree(p, (gthread_task_t*)gthread_tls_current_thread());
-  }
 printpagemem();
   return NULL;
 }
