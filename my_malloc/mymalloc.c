@@ -127,7 +127,6 @@ Node* traversePageInternals(int size, Node* PageStart){
     	}
     	ptr = (Node*)((char*)(ptr+1) + ptr->space);
     }
-    debug("COULD NOT FIND SPACE AT ALL");
     return NULL;
 }
 
@@ -324,6 +323,18 @@ return FALSE;
 
 
 
+void check_and_freePage(Node* page){
+	if(page == NULL){
+		return;
+	}
+	if(page->used == FALSE){ //page is empty
+		page = page - 1; //PAGE_START node
+		page->thread = NULL;
+		page->used = FALSE;
+	}
+}
+
+
 //Frees the usage of the space taken up by this pointer, changes
 //the metadata associated with it to inactive (used = FALSE), and concatenates
 //the space with any adjacent unused nodes.
@@ -354,6 +365,9 @@ void myfree(void* p, gthread_task_t *owner){
 	ptr -> used = FALSE;
 
 	Node* page = findThreadPage(owner);
+	if(page == NULL){
+		return;
+	}
 	//Finds the pointer left the node
 	Node* leftp = checkLeft(ptr, page);
 	//	//Finds the pointer right the node
@@ -369,6 +383,7 @@ void myfree(void* p, gthread_task_t *owner){
 		leftp->space = leftp->space + ptr->space + sizeof(Node);
 		ptr = NULL;
 	}
+	check_and_freePage(page);
 
 	return;
 }
