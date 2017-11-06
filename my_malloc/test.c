@@ -1,52 +1,52 @@
-/*
-Author: Abdulrahman Althobaiti. RUID: 158006706 Section: 06
-Author: Peter Santana-Kroh. RUID: 161007620 Section: 05
-Professor: Francisco, John-Austen
-Assignment 1 - A better malloc() and free()
-*/
-#include <stdio.h>
-#include <string.h>
+/**
+ * author: Khalid Akash, JonNRb <jonbetti@gmail.com>
+ * license: MIT
+ * file: @gthread//concur/mutex_test.c
+ * info: tests mutex by locking and unlocking in a tight loop across threads
+ */
+
+#include "concur/mutex.h"
+
 #include <assert.h>
-#include <ctype.h>
-#include <stdlib.h>
-#include <errno.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+
+#include "platform/clock.h"
+#include "sched/sched.h"
 #include "mymalloc.h"
 
-int main()
-{
- int i;
- int x_2;
- char* p_3;
- char* p_4;
- char* q_4;
- char* p_5;
- char* p_6;
- char* p_7;
- char* q_7;
- char temp;
- char* p_9;
- char* q_9;
- char** p = (char**)malloc(50*sizeof(char*))  ;
 
 
+void* important_task(void* arg) {
+  const char* msg = (const char*)arg;
+  for (int i = 0; i < 26; ++i) {
+	  void* p = mymalloc(i+1, (gthread_task_t*)gthread_tls_current_thread());
+  }
+  void* c = mymalloc(5000, (gthread_task_t*)gthread_tls_current_thread());
+  printpagemem();
+  return NULL;
+}
+
+int init() {
+  gthread_sched_handle_t tasks[26];
+  char msgs[26] = {'A'};
+  for (int i = 0; i < 26; ++i) {
+    printf("creating task %d\n", i);
+    msgs[i] = msgs[0] + i;
+    assert(!gthread_sched_spawn(&tasks[i], NULL, important_task,
+                                (void*)(&msgs[i])));
+  }
 
 
+  for (int i = 0; i < 26; ++i) {
+    gthread_sched_join(tasks[i], NULL);
+  }
+  printf("done and stuff\n");
+  return 0;
+}
 
-
-
- /*test case 9*/
-
- printf("Test case 9 (5pts):\n");
- printf("Expected output: memory saturation\n");
- printf("Actual output:\n");
- p_9 = malloc(3000);
- q_9 = malloc(3500);
- printf("\n");
- printf("\n");
- while( getchar() != '\n' );
- free(p_9);
-
-
-
- return(0);
+int main() {
+  init();
+  return 0;
 }

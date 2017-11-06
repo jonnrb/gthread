@@ -1,72 +1,142 @@
 #include "mymalloc.h"
 
-
-static char myblock[MAX_SIZE] = {};
-static int max_size = MAX_SIZE;
+static const long max_size = MAX_SIZE; //Maximum size for Virtual Memory
+static char myblock[MAX_SIZE] = {}; //8MB memory block
+static long page_size; //Page size for system
+static int threads_allocated; //number of threads that allocated space in Virtual Memory currently
 //////////////////////////////////////////////////////////////////////
 //MALLOC//
 //////////////////////////////////////////////////////////////////////
 
 //Goes through each node in the array and prints the attributes of each node
-void printmem()
-{
-Node* start = (Node*)&myblock[0];
-while(start->space != 0){
-    if(start->used == 0){
-        printf("USED: True----Space: %d\n",start->space);
-    }
-    else{
-        printf("USED: False----Space: %d\n",start->space);
-    }
-     start = (Node*)((char*)(start+1)+(start->space));
+void debug(char* str){
+	printf("DEBUG: %s\n", str);
+	return;
 }
 
-if(start->space == 0 && start->used == FALSE){
-    printf("------------------------------------------------------\n");
+void printpagemem(){
+	Node* start = (Node*)&myblock[0];
+	Node* page = start + 1;
+	Node* pageInternals = page + 1;
+	int pageCount = 0;
+	while(page->type != VM){
+		if(page->used == TRUE){
+			printf("PAGE: %d | USED: TRUE | PAGEOWNER: %p\n",pageCount, (void*)&page->thread);
+			pageInternals = page + 1;
+			while(pageInternals->space != 0){
+			    if(pageInternals->used == 0){
+			        printf("       USED: True----Space: %d\n",pageInternals->space);
+			    }
+			    else{
+			        printf("       USED: False----Space: %d\n",pageInternals->space);
+			    }
+			    pageInternals = (Node*)((char*)(pageInternals+1)+(pageInternals->space));
+			}
+
+			if(pageInternals->space == 0 && pageInternals->used == FALSE){
+			    printf("------------------------------------------------------\n");
+			}
+		}
+		page = ((Node*)((char*)(page+1) + page_size) + 1);
+		pageCount++;
+	}
 }
-    }
 
 
 
 //initializes the array
 //creates a start node, and an end node
 void initblock(){
-	int total = max_size;
+	threads_allocated = 0; //initializes threads allocated counter
+	int total = 0;
 	int sizeNode = sizeof(Node);
-	total = total - 2*sizeNode; //1 node for the start node, and 1 for the end
+	int spaceleft = max_size;
+
 	Node* start = (Node*)&myblock[0];
-	start->space = total;
+	start->space = max_size - 2*sizeNode;
 	start->used = FALSE;
-	total = max_size;
-	Node* end = (Node*)&myblock[(total - sizeof(Node))];
+	start->type = VM;
+	total = total + sizeof(Node); //calculated space used
+	spaceleft = spaceleft - sizeof(Node); //calculating space left after Start Node is created
+
+	Node* pageIterator = start; //create new reference to first node
+
+	//iterate and create a PAGE_START node and PAGE_END node until
+	//space left is less than that of a page size and 2 nodes associated with each page
+	//and an additional node to signify the end of virtual memory
+
+
+	while(spaceleft > (page_size + 3*sizeof(Node))){
+		pageIterator = pageIterator + 1;
+		pageIterator->space = page_size;
+		pageIterator->used = FALSE;
+		pageIterator->type = PAGE_START;
+		pageIterator->thread = NULL;
+		pageIterator = (Node*)((char*)(pageIterator + 1)+page_size);
+		pageIterator->space = 0;
+		pageIterator->used = FALSE;
+		pageIterator->type = PAGE_END;
+		pageIterator->thread = NULL;
+		spaceleft = spaceleft - (page_size + 2*sizeof(Node));
+		total = total + 2*sizeof(Node) + page_size;
+
+
+	}
+	//end of VirtualMemory node
+	Node* end = (Node*)&myblock[total];
 	end->space = 0;
 	end->used = FALSE;
+	end->type = VM;
 }
 
 
+void printPageStructure(Node* PageStart){
+	Node* it = PageStart;
+	while(it->type != PAGE_END){
+		if(it->used == TRUE){
+			printf("BLOCK USED: TRUE ");
+		}
+		else{
+			printf("BLOCK USED: FALSE ");
+		}
+		printf("SPACE: %d", it->space);
+		printf("\n");
+		it = (Node*)((char*)(it+1)+ it->space);
+		if(it->type == PAGE_END){
+			printf("PAGE END\n");
+		}
+	}
+}
 
 //Traverses the array, searching for sections with size 'size', and returning it.
 //If no partition is found, and the index has overreached, then it returns NULL
-Node* traverse(int size){
-    Node* ptr =  (Node*)&myblock[0];
-    while(ptr->used == TRUE || ptr->space < (size + sizeof(Node))){
-    	//increment node pointer by shifting the pointer by 1 node space + node->size
-        ptr = (Node*)((char*)(ptr+1)+(ptr->space));
-        //last node, denoting the end of the memory array
-        if(ptr->space == 0  && ptr->used == FALSE){
-            return NULL;
-        }
-}
-return ptr;
+Node* traversePageInternals(int size, Node* PageStart){
+    Node* ptr =  PageStart;
+    //if page is not used
+    if(ptr->used == FALSE){
+    	if((size + 2*sizeof(Node)) > page_size){
+    		return NULL;
+    	}
+    	return ptr;
+    }
+
+    while(ptr->type != PAGE_END){
+    	//if the location is not used, has space greater than the size requested, and is inside the page (THREAD_PTR)
+    	if(ptr->used == FALSE && ptr->space >= size + sizeof(Node) && ptr->type == THREAD_PTR){
+    		return ptr;
+    	}
+    	ptr = (Node*)((char*)(ptr+1) + ptr->space);
+    }
+    debug("COULD NOT FIND SPACE AT ALL");
+    return NULL;
 }
 
 
 
 //When a valid partition is found, a node is created to hold the space after the partition, and
 //the current node's size is readjusted to reflect the size partitioned
-void* allocatenew(Node* nodeptr, int size){
-
-Node* temptr = NULL;
+void* allocateNewInsidePage(Node* nodeptr, int size){
+	Node* temptr = NULL;
 	//Calculate the space left over after allocating enough for the current request
 	int totalspace = nodeptr->space;
 	totalspace = totalspace - (size + sizeof(Node));
@@ -77,6 +147,7 @@ Node* temptr = NULL;
     temptr = (Node*)((char*)(temptr+1) + size);
     temptr->space = totalspace;
     temptr->used = FALSE;
+    temptr->type = THREAD_PTR;
 	}
 
     //the input to the function is then adjusted to indicate the correct size requested
@@ -89,34 +160,92 @@ Node* temptr = NULL;
 }
 
 
+void* findThreadPage(gthread_task_t *owner){
+	int number_of_threads = threads_allocated;
+	Node* page = (Node*)&myblock[0];
+	page = page + 1;
+	while(number_of_threads > 0){
+		//page found, return
+		if(page->type == PAGE_START && page->thread == owner){
+			page = page + 1;
+			return page;
+		}
+		//else iterate
+		number_of_threads--;
+		page = (Node*)((char*)(page+1)+page_size)+1;
+	}
+return NULL;
+}
+
+
+void* createThreadPage(gthread_task_t *owner){
+	Node* page = (Node*)&myblock[0]; //VM Start node
+	page = page + 1; //increment to first page node
+	Node* page_end;
+	Node* nodeptr;
+	//continue until end of VM is reached (break condition is inside)
+	while(page->type != VM && page->space != 0){
+		if(page->type == PAGE_START && page->thread == NULL){ //found unused page
+			page->used = TRUE;
+			page->thread = owner;
+			nodeptr = page;
+			if(nodeptr->type == PAGE_START){ //sets up first memory allocation inside the page
+				nodeptr = nodeptr + 1;
+				nodeptr -> type = THREAD_PTR;
+				nodeptr->space = page_size - sizeof(Node);
+				nodeptr->used = FALSE;
+			}
+			page_end = (Node*)((char*)(page + 1) + page_size);
+			page_end->thread = owner;
+			threads_allocated++;
+			return (page+1);
+		}
+		//increment 1 PAGE_START, and the page size, and another PAGE_END node
+		page = (Node*)((char*)(page + 1) + page_size)+1;
+	}
+	return NULL; //no space
+}
 
 
 
 
-void* mymalloc(size_t size){
+void* mymalloc(size_t size, gthread_task_t *owner){
+	page_size = sysconf(_SC_PAGESIZE);
 	void* ptr = NULL;
     //initialize myblock if not initialized
     if(size < 1){
-        printf("Input argument of integer value 0 or less is not valid./n Please enter a positive non-zero integer.");
+        printf("Input argument of integer value 0 or less is not valid. Please enter a positive non-zero integer.\n");
         return NULL;
     }
+    if(owner == NULL){
+    	 printf("Thread no longer exists or invalid thread input.\n");
+    	 return NULL;
+    }
     //initialize
+
     if(myblock[0] == 0){
     	initblock();
     }
+
+
+    //traverse array until thread page is found
+    void* page = findThreadPage(owner);
+    if(page == NULL){ //if thread does not have an allocated space
+    	page = createThreadPage(owner);
+    }
+    if(page == NULL){ //no space for thread left in VM
+    	printf("No space left in VM for requested thread Memory Allocation.\n");
+    	return NULL;
+    }
+
     //traverse array until free space is found
-    Node* nodeptr = traverse(size);
+    Node* nodeptr = traversePageInternals(size, page);
     //if the end is reached, no valid space is found
     if(nodeptr == NULL){
     	printf("Invalid space request, capacity overflow.\n");
-    return NULL;
+    	return NULL;
     }
-    //another verification for the metadata
-    else if(nodeptr->space >= size + sizeof(Node) && nodeptr->used == FALSE){
-        //allocate new space and return
-        ptr = allocatenew(nodeptr, size);
-    }
-
+    ptr = allocateNewInsidePage(nodeptr, size);
     //returns void pointer to the caller
     return ptr;
 }
@@ -169,8 +298,15 @@ return temp;
 
 //checks if the pointer inputted in the 'free()' function is inside the memory array
 //returns TRUE if it is, false if it is not
-BOOLEAN checkpoint(void* p){
-Node* current = (Node*)&myblock[0];
+BOOLEAN checkpoint(void* p, gthread_task_t* owner){
+Node* current = findThreadPage(owner);
+if(current->used == FALSE){ //if page is indicated to be FALSE, no pointer should be allocated
+	printf("Thread does not have an allocated page!\n");
+	return FALSE;
+}
+else{
+	current = current + 1;
+}
 //current is not at the end
 while(current->space!=0){
     if((void*)(current+1) == p ){
@@ -185,10 +321,10 @@ return FALSE;
 //Frees the usage of the space taken up by this pointer, changes
 //the metadata associated with it to inactive (used = FALSE), and concatenates
 //the space with any adjacent unused nodes.
-void free(void* p){
+void myfree(void* p, gthread_task_t *owner){
 
     //checks if pointer is in the array
-    BOOLEAN valid = checkpoint(p);
+    BOOLEAN valid = checkpoint(p, owner);
 
     //if pointer is not in the array, throw error, return
     if(valid == FALSE){

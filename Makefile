@@ -33,6 +33,7 @@ include concur/module.mak
 include platform/module.mak
 include sched/module.mak
 include util/module.mak
+include my_malloc/module.mak
 #########
 
 objs: $(OBJECTS)
