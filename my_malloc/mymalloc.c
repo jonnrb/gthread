@@ -214,22 +214,18 @@ return NULL;
 void* createThreadPage(gthread_task_t *owner){
 	Node* page = (Node*)&myblock[0]; //VM Start node
 	page = page + 1; //increment to first page node
-	Node* page_end;
 	Node* nodeptr;
 	//continue until end of VM is reached (break condition is inside)
-	while(page->type != VM && page->space != 0){
+	while(page->type != SHALLOC){
 		if(page->type == PAGE_START && page->thread == NULL){ //found unused page
 			page->used = TRUE;
 			page->thread = owner;
 			nodeptr = page;
-			if(nodeptr->type == PAGE_START){ //sets up first memory allocation inside the page
+			//sets up first memory allocation inside the page
 				nodeptr = nodeptr + 1;
 				nodeptr -> type = THREAD_PTR;
 				nodeptr->space = page_size - sizeof(Node);
 				nodeptr->used = FALSE;
-			}
-			page_end = (Node*)((char*)(page + 1) + page_size);
-			page_end->thread = owner;
 			threads_allocated++;
 			return (page+1);
 		}

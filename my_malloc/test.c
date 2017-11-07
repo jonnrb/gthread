@@ -5,8 +5,6 @@
  * info: tests mutex by locking and unlocking in a tight loop across threads
  */
 
-#include "concur/mutex.h"
-
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -27,7 +25,9 @@ void* important_task(void* arg) {
  	 }
    }
 
-printpagemem();
+
+
+
   return NULL;
 }
 
@@ -51,5 +51,6 @@ int init() {
 
 int main() {
   init();
+  printpagemem();
   return 0;
 }
