@@ -21,10 +21,15 @@ void* important_task(void* arg) {
    void* p;
    for (int i = 0; i < 26; ++i) {
  	 if('A'+i == *msg){
- 		  void* c = (int*)mymalloc(i, (gthread_task_t*)gthread_tls_current_thread());
+ 		  p = (int*)mymalloc(i + 1, (gthread_task_t*)gthread_tls_current_thread());
+ 		  myfree(p, (gthread_task_t*)gthread_tls_current_thread());
  	 }
    }
 
+  for(int i = 1; i<200; i ++){
+	 void* c = shalloc(i);
+	 myfree(c,(gthread_task_t*)gthread_tls_current_thread());
+  }
 
 
 
@@ -51,6 +56,7 @@ int init() {
 
 int main() {
   init();
+  printshallocmem();
   printpagemem();
   return 0;
 }

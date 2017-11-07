@@ -4,7 +4,7 @@ static const long max_size = MAX_SIZE; //Maximum size for Virtual Memory
 extern char myblock[MAX_SIZE] = {}; //8MB memory block
 static long page_size; //Page size for system
 static int threads_allocated; //number of threads that allocated space in Virtual Memory currently
-extern Node* shallocRegion;
+static Node* shallocRegion;
 //////////////////////////////////////////////////////////////////////
 //MALLOC//
 //////////////////////////////////////////////////////////////////////
@@ -66,7 +66,9 @@ void swapPages(Node* source, Node* target){
 
 
 
-
+Node* getShallocRegion(){
+	return shallocRegion;
+}
 
 
 
@@ -75,17 +77,13 @@ void swapPages(Node* source, Node* target){
 //creates a start node, and an end node
 void initblock(){
 	threads_allocated = 0; //initializes threads allocated counter
-	int total = 0;
 	int sizeNode = sizeof(Node);
 	int spaceleft = max_size;
-
 	Node* start = (Node*)&myblock[0];
 	start->space = max_size - 2*sizeNode;
 	start->used = FALSE;
 	start->type = VM;
-	total = total + sizeof(Node); //calculated space used
 	spaceleft = spaceleft - sizeof(Node); //calculating space left after Start Node is created
-
 	Node* pageIterator = start; //create new reference to first node
 
 	//iterate and create a PAGE_START node and PAGE_END node until
@@ -105,21 +103,22 @@ void initblock(){
 		pageIterator->type = PAGE_END;
 		pageIterator->thread = NULL;
 		spaceleft = spaceleft - (page_size + 2*sizeof(Node));
-		total = total + 2*sizeof(Node) + page_size;
+
 
 
 	}
 	//end of VirtualMemory node
-	Node* end = (Node*)&myblock[total];
+	Node* end = pageIterator + 1;
 	end->space = 0;
 	end->used = FALSE;
 	end->type = VM;
 	//shalloc region creation
-	Node* shallocNode = end - (8*sizeof(Node) + 4 * page_size); //backtrack four pages
+	Node* shallocNode = (Node*)((char*)end - (8*sizeof(Node) + 4*page_size)); //backtrack four pages
 	shallocNode->space = 4*page_size + 7*sizeof(Node); //create shalloc metadata
 	shallocNode->used = FALSE;
 	shallocNode->type = SHALLOC;
-
+	shallocNode->thread = NULL;
+	shallocRegion = shallocNode;
 }
 
 
@@ -368,7 +367,11 @@ void check_and_freePage(Node* page){
 //the metadata associated with it to inactive (used = FALSE), and concatenates
 //the space with any adjacent unused nodes.
 void myfree(void* p, gthread_task_t *owner){
-
+	//check if p is in shalloc region
+	if(p > shallocRegion){
+		myfreeShalloc(p);
+		return;
+	}
     //checks if pointer is in the array
     BOOLEAN valid = checkpoint(p, owner);
 

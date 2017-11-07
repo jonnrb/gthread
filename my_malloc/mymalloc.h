@@ -25,15 +25,17 @@ typedef struct _node{
 } Node;
 void * mymalloc(size_t size, gthread_task_t* owner);
 void myfree(void * data, gthread_task_t* owner);
+void* shalloc(size_t size);
+void myfreeShalloc(void* p);
 void swapPages(Node* source, Node* target);
 void initblock();
-void* shalloc(size_t size);
+
 void printpagemem();
-
-
+void printshallocmem();
+void debug(char* str);
+Node* getShallocRegion();
 
 extern char myblock[MAX_SIZE];
-static int threads_allocated; //number of threads that allocated space in Virtual Memory currently
-extern Node* shallocRegion;
+
 
 #endif //_MYMALLOC_H

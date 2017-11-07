@@ -6,9 +6,9 @@
 //////////////////////////////////////////////////////////////////////
 
 //Goes through each node in the array and prints the attributes of each node
-void printmem()
+void printshallocmem()
 {
-Node* start = shallocRegion;
+Node* start = getShallocRegion();
 printf("+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n");
 while(start->space != 0 && start->type != VM){
     if(start->used == 0){
@@ -18,12 +18,13 @@ while(start->space != 0 && start->type != VM){
         printf("USED: False----Space: %d\n",start->space);
     }
      start = (Node*)((char*)(start+1)+(start->space));
+     if(start->type == VM){
+         printf("------------------------------------------------------\n");
+     }
 }
 
-if(start->type == VM){
-    printf("------------------------------------------------------\n");
+
 }
-    }
 
 
 
@@ -33,7 +34,7 @@ if(start->type == VM){
 //Traverses the array, searching for sections with size 'size', and returning it.
 //If no partition is found, and the index has overreached, then it returns NULL
 Node* traverse(int size){
-    Node* ptr =  shallocRegion;
+    Node* ptr =  getShallocRegion();
     while(ptr->used == TRUE || ptr->space < (size + sizeof(Node))){
     	//increment node pointer by shifting the pointer by 1 node space + node->size
         ptr = (Node*)((char*)(ptr+1)+(ptr->space));
@@ -89,6 +90,7 @@ void* shalloc(size_t size){
     if(myblock[0] == 0){
     	initblock();
     }
+
     //traverse array until free space is found
     Node* nodeptr = traverse(size);
     //if the end is reached, no valid space is found
@@ -115,16 +117,16 @@ void* shalloc(size_t size){
 //Checks left of the pointer, if a node exists, returns it
 //used for concatenation of two unused nodes in the main free function
 //returns a pointer to the node that is before the node being freed
-Node* checkLeft(Node* ptr){
+Node* checkLeftShalloc(Node* ptr){
 	//ptr is already the left most node
 if(ptr == NULL){
 	//error
 	return NULL;
 }
-if(ptr ==shallocRegion){
+if(ptr ==getShallocRegion()){
 	return NULL;
 }
-Node* leftp = shallocRegion;
+Node* leftp = getShallocRegion();
 //while the next node does not = the node currently being worked on
 while(((Node*)((char*)(leftp+1)+leftp->space)) != ptr) {
 	leftp = (Node*)((char*)(leftp+1)+leftp->space);
@@ -136,7 +138,7 @@ return leftp;
 //Checks right of the pointer, if a node exists, returns it
 //used for concatenation of two unused nodes in the main free function
 //returns a pointer to the node that is after the node being freed
-Node* checkRight(Node* ptr){
+Node* checkRightShalloc(Node* ptr){
 if(ptr == NULL){
     //error
     return NULL;
@@ -153,8 +155,8 @@ return temp;
 
 //checks if the pointer inputted in the 'free()' function is inside the memory array
 //returns TRUE if it is, false if it is not
-BOOLEAN checkpoint(void* p){
-Node* current = shallocRegion;
+BOOLEAN checkpointShalloc(void* p){
+Node* current = getShallocRegion();
 //current is not at the end
 while(current->type != VM){
     if((void*)(current+1) == p ){
@@ -169,10 +171,10 @@ return FALSE;
 //Frees the usage of the space taken up by this pointer, changes
 //the metadata associated with it to inactive (used = FALSE), and concatenates
 //the space with any adjacent unused nodes.
-void free(void* p){
+void myfreeShalloc(void* p){
 
     //checks if pointer is in the array
-    BOOLEAN valid = checkpoint(p);
+    BOOLEAN valid = checkpointShalloc(p);
 
     //if pointer is not in the array, throw error, return
     if(valid == FALSE){
@@ -194,9 +196,9 @@ void free(void* p){
 	//The node's flag is set to unused = 'FALSE'
 	ptr -> used = FALSE;
 	//Finds the pointer left the node
-	Node* leftp = checkLeft(ptr);
+	Node* leftp = checkLeftShalloc(ptr);
 	//	//Finds the pointer right the node
-	Node* rightp = checkRight(ptr);
+	Node* rightp = checkRightShalloc(ptr);
 	//concatenates the space of the right node, and the current node
 	if(rightp != NULL && rightp->used == FALSE ){
 		ptr->space = ptr->space + rightp->space + sizeof(Node);
