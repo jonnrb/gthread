@@ -75,6 +75,7 @@ task::task(void* stack, void* stack_begin, size_t total_stack_size,
 }
 
 task::~task() {
+  if (this == &_root_task) return;
   if (_tls != nullptr) {
     _tls->~tls();
   }
