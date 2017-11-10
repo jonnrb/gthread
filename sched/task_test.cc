@@ -2,8 +2,8 @@
 #include "gtest/gtest.h"
 #include "gthread.h"
 
-constexpr auto k_num_stress_tasks = 10000;
-constexpr auto k_num_switches = 3;
+constexpr auto k_num_stress_tasks = 1000;
+constexpr auto k_num_switches = 1000;
 
 using namespace gthread;
 

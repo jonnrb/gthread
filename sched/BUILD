@@ -55,5 +55,7 @@ cc_test(
 
 cc_test(
     name = "std_thread_test",
+    timeout = "short",
     srcs = ["std_thread_test.cc"],
+    linkopts = ["-lpthread"],
 )
