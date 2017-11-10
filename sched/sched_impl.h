@@ -5,7 +5,7 @@
 #include "util/log.h"
 
 namespace gthread {
-inline void sched::uninterruptable_lock() {
+inline void sched::lock() {
   task* current = task::current();
 
   task* expected = nullptr;
@@ -15,7 +15,7 @@ inline void sched::uninterruptable_lock() {
   }
 }
 
-inline void sched::uninterruptable_unlock() { _interrupt_lock = nullptr; }
+inline void sched::unlock() { _interrupt_lock = nullptr; }
 
 inline void sched::runqueue_push(task* t) { _runqueue.emplace(t); }
 

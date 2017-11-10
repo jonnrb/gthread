@@ -5,6 +5,8 @@
 #include <iostream>
 #include <thread>
 
+#include <sched.h>
+
 using float_sec = std::chrono::duration<float>;
 
 template <typename T>
@@ -31,6 +33,17 @@ int main() {
     std::cout << "elapsed: " << (elapsed.count() * 1E3) << "ms" << std::endl;
     last = t;
   }
+
+  thread_clock::duration acc{0};
+  last = thread_clock::now();
+  while (thread_clock::now() - last < milliseconds{500}) {
+    auto start = thread_clock::now();
+    for (uint64_t i = 0; i < 100000000; ++i) {
+      sched_yield();
+    }
+    acc += (thread_clock::now() - start);
+  }
+  assert(thread_clock::now() - last >= acc);
 
   return 0;
 }

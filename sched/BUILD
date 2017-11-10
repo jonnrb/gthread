@@ -20,8 +20,8 @@ cc_library(
     srcs = [
         "sched.cc",
         "sched_impl.h",
-        "stats.h",
-        "stats_impl.h",
+        "task_freelist.h",
+        "task_freelist.cc",
     ],
     hdrs = ["sched.h"],
     deps = [
@@ -38,4 +38,9 @@ cc_test(
     timeout = "short",
     srcs = ["sched_test.cc"],
     deps = [":sched"],
+)
+
+cc_test(
+    name = "std_thread_test",
+    srcs = ["std_thread_test.cc"],
 )

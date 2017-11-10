@@ -1,16 +1,10 @@
-/**
- * author: Khalid Akash, JonNRb <jonbetti@gmail.com>
- * license: MIT
- * file: @gthread//concur/mutex.cc
- * info: mutex or binary semaphore
- */
-
 #include "concur/mutex.h"
 
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <atomic>
+#include <mutex>
 
 #include "sched/sched.h"
 #include "sched/task.h"
@@ -20,7 +14,7 @@ namespace gthread {
 
 namespace {
 static inline void spin_acquire(std::atomic_flag* lock) {
-  while (!lock->test_and_set()) sched::yield();
+  while (!lock->test_and_set()) sched::get().yield();
 }
 }  // namespace
 
@@ -28,6 +22,8 @@ mutex::mutex(const mutexattr& a)
     : _lock{false}, _owner{nullptr}, _priority_boost{0} {}
 
 mutex::~mutex() {}
+
+using sched_lock = std::lock_guard<sched>;
 
 // locks the mutex. will wait if the lock is contended.
 int mutex::lock() {
@@ -42,15 +38,16 @@ int mutex::lock() {
     ++_owner->priority_boost;
 
     // put the thread on the waitqueue
-    sched::uninterruptable_lock();
-    cur->run_state = task::WAITING;
-    _waitqueue.push_back(cur);
-    sched::uninterruptable_unlock();
+    {
+      sched_lock l(sched::get());
+      cur->run_state = task::WAITING;
+      _waitqueue.push_back(cur);
+    }
 
     _lock.clear();
 
     // deschedule self until woken up
-    sched::yield();
+    sched::get().yield();
 
     // reacquire mutex lock
     spin_acquire(&_lock);
@@ -89,16 +86,17 @@ int mutex::unlock() {
 
   waiter->run_state = task::SUSPENDED;
 
-  sched::uninterruptable_lock();
-  sched::runqueue_push(waiter);
-  sched::uninterruptable_unlock();
+  {
+    sched_lock l(sched::get());
+    sched::get().runqueue_push(waiter);
+  }
 
   _owner = nullptr;
   cur->priority_boost = 0;
 
   _lock.clear();
 
-  sched::yield();
+  sched::get().yield();
 
   return 0;
 }

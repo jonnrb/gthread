@@ -10,27 +10,26 @@
 
 #include "platform/clock.h"
 #include "platform/memory.h"
-#include "sched/stats.h"
 #include "util/compiler.h"
 #include "util/log.h"
 
 namespace gthread {
 namespace {
-internal::sched_stats<internal::k_collect_stats> g_stats(
-    internal::k_stats_interval);
+void task_end_handler(task* task) { sched::get().exit(task->return_value); }
 }  // namespace
 
-std::atomic<bool> sched::_is_init{false};
 task* const sched::k_pointer_lock = (task*)-1;
-std::atomic<task*> sched::_interrupt_lock{nullptr};
 
-std::set<task*, sched::time_ordered_compare> sched::_runqueue;
-std::multimap<sched::sleepqueue_clock::time_point, task*> sched::_sleepqueue;
-std::chrono::microseconds sched::_min_vruntime{0};
+sched::sched() : _interrupt_lock(nullptr), _min_vruntime(0), _freelist(64) {
+  task::set_time_slice_trap([this](task* current) { return next(current); },
+                            std::chrono::milliseconds{50});
+  task::set_end_handler(task_end_handler);
+}
 
-uint64_t sched::_freelist_r = 0;
-uint64_t sched::_freelist_w = 0;
-task* sched::_freelist[k_freelist_size] = {nullptr};
+sched& sched::get() {
+  static sched s;
+  return s;
+}
 
 /**
  * pushes the |last_running_task| to the `runqueue` if it is in a runnable
@@ -38,8 +37,6 @@ task* sched::_freelist[k_freelist_size] = {nullptr};
  * return
  */
 task* sched::next(task* last_running_task) {
-  unused_value auto stats_timer = g_stats.get_timer();
-
   // if for some reason, a task that was about to switch gets interrupted,
   // switch to that task
   task* waiter = nullptr;
@@ -92,92 +89,44 @@ task* sched::next(task* last_running_task) {
   return next_task;
 }
 
-static void task_end_handler(task* task) { sched::exit(task->return_value); }
-
-int sched::init() {
-  bool expected = false;
-  if (!_is_init.compare_exchange_strong(expected, true)) return -1;
-
-  task::set_time_slice_trap(&sched::next, std::chrono::milliseconds{50});
-  task::set_end_handler(task_end_handler);
-
-  if (g_stats.init()) return -1;
-
-  return 0;
-}
-
-task* sched::make_task(const attr& a) {
-  unused_value auto stats_timer = g_stats.get_timer();
-
-  // try to grab a task from the freelist
-  if (_freelist_w - _freelist_r > 0) {
-    task* t = _freelist[_freelist_r % k_freelist_size];
-    ++_freelist_r;
-    t->reset();
-    return t;
-  }
-
-  return task::create(a);
-}
-
-void sched::return_task(task* t) {
-  unused_value auto stats_timer = g_stats.get_timer();
-
-  // don't deallocate task storage immediately if possible
-  if (_freelist_w - _freelist_r < k_freelist_size) {
-    _freelist[_freelist_w % k_freelist_size] = t;
-    ++_freelist_w;
-  } else {
-    t->destroy();
-  }
-}
-
-void sched::yield() {
-  if (branch_unexpected(!_is_init)) init();
-  alarm::ring_now();
-}
+void sched::yield() { alarm::ring_now(); }
 
 void sched::sleep_for_impl(sleepqueue_clock::duration sleep_duration) {
   auto earliest_wake_time = sleepqueue_clock::now() + sleep_duration;
   auto* cur = task::current();
 
-  uninterruptable_lock();
+  lock();
   cur->run_state = task::WAITING;
   _sleepqueue.emplace(earliest_wake_time, cur);
-  uninterruptable_unlock();
+  unlock();
 
   yield();
 }
 
 sched_handle sched::spawn(const attr& attr, task::entry_t* entry, void* arg) {
-  unused_value auto stats_timer = g_stats.get_timer();
   sched_handle handle;
 
   if (branch_unexpected(entry == nullptr)) {
     throw std::domain_error("must supply entry function");
   }
 
-  if (branch_unexpected(!_is_init)) {
-    if (init()) return handle;
-  }
-
-  handle.t = make_task(attr);
+  handle.t = _freelist.make_task(attr);
   handle.t->entry = entry;
   handle.t->arg = arg;
   handle.t->vruntime = _min_vruntime;
 
-  uninterruptable_lock();
+  lock();
 
   // this will start the task and immediately return control
   if (branch_unexpected(handle.t->start())) {
-    return_task(handle.t);
+    _freelist.return_task(handle.t);
     handle.t = nullptr;
     return handle;
   }
 
   runqueue_push(handle.t);
 
-  uninterruptable_unlock();
+  unlock();
 
   return handle;
 }
@@ -234,7 +183,7 @@ void sched::join(sched_handle* handle, void** return_value) {
     *return_value = handle->t->return_value;
   }
 
-  return_task(handle->t);
+  _freelist.return_task(handle->t);
   handle->t = nullptr;
 }
 
@@ -265,9 +214,9 @@ void sched::exit(void* return_value) {
       yield();
     }
 
-    uninterruptable_lock();
+    lock();
     runqueue_push(joiner);
-    uninterruptable_unlock();
+    unlock();
   } else {
     // if there wasn't a joiner that suspended itself, we entered a critical
     // section and we should unlock
