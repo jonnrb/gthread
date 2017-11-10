@@ -37,7 +37,10 @@ cc_test(
     name = "sched_test",
     timeout = "short",
     srcs = ["sched_test.cc"],
-    deps = [":sched"],
+    deps = [
+        ":sched",
+        "@com_google_googletest//:gtest_main",
+    ],
 )
 
 cc_test(
