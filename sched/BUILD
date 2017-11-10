@@ -15,13 +15,23 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "task_test",
+    timeout = "short",
+    srcs = ["task_test.cc"],
+    deps = [
+        ":task",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
 cc_library(
     name = "sched",
     srcs = [
         "sched.cc",
         "sched_impl.h",
-        "task_freelist.h",
         "task_freelist.cc",
+        "task_freelist.h",
     ],
     hdrs = ["sched.h"],
     deps = [
