@@ -25,7 +25,8 @@ task* task::create(const attr& a) {
   allocate_stack(a, &stack, &total_stack_size);
 
   void* task_place = (void*)((char*)stack - sizeof(task));
-  return new (task_place) task(stack, task_place, total_stack_size);
+  return new (task_place)
+      task(stack, task_place, total_stack_size, a.alloc_tls);
 }
 
 void task::destroy() {
@@ -50,7 +51,8 @@ task::task()
       vruntime{0},
       priority_boost{0} {}
 
-task::task(void* stack, void* stack_begin, size_t total_stack_size)
+task::task(void* stack, void* stack_begin, size_t total_stack_size,
+           bool alloc_tls)
     : _ctx{0},
       _stack{stack},
       _stack_begin{stack_begin},
@@ -62,19 +64,26 @@ task::task(void* stack, void* stack_begin, size_t total_stack_size)
       return_value{nullptr},
       vruntime{0},
       priority_boost{0} {
-  void* tls_begin = (void*)((char*)_stack_begin - tls::postfix_bytes());
-  _tls = new (tls_begin) tls();
-  _stack_begin = (void*)((char*)tls_begin - tls::prefix_bytes());
-  _tls->set_thread(this);
+  if (alloc_tls) {
+    void* tls_begin = (void*)((char*)_stack_begin - tls::postfix_bytes());
+    _tls = new (tls_begin) tls();
+    _stack_begin = (void*)((char*)tls_begin - tls::prefix_bytes());
+    _tls->set_thread(this);
+  } else {
+    _tls = nullptr;
+  }
 }
 
 task::~task() {
-  if (this == &_root_task) return;
-  _tls->~tls();
+  if (_tls != nullptr) {
+    _tls->~tls();
+  }
 }
 
 void task::reset() {
-  _tls->reset();
+  if (_tls) {
+    _tls->reset();
+  }
 
   run_state = STOPPED;
   return_value = nullptr;
@@ -172,7 +181,12 @@ int task::switch_to_internal(std::chrono::microseconds* elapsed) {
   }
 
   // officially in the |task|'s context
-  _tls->use();
+  if (_tls != nullptr) {
+    _tls->set_thread(this);
+    _tls->use();
+  } else {
+    tls::current()->set_thread(this);
+  }
 
   _lock.clear();
   gthread_switch_to(&prev_task->_ctx, &_ctx);

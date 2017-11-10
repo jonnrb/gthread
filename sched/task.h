@@ -14,7 +14,7 @@ namespace gthread {
 struct task {
  public:
   /**
-   * factory that constructs and destructs a task on its own stack
+   * factory that constructs a task on that task's own stack
    */
   static task* create(const attr& a);
   void destroy();
@@ -54,6 +54,10 @@ struct task {
 
   static void set_end_handler(end_handler handler);
 
+  constexpr bool has_tls() const { return _tls != nullptr; }
+
+  constexpr size_t stack_size() const { return _total_stack_size; }
+
  private:
   tls* _tls;
 
@@ -81,7 +85,7 @@ struct task {
   // default constructor only for root task
   task();
 
-  task(void* stack, void* stack_begin, size_t total_stack_size);
+  task(void* stack, void* stack_begin, size_t total_stack_size, bool alloc_tls);
   ~task();
 
   void record_time_slice(std::chrono::microseconds elapsed);
