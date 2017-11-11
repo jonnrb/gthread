@@ -6,7 +6,6 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <string.h>
-#include <math.h>
 #include "arch/atomic.h"
 #include "sched/sched.h"
 #include "sched/task.h"
@@ -27,6 +26,11 @@ typedef struct _node{
     void* page_start_addr; //pointer where page starts
     void* page_end_addr; //pointer where page end (start of next page)
 } Node;
+
+typedef struct page_internal{
+	int space;
+	BOOLEAN used;
+} Page_Internal;
 void * mymalloc(size_t size, gthread_task_t* owner);
 void myfree(void * data, gthread_task_t* owner);
 void* shalloc(size_t size);

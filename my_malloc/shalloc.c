@@ -1,45 +1,23 @@
 #include "mymalloc.h"
 
-
 //////////////////////////////////////////////////////////////////////
 //SHALLOC//
 //////////////////////////////////////////////////////////////////////
 
 //Goes through each node in the array and prints the attributes of each node
-void printshallocmem()
-{
-Node* start = getShallocRegion();
-printf("+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n");
-while(start->space != 0 && start->type != VM){
-    if(start->used == 0){
-        printf("USED: True----Space: %d\n",start->space);
-    }
-    else{
-        printf("USED: False----Space: %d\n",start->space);
-    }
-     start = (Node*)((char*)(start+1)+(start->space));
-     if(start->type == VM){
-         printf("------------------------------------------------------\n");
-     }
-}
-
-
-}
-
-
 
 
 
 
 //Traverses the array, searching for sections with size 'size', and returning it.
 //If no partition is found, and the index has overreached, then it returns NULL
-Node* traverse(int size){
-    Node* ptr =  getShallocRegion();
+Page_Internal* traverse(int size){
+    Page_Internal* ptr =  getShallocRegion();
     while(ptr->used == TRUE || ptr->space < (size + sizeof(Node))){
     	//increment node pointer by shifting the pointer by 1 node space + node->size
-        ptr = (Node*)((char*)(ptr+1)+(ptr->space));
+        ptr = (Page_Internal*)((char*)(ptr+1)+(ptr->space));
         //last node, denoting the end of the memory array
-        if(ptr->type == VM){
+        if((void*)ptr == (void*)&myblock[MAX_SIZE - 1]){
             return NULL;
         }
 }
@@ -50,9 +28,9 @@ return ptr;
 
 //When a valid partition is found, a node is created to hold the space after the partition, and
 //the current node's size is readjusted to reflect the size partitioned
-void* allocatenew(Node* nodeptr, int size){
+void* allocatenew(Page_Internal* nodeptr, int size){
 
-Node* temptr = NULL;
+Page_Internal* temptr = NULL;
 	//Calculate the space left over after allocating enough for the current request
 	int totalspace = nodeptr->space;
 	totalspace = totalspace - (size + sizeof(Node));
@@ -60,7 +38,7 @@ Node* temptr = NULL;
 	//and create a new node to indicate the space left
 	if(totalspace>0){
     temptr = nodeptr;
-    temptr = (Node*)((char*)(temptr+1) + size);
+    temptr = (Page_Internal*)((char*)(temptr+1) + size);
     temptr->space = totalspace;
     temptr->used = FALSE;
 	}
@@ -92,7 +70,7 @@ void* shalloc(size_t size){
     }
 
     //traverse array until free space is found
-    Node* nodeptr = traverse(size);
+    Page_Internal* nodeptr = traverse(size);
     //if the end is reached, no valid space is found
     if(nodeptr == NULL){
     return NULL;
@@ -117,7 +95,7 @@ void* shalloc(size_t size){
 //Checks left of the pointer, if a node exists, returns it
 //used for concatenation of two unused nodes in the main free function
 //returns a pointer to the node that is before the node being freed
-Node* checkLeftShalloc(Node* ptr){
+Page_Internal* checkLeftShalloc(Page_Internal* ptr){
 	//ptr is already the left most node
 if(ptr == NULL){
 	//error
@@ -126,10 +104,10 @@ if(ptr == NULL){
 if(ptr ==getShallocRegion()){
 	return NULL;
 }
-Node* leftp = getShallocRegion();
+Page_Internal* leftp = getShallocRegion();
 //while the next node does not = the node currently being worked on
-while(((Node*)((char*)(leftp+1)+leftp->space)) != ptr) {
-	leftp = (Node*)((char*)(leftp+1)+leftp->space);
+while(((Page_Internal*)((char*)(leftp+1)+leftp->space)) != ptr) {
+	leftp = (Page_Internal*)((char*)(leftp+1)+leftp->space);
 }
 return leftp;
 }
@@ -138,13 +116,13 @@ return leftp;
 //Checks right of the pointer, if a node exists, returns it
 //used for concatenation of two unused nodes in the main free function
 //returns a pointer to the node that is after the node being freed
-Node* checkRightShalloc(Node* ptr){
+Page_Internal* checkRightShalloc(Page_Internal* ptr){
 if(ptr == NULL){
     //error
     return NULL;
 	}
 		//ptr is already the rightmost node
-	Node* temp = (Node*)((char*)(ptr+1)+ptr->space);
+	Page_Internal* temp = (Page_Internal*)((char*)(ptr+1)+ptr->space);
 if(temp->space == 0 && temp->used == FALSE){
 	return NULL;
 }
@@ -156,12 +134,12 @@ return temp;
 //checks if the pointer inputted in the 'free()' function is inside the memory array
 //returns TRUE if it is, false if it is not
 BOOLEAN checkpointShalloc(void* p){
-Node* current = getShallocRegion();
+Page_Internal* current = getShallocRegion();
 //current is not at the end
-while(current->type != VM){
+while((void*)current == (void*)&myblock[MAX_SIZE - 1]){
     if((void*)(current+1) == p ){
     return TRUE;}
-    current = (Node*)((char*)(current+1)+current->space);
+    current = (Page_Internal*)((char*)(current+1)+current->space);
 }
 return FALSE;
 }
@@ -182,7 +160,7 @@ void myfreeShalloc(void* p){
         return;
     }
     //converts pointer to a node type, and subtracts it by 1 to get to the node that corresponds to it
-    Node* ptr = (Node*)p;
+    Page_Internal* ptr = (Page_Internal*)p;
     ptr = ptr-1;
 
     //Checks node, if null or the 'used' flag is found to be false, then the pointer was not allocated for
@@ -196,9 +174,9 @@ void myfreeShalloc(void* p){
 	//The node's flag is set to unused = 'FALSE'
 	ptr -> used = FALSE;
 	//Finds the pointer left the node
-	Node* leftp = checkLeftShalloc(ptr);
+	Page_Internal* leftp = checkLeftShalloc(ptr);
 	//	//Finds the pointer right the node
-	Node* rightp = checkRightShalloc(ptr);
+	Page_Internal* rightp = checkRightShalloc(ptr);
 	//concatenates the space of the right node, and the current node
 	if(rightp != NULL && rightp->used == FALSE ){
 		ptr->space = ptr->space + rightp->space + sizeof(Node);

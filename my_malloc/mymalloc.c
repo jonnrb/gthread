@@ -19,59 +19,56 @@ void debug(char* str){
 
 void printpagemem(){
 	Node* page = meta_start;
-	Node* pageInternals = page + 1;
-	int pageCount = 0;
-	while(pageCount < numb_of_pages){
-		if(page->used == TRUE){
-			while(pageInternals != page->page_end_addr){
-			printf("PAGE: %d | USED: TRUE | PAGEOWNER: %p\n",pageCount, (void*)&page->thread);
-			pageInternals = (Node*)page->page_start_addr;
-			while(pageInternals->space != 0){
-			    if(pageInternals->used == TRUE){
-			        printf("       USED: True----Space: %d\n",pageInternals->space);
-			    }
-			    else{
-			        printf("       USED: False----Space: %d\n",pageInternals->space);
-			    }
-			    pageInternals = (Node*)((char*)(pageInternals+1)+(pageInternals->space));
+	Page_Internal* PI= NULL;
+	int pagecounter = 0;
+	while(pagecounter < threads_allocated){
+		printf("Page #: %d\n",pagecounter);
+		PI = (Page_Internal*)page->page_start_addr;
+		while((void*)PI != (void*)page->page_end_addr){
+			if(PI->used == FALSE){
+				printf("       USED: FALSE -+- SPACE: %d\n",PI->space);
 			}
-
-			if(pageInternals->space == 0 && pageInternals->used == FALSE){
-			    printf("------------------------------------------------------\n");
+			else{
+				printf("       USED: TRUE  -+- SPACE: %d\n",PI->space);
 			}
-			pageInternals = (Node*)((char*)(pageInternals+1)+pageInternals->space);
+			PI = (Page_Internal*)((char*)(PI+1) + PI->space);
 		}
-		}
+		printf("======================================================\n");
+		pagecounter++;
 		page = page + 1;
-		pageCount++;
 	}
 }
 
 
+//ceil function (my linux needed a special flag to compile math.h, didn't wanna deal)
+double ceil(double num) {
+    int inum = (int)num;
+    if (num == (double)inum) {
+        return (double)inum;
+    }
+    return (double)(inum + 1);
+}
+
 //sets metadata start address and number of pages expected on this machine
 void metadata_start_addr(){
-	double max = max_size - (2*sizeof(Node) + 4*page_size); //decrement by shalloc space
-	double ratio = sizeof(Node)/page_size;
-	double metaSpace = max*ratio;
+	int max = max_size - (2*sizeof(Node) + 4*page_size); //decrement by shalloc space
+	printf("Max Size = %d, sizeof(Node) = %d, page_size = %d\n",max_size,sizeof(Node), page_size);
+	printf("Max Size - Shalloc: %d\n",max);
+	double ratio = (double)sizeof(Node)/(double)page_size;
+	double metaSpace = (double)max*ratio;
+	printf("Metaspace: %d\n",(int)metaSpace);
 	metaSpace = ceil(metaSpace);
-	numb_of_pages = metaSpace/sizeof(Node);
+	numb_of_pages = (int)metaSpace/sizeof(Node);
+	printf("Number of Pages: %d\n",numb_of_pages);
 	max = max - metaSpace;
-	long maxaddr = (long)max;
+	int maxaddr = (int)max;
 	meta_start = (Node*)&myblock[maxaddr-1];
 }
 
-/*							2k
- * [Page Start] ------------xxxxxxxxxxxxxxxxxxxxxxxxx [Page End][Page Start]xxxxxxxxxxxxxxxxxxxxxx----------------[Page End]
- * 	4k space				^ptr=3k
- * -----------xxxxxxxxxxxxxxxxxxxxxxxx|xxxxxxxxxxxxxxxxxxxxxx--------------
- *
- *
- *
- */
 
 
 
-
+//takes in two metadata nodes and swaps the page of the address they refer to
 void swapPages(Node* source, Node* target){
 	if(source == target){
 		printf("Can't swap the same pages!\n");
@@ -82,9 +79,9 @@ void swapPages(Node* source, Node* target){
 		return;
 	}
 	char temp[page_size]; //temporary holder of source page
-	memcpy(temp, source, page_size); //copy source to temporary array
-	memcpy(source, target, page_size); //copy target page over to source page
-	memcpy(target, temp, page_size); //copy source page over to target page
+	memcpy(temp, source->page_start_addr, page_size); //copy source to temporary array
+	memcpy(source->page_start_addr, target->page_start_addr, page_size); //copy target page over to source page
+	memcpy(target->page_start_addr, temp, page_size); //copy source page over to target page
 	//swap complete
 	return;
 }
@@ -92,9 +89,10 @@ void swapPages(Node* source, Node* target){
 
 
 
-Node* getShallocRegion(){
+void* getShallocRegion(){
 	return shallocRegion;
 }
+
 
 
 
@@ -105,113 +103,92 @@ void initblock(){
 	threads_allocated = 0; //initializes threads allocated counter
 	metadata_start_addr(); //sets meta_start and number_of_pages
 	Node* metadata = meta_start;
+
 	int metaIterator = 0;
 	while(metaIterator < numb_of_pages){
 		metadata->thread = NULL;
 		metadata->type = PAGE_METADATA;
-		metadata->used = false;
+		metadata->used = FALSE;
 		metadata->page_start_addr = (void*)(&myblock[0] + page_size*metaIterator);
 		metadata->page_end_addr = (void*)(&myblock[0] + page_size*(metaIterator+1));
 		metadata = metadata+1;
 		metaIterator++;
 	}
 	//end of VirtualMemory node
-	Node* end = (Node*)&myblock[max_size-1] - 1;
-	end->space = 0;
-	end->used = FALSE;
-	end->type = VM;
+
 	//shalloc region creation
-	Node* shallocNode = (Node*)((char*)end - (sizeof(Node) + 4*page_size)); //backtrack four pages
+	Page_Internal* shallocNode = (Node*)((char*)&myblock[max_size - 1] - (sizeof(Node) + 4*page_size)); //backtrack four pages
 	shallocNode->space = 4*page_size; //create shalloc metadata
 	shallocNode->used = FALSE;
-	shallocNode->type = SHALLOC;
-	shallocNode->thread = NULL;
 	shallocRegion = shallocNode;
 }
 
 
-void printPageStructure(Node* Page){
-	Node* it = Page->page_start_addr;
-	while(it  != Page->page_end_addr){
-		if(it->used == TRUE){
-			printf("BLOCK USED: TRUE ");
-		}
-		else{
-			printf("BLOCK USED: FALSE ");
-		}
-		printf("SPACE: %d", it->space);
-		printf("\n");
-		it = (Node*)((char*)(it+1)+ it->space);
-		if(it == Page->page_end_addr){
-			printf("PAGE END\n");
-		}
-	}
-}
+
 
 
 //Traverses the array, searching for sections with size 'size', and returning it.
 //If no partition is found, and the index has overreached, then it returns NULL
-Node* traversePageInternals(int size, Node* metadata){
-    Node* ptr =  (Node*)metadata->page_end_addr;
+Page_Internal* traversePageInternals(int size, Node* metadata){
+    Page_Internal* PI =  (Page_Internal*)metadata->page_start_addr;
     //if page is not used
-    if(ptr->used == FALSE){
-    	if((size + 2*sizeof(Node)) > page_size){
+    if(PI->used == FALSE){
+    	if((size + 2*sizeof(Page_Internal)) > page_size){
+    		printf("In mymalloc()-->traversePageInternals(), requested size and metadata does not fit in page.\n");
     		return NULL;
     	}
-    	return ptr;
+    	return PI;
     }
 
-    while(ptr != metadata->page_end_addr){ //check if & is ness
+    while((void*)PI != (void*)metadata->page_end_addr){ //check if & is ness
     	//if the location is not used, has space greater than the size requested, and is inside the page (THREAD_PTR)
-    	if(ptr->used == FALSE && ptr->space >= size + sizeof(Node) && ptr->type == THREAD_PTR){
-    		return ptr;
+    	if(PI->used == FALSE && PI->space >= size + sizeof(Page_Internal)){
+    		return PI;
     	}
-    	ptr = (Node*)((char*)(ptr+1) + ptr->space);
+    	PI = (Page_Internal*)((char*)(PI+1) + PI->space);
     }
     return NULL;
 }
 
 
 
-//[----|-----M|-----|-----|--------------------------------MMMMMMMSSS]
 
 
 
 //When a valid partition is found, a node is created to hold the space after the partition, and
 //the current node's size is readjusted to reflect the size partitioned
-void* allocateNewInsidePage(Node* nodeptr, int size){
-	Node* temptr = NULL;
+void* allocateNewInsidePage(Page_Internal* PI, int size){
+	Page_Internal* tempPI = NULL;
 	//Calculate the space left over after allocating enough for the current request
-	int totalspace = nodeptr->space;
-	totalspace = totalspace - (size + sizeof(Node));
+	int totalspace = PI->space;
+	totalspace = totalspace - (size + sizeof(Page_Internal));
 	//temptr is a pointer that will increment to the location after the requested space
 	//and create a new node to indicate the space left
 	if(totalspace>0){
-    temptr = nodeptr;
-    temptr = (Node*)((char*)(temptr+1) + size);
-    temptr->space = totalspace;
-    temptr->used = FALSE;
-    temptr->type = THREAD_PTR;
+    tempPI = PI;
+    tempPI = (Page_Internal*)((char*)(tempPI+1) + size);
+    tempPI->space = totalspace;
+    tempPI->used = FALSE;
 	}
 
     //the input to the function is then adjusted to indicate the correct size requested
     //and its active 'used' flag
-    nodeptr->space = size;
-    nodeptr->used = TRUE;
+    PI->space = size;
+    PI->used = TRUE;
     //a void pointer to the space after the node(the space requested), is returned to the main malloc function
-    void* ptr = (void*)(nodeptr+1);
+    void* ptr = (void*)(PI+1);
     return ptr;
 }
 
-
-//if thread page is found, returns first node inside the page
+//TODO change NUMBER OF THREADS to NUMBER OF PAGES
+//if thread page is found, returns page metadata
 void* findThreadPage(gthread_task_t *owner){
 	int number_of_threads = threads_allocated;
 	Node* page = meta_start;
 	while(number_of_threads > 0){
 		//page found, return
 		if(page->thread == owner){
-			return page->page_start_addr;
+			return page;
 		}
 		//else iterate
 		number_of_threads--;
@@ -224,15 +201,15 @@ return NULL;
 void* createThreadPage(gthread_task_t *owner){
 	Node* page = meta_start;
 	int metacounter = 0;
-	Node* nodestart;
+	Page_Internal* nodestart;
 	while(metacounter<numb_of_pages){
 		if(page->thread == NULL){
 			page->used = TRUE;
 			page->thread = owner;
-			nodestart = (Node*)page->page_start_addr;
-			nodestart->space = (page_size - sizeof(Node));
-			nodestart->type = THREAD_PTR;
+			nodestart = (Page_Internal*)page->page_start_addr;
+			nodestart->space = (page_size - sizeof(Page_Internal));
 			nodestart->used = FALSE;
+			threads_allocated++;
 			return page;
 		}
 		page = page + 1;
@@ -274,7 +251,7 @@ void* mymalloc(size_t size, gthread_task_t *owner){
     }
 
     //traverse array until free space is found
-    Node* nodeptr = traversePageInternals(size, page);
+    Page_Internal* nodeptr = traversePageInternals(size, page);
     //if the end is reached, no valid space is found
     if(nodeptr == NULL){
     	printf("Invalid space request, capacity overflow.\n");
@@ -295,19 +272,17 @@ void* mymalloc(size_t size, gthread_task_t *owner){
 //Checks left of the pointer, if a node exists, returns it
 //used for concatenation of two unused nodes in the main free function
 //returns a pointer to the node that is before the node being freed
-Node* checkLeft(Node* ptr, Node* page){
+Page_Internal* checkLeft(Page_Internal* ptr, Node* pageMetaData){
 	//ptr is already the left most node
 if(ptr == NULL){
 	//error
 	return NULL;
 }
-if(ptr == page){
-	return NULL;
-}
-Node* leftp = (Node*)page->page_start_addr;
+
+Page_Internal* leftp = (Page_Internal*)pageMetaData->page_start_addr;
 //while the next node does not = the node currently being worked on
-while(((Node*)((char*)(leftp+1)+leftp->space)) != ptr) {
-	leftp = (Node*)((char*)(leftp+1)+leftp->space);
+while(((Page_Internal*)((char*)(leftp+1)+leftp->space)) != ptr) {
+	leftp = (Page_Internal*)((char*)(leftp+1)+leftp->space);
 }
 return leftp;
 }
@@ -316,14 +291,14 @@ return leftp;
 //Checks right of the pointer, if a node exists, returns it
 //used for concatenation of two unused nodes in the main free function
 //returns a pointer to the node that is after the node being freed
-Node* checkRight(Node* ptr, Node* page){
+Page_Internal* checkRight(Page_Internal* ptr, Node* pageMetaData){
 if(ptr == NULL){
     //error
     return NULL;
 	}
 		//ptr is already the rightmost node
-	Node* temp = (Node*)((char*)(ptr+1)+ptr->space);
-if(temp == page->page_end_addr){
+Page_Internal* temp = (Page_Internal*)((char*)(ptr+1)+ptr->space);
+if((void*)(temp) ==(void*)pageMetaData->page_end_addr){
 	return NULL;
 }
 return temp;
@@ -333,21 +308,14 @@ return temp;
 
 //checks if the pointer inputted in the 'free()' function is inside the memory array
 //returns TRUE if it is, false if it is not
-BOOLEAN checkpoint(void* p, gthread_task_t* owner){
-Node* current = findThreadPage(owner);
-if(current == NULL){
+BOOLEAN does_pointer_exist(void* p, gthread_task_t* owner){
+Node* page = findThreadPage(owner);
+if(page == NULL){
 	return FALSE;
 }
-current = current - 1;
-if(current->used == FALSE){ //if page is indicated to be FALSE, no pointer should be allocated
-	printf("Thread does not have an allocated page!\n");
-	return FALSE;
-}
-else{
-	current = current + 1;
-}
+Node* current = (Node*)page->page_start_addr;
 //current is not at the end
-while(current->space!=0){
+while((void*)current != (void*)page->page_end_addr){
     if((void*)(current+1) == p ){
     return TRUE;}
     current = (Node*)((char*)(current+1)+current->space);
@@ -357,15 +325,12 @@ return FALSE;
 
 
 
-void check_and_freePage(Node* page){
-	if(page == NULL){
-		return;
-	}
-	if(page->used == FALSE){ //page is empty
-		page = page - 1; //PAGE_METADATA node
-		page->thread = NULL;
-		page->used = FALSE;
-	}
+void check_and_free_Page(Node* page){
+Page_Internal* PI = (Page_Internal*)page->page_start_addr;
+if(PI->space == (page_size-sizeof(Page_Internal)) && PI->used == FALSE){
+	page->thread = NULL;
+	page->used = FALSE;
+}
 }
 
 
@@ -374,12 +339,12 @@ void check_and_freePage(Node* page){
 //the space with any adjacent unused nodes.
 void myfree(void* p, gthread_task_t *owner){
 	//check if p is in shalloc region
-	if(p > shallocRegion){
+	if(p > (void*)shallocRegion){
 		myfreeShalloc(p);
 		return;
 	}
     //checks if pointer is in the array
-    BOOLEAN valid = checkpoint(p, owner);
+    BOOLEAN valid = does_pointer_exist(p, owner);
 
     //if pointer is not in the array, throw error, return
     if(valid == FALSE){
@@ -421,7 +386,7 @@ void myfree(void* p, gthread_task_t *owner){
 		leftp->space = leftp->space + ptr->space + sizeof(Node);
 		ptr = NULL;
 	}
-	check_and_freePage(page);
+	check_and_free_Page(page);
 
 	return;
 }
