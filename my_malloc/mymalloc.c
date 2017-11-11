@@ -4,7 +4,7 @@ static const long max_size = MAX_SIZE; //Maximum size for Virtual Memory
 extern char myblock[MAX_SIZE] = {}; //8MB memory block
 static long page_size; //Page size for system
 static int threads_allocated; //number of threads that allocated space in Virtual Memory currently
-static Node* shallocRegion; //first shalloc metadata
+static void* shallocRegion; //first shalloc metadata
 static Node* meta_start; //the first page metadata
 static int numb_of_pages; //number of total pages in the block (can be empty pages)
 //////////////////////////////////////////////////////////////////////
@@ -117,10 +117,10 @@ void initblock(){
 	//end of VirtualMemory node
 
 	//shalloc region creation
-	Page_Internal* shallocNode = (Node*)((char*)&myblock[max_size - 1] - (sizeof(Node) + 4*page_size)); //backtrack four pages
+	Page_Internal* shallocNode = (Page_Internal*)((char*)&myblock[max_size - 1] - (sizeof(Page_Internal) + 4*page_size)); //backtrack four pages
 	shallocNode->space = 4*page_size; //create shalloc metadata
 	shallocNode->used = FALSE;
-	shallocRegion = shallocNode;
+	shallocRegion = (void*)shallocNode;
 }
 
 
@@ -313,12 +313,12 @@ Node* page = findThreadPage(owner);
 if(page == NULL){
 	return FALSE;
 }
-Node* current = (Node*)page->page_start_addr;
+Page_Internal* current = (Page_Internal*)page->page_start_addr;
 //current is not at the end
 while((void*)current != (void*)page->page_end_addr){
     if((void*)(current+1) == p ){
     return TRUE;}
-    current = (Node*)((char*)(current+1)+current->space);
+    current = (Page_Internal*)((char*)(current+1)+current->space);
 }
 return FALSE;
 }
@@ -339,10 +339,12 @@ if(PI->space == (page_size-sizeof(Page_Internal)) && PI->used == FALSE){
 //the space with any adjacent unused nodes.
 void myfree(void* p, gthread_task_t *owner){
 	//check if p is in shalloc region
+
 	if(p > (void*)shallocRegion){
 		myfreeShalloc(p);
 		return;
 	}
+
     //checks if pointer is in the array
     BOOLEAN valid = does_pointer_exist(p, owner);
 
@@ -353,7 +355,7 @@ void myfree(void* p, gthread_task_t *owner){
     }
 
     //converts pointer to a node type, and subtracts it by 1 to get to the node that corresponds to it
-    Node* ptr = (Node*)p;
+    Page_Internal* ptr = (Page_Internal*)p;
     ptr = ptr-1;
 
     //Checks node, if null or the 'used' flag is found to be false, then the pointer was not allocated for
@@ -372,18 +374,18 @@ void myfree(void* p, gthread_task_t *owner){
 		return;
 	}
 	//Finds the pointer left the node
-	Node* leftp = checkLeft(ptr, page);
+	Page_Internal* leftp = checkLeft(ptr, page);
 	//	//Finds the pointer right the node
-	Node* rightp = checkRight(ptr, page);
+	Page_Internal* rightp = checkRight(ptr, page);
 
 	//concatenates the space of the right node, and the current node
 	if(rightp != NULL && rightp->used == FALSE ){
-		ptr->space = ptr->space + rightp->space + sizeof(Node);
+		ptr->space = ptr->space + rightp->space + sizeof(Page_Internal);
 		rightp = NULL;
 	}
     //concatenates the space of the left node, and the current node
 	if(leftp != NULL && leftp->used == FALSE){
-		leftp->space = leftp->space + ptr->space + sizeof(Node);
+		leftp->space = leftp->space + ptr->space + sizeof(Page_Internal);
 		ptr = NULL;
 	}
 	check_and_free_Page(page);

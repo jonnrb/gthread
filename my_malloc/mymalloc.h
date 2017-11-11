@@ -39,9 +39,9 @@ void swapPages(Node* source, Node* target);
 void initblock();
 
 void printpagemem();
-void printshallocmem();
+void printShallocRegion();
 void debug(char* str);
-Node* getShallocRegion();
+void* getShallocRegion();
 
 extern char myblock[MAX_SIZE];
 

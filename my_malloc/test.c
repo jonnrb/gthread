@@ -19,13 +19,22 @@
 void* important_task(void* arg) {
   const char* msg = (const char*)arg;
    void* p;
+   void* ptr[6];
+   int t = 0;
    for (int i = 0; i < 26; ++i) {
 
  		  p = (int*)mymalloc(i + 1, (gthread_task_t*)gthread_tls_current_thread());
- 		//  myfree(p, (gthread_task_t*)gthread_tls_current_thread());
+ 		  if(i == 10 || i == 11 || i == 13 || i == 14 || i ==15 || i == 16){
+ 			 ptr[t] = shalloc(17000);;
+ 			 t = t + 1;
+ 		  }
+
 
 
    }
+
+
+
   /*for(int i = 1; i<200; i ++){
 	 void* c = shalloc(i);
 	 myfree(c,(gthread_task_t*)gthread_tls_current_thread());
@@ -56,6 +65,6 @@ int init() {
 
 int main() {
   init();
-  printpagemem();
+  printShallocRegion();
   return 0;
 }
