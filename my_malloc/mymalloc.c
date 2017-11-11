@@ -173,6 +173,10 @@ Node* traversePageInternals(int size, Node* metadata){
 
 
 
+//[----|-----M|-----|-----|--------------------------------MMMMMMMSSS]
+
+
+
 //When a valid partition is found, a node is created to hold the space after the partition, and
 //the current node's size is readjusted to reflect the size partitioned
 void* allocateNewInsidePage(Node* nodeptr, int size){
