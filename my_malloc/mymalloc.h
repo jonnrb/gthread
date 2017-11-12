@@ -18,17 +18,17 @@ typedef enum truth {TRUE, FALSE} BOOLEAN;
 //3 different types of metadata (Page, Thread memory, and Virtual Memory)
 typedef enum type {PAGE_METADATA,THREAD_PTR, VM, SHALLOC} TYPE;
 typedef struct _node{
-    int space;
-    BOOLEAN used;
-    TYPE type; //Page or pointer for thread
-    gthread_task_t* thread;
-    struct _node* next_page;
+    gthread_task_t* thread; //thread to which the page belongs
+    struct _node* next_page; //linked list structure to indicate contiguous pages
+    struct _node* prev_page;
+    struct _node* first_page; //pointer to the first page metadata to which traversal can be done
     void* page_start_addr; //pointer where page starts
     void* page_end_addr; //pointer where page end (start of next page)
 } Node;
 
 typedef struct page_internal{
-	int space;
+	int space; //space inside the current page
+	int extendedspace; //total space spread across all pages
 	BOOLEAN used;
 } Page_Internal;
 void * mymalloc(size_t size, gthread_task_t* owner);
