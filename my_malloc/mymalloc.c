@@ -1,33 +1,40 @@
 #include "mymalloc.h"
 
 static const long max_size = MAX_SIZE; //Maximum size for Virtual Memory
+static const long swap_size = SWAP_SIZE;
 extern char myblock[MAX_SIZE] = {}; //8MB memory block
+extern char swapblock[SWAP_SIZE] = {};
 static long page_size; //Page size for system
 static int threads_allocated; //number of threads that allocated space in Virtual Memory currently
 static int pages_allocated;
 static void* shallocRegion; //first shalloc metadata
 static Node* meta_start; //the first page metadata
+static Node* swap_meta_start;
 static int numb_of_pages; //number of total pages in the block (can be empty pages)
+static int numb_of_swap_pages;
 Node* findThreadPage(gthread_task_t *owner);
 void* getEndAddr(gthread_task_t* owner, Node* inppage);
 
-//////////////////////////////////////////////////////////////////////
-//MALLOC//
-//////////////////////////////////////////////////////////////////////
 
-//Goes through each node in the array and prints the attributes of each node
+
+/////////////////////////GENERAL FUNCTIONS////////////////////////////////////////
+
+
+
+//prints out in format "DEBUG: INPUT STRING"
 void debug(char* str){
 	printf("DEBUG: %s\n", str);
 	return;
 }
 
 
+//pointer arithmatic to get new Page_Internal node.
 Page_Internal* getNextPI(Page_Internal* PI){
 	return (Page_Internal*)((char*)(PI+1) + PI->space);
 }
 
 
-
+//gets end of address space for the current thread
 void* getEndAddr(gthread_task_t* owner, Node* inppage){
 	Node* page;
 	if(inppage != NULL){
@@ -45,7 +52,7 @@ void* getEndAddr(gthread_task_t* owner, Node* inppage){
 	return page->page_end_addr;
 }
 
-
+//prints all the allocated pages for threads, marking the current thread with "CURRENT THREAD: string"
 void printThread(gthread_task_t* owner){
 	Node* page = (Node*)meta_start;
 	int numbpages = numb_of_pages;
@@ -61,6 +68,8 @@ void printThread(gthread_task_t* owner){
 	}
 }
 
+
+//Prints the internal memory of the current thread (size allocated, block used, etc)
 void printInternalMemory(gthread_task_t* owner){
 	Node* page = findThreadPage(owner);
 	Page_Internal* PI = (Page_Internal*)page->page_start_addr;
@@ -76,7 +85,7 @@ void printInternalMemory(gthread_task_t* owner){
 }
 
 
-
+//gets space left in total memory block.
 int getSpaceLeft(){
 	int pagesLeft = numb_of_pages - pages_allocated;
 	int bytesleft = pagesLeft * (page_size);
@@ -106,6 +115,20 @@ void metadata_start_addr(){
 	meta_start = (Node*)&myblock[maxaddr-1];
 }
 
+//sets metadata start address and number of pages expected on this machine for swap block
+void swap_metadata_start_addr(){
+	int max = swap_size; //decrement by shalloc space
+	double ratio = (double)sizeof(Node)/(double)page_size;
+	double metaSpace = (double)max*ratio;
+	metaSpace = ceil(metaSpace);
+	numb_of_swap_pages = (int)metaSpace/sizeof(Node);
+	max = max - metaSpace;
+	int maxaddr = (int)max;
+	meta_start = (Node*)&swapblock[maxaddr-1];
+}
+
+
+
 
 
 
@@ -114,13 +137,17 @@ void* getShallocRegion(){
 	return shallocRegion;
 }
 
-
+//returns page size
 int getPageSize(){
 	return page_size;
 }
-
+//returns address of region where metadata starts in memory block
 void* getMetaStart(){
 	return (void*)meta_start;
+}
+//returns address of region where metadata starts in swap file block
+void* getSwapMetaStart(){
+	return (void*)swap_meta_start;
 }
 
 
@@ -145,6 +172,17 @@ void initblock(){
 	}
 	//end of VirtualMemory node
 
+	Node* swapmetadata = (Node*)swap_meta_start;
+	metaIterator = 0;
+	while(metaIterator < numb_of_swap_pages){
+		swapmetadata->thread = NULL;
+		swapmetadata->first_page = NULL;
+		swapmetadata->next_page = NULL;
+		swapmetadata->page_start_addr = (void*)(&swapblock[0] + page_size*metaIterator);
+		swapmetadata->page_end_addr = (void*)(&swapblock[0] + page_size*(metaIterator+1));
+		swapmetadata = swapmetadata+1;
+		metaIterator++;
+	}
 	//shalloc region creation
 	Page_Internal* shallocNode = (Page_Internal*)((char*)&myblock[max_size - 1] - (sizeof(Page_Internal) + 4*page_size)); //backtrack four pages
 	shallocNode->space = 4*page_size; //create shalloc metadata
@@ -170,6 +208,17 @@ Node* whichPage(Page_Internal* PI){
 		page = page + 1;
 		numbpages--;
 	}
+	numbpages = numb_of_swap_pages;
+	page = (Node*)swap_meta_start;
+	while(numbpages>0){
+			end = page->page_end_addr;
+			start = page->page_start_addr;
+			if(addr >= start && addr < end){
+				return page;
+			}
+			page = page + 1;
+			numbpages--;
+		}
 	return NULL;
 }
 
@@ -233,8 +282,29 @@ Node* findThreadPage(gthread_task_t *owner){
 		numbpages--;
 		page = page + 1;
 	}
+	//traverse swap pages
+	numbpages = numb_of_swap_pages;
+	page = (Node*)swap_meta_start;
+	while(numbpages>0){
+		if(page->thread == owner){
+			return (page->first_page);
+		}
+		numbpages--;
+		page = page + 1;
+	}
 return NULL;
 }
+
+
+
+
+
+
+//////////////////////////////////////////////////////////////////////
+//MALLOC//
+//////////////////////////////////////////////////////////////////////
+
+
 
 
 
@@ -243,7 +313,6 @@ return NULL;
 //If no partition is found, and the index has overreached, then it returns NULL
 //sets freespace
 Page_Internal* findOpenSpace(int size, Node* pageMData){
-	debug("In findOpenSpace()");
 	Page_Internal* PI = (Page_Internal*)pageMData->page_start_addr;
 	while(PI->nextPI != NULL){
 		if(PI->used == FALSE && PI->space > sizeof(Page_Internal) + size){
@@ -259,7 +328,7 @@ Page_Internal* findOpenSpace(int size, Node* pageMData){
 }
 
 
-
+//returns an empty page in the memory block. Returns NULL if empty page not found
 Node* getEmptyPage(){
 	Node* metadata = (Node*)meta_start;
 	int metacounter = 0;
@@ -270,20 +339,22 @@ Node* getEmptyPage(){
 		metadata = metadata + 1;
 		metacounter++;
 	}
-	return NULL;
-}
-
-int howManyEmptyPages(){
-	Node* metadata = (Node*)meta_start;
-	int emptyP = 0;
-	int metacounter = 0;
-	while(metacounter < numb_of_pages){
+	//swap file check
+	metadata = (Node*)swap_meta_start;
+	metacounter = 0;
+	while(metacounter < numb_of_swap_pages){
 		if(metadata->thread == NULL){
-			emptyP++;
+			return metadata;
 		}
 		metadata = metadata + 1;
 		metacounter++;
 	}
+	return NULL;
+}
+
+//returns the number of empty pages left in the memory block
+int howManyEmptyPages(){
+	int emptyP = (numb_of_pages+numb_of_swap_pages) - pages_allocated;
 	return emptyP;
 }
 
@@ -311,7 +382,6 @@ void* allocate(Page_Internal* PI, int size, gthread_task_t* owner){
 	else{
 		//problem lies somewhere in here
 		Node* page = whichPage(PI);
-		printf("This page belongs to thread: %p, PAGE STARTING ADDR %d\n", (void*)page->thread, (void*)page->page_start_addr);
 		int spacecalc = size;
 		spacecalc = spacecalc - PI->space; //size after end of current page
 		Node* tempPage;
@@ -344,7 +414,7 @@ void* allocate(Page_Internal* PI, int size, gthread_task_t* owner){
 		PI->space = size;
 		placePagesContig(owner);
 	}
-
+	firstPage->space_allocated = firstPage->space_allocated + size;
 	return (void*)(PI+1);
 }
 
@@ -365,19 +435,19 @@ Node* createThreadPage(gthread_task_t *owner){
 			Page_Internal* nodestart;
 			page->thread = owner;
 			page->first_page = page;
+			page->space_allocated = 0;
 			nodestart = (Page_Internal*)page->page_start_addr;
 			nodestart->space = (page_size - sizeof(Page_Internal));
 			nodestart->used = FALSE;
 			nodestart->nextPI = NULL;
 			threads_allocated++;
 			pages_allocated++;
-			debug("Exiting createThreadPage(), succesfuly created metadata");
 			return page;
 }
 
 
 
-
+//mymalloc
 void* mymalloc(size_t size, gthread_task_t *owner){
 	printf("+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+\n");
 	printf("DEBUG: Size request %ld, gthread ID: %p\n", size, (void*)owner);
@@ -392,15 +462,15 @@ void* mymalloc(size_t size, gthread_task_t *owner){
     	 printf("Thread no longer exists or invalid thread input.\n");
     	 return NULL;
     }
-    //initialize
 
+    //initialize entire memory array, create metadata nodes at the end of the memory block (before shalloc region)
     if(meta_start == NULL){
     	initblock();
     }
 
 
-    //traverse array until thread page is found
-    //the next 8 lines are for new threads;
+    //traverse array until the pages for the requested thread is found, if
+    //not found, create new thread page.
     Node* page = findThreadPage(owner);
     //printf("Page starting addr: %d\n", page->page_start_addr);
     if(page == NULL){ //if thread does not have an allocated space
@@ -410,17 +480,25 @@ void* mymalloc(size_t size, gthread_task_t *owner){
     	printf("No space left in VM for requested thread Memory Allocation.\n");
     	return NULL;
     }
+    if(page->space_allocated + size > numb_of_pages*page_size){
+    	//not enough space left
+    	printf("Allocation request will reach memory capcity if allocated. Denied allocation request.\n");
+    	return NULL;
+    }
     //places pages contiguously at the start of the array
-    //traverse array until free space is found
     placePagesContig(owner);
+
+    //traverse array until free space is found
     Page_Internal* PI = findOpenSpace(size, page);
-    printf("PI Address %d\n", (void*)PI);
     //if the end is reached, no valid space is found
     if(PI == NULL){
     	printf("Invalid space request, capacity overflow.\n");
     	return NULL;
     }
     ptr = allocate(PI, size, owner);
+    if(ptr == NULL){
+    	printf("Unsuccessful allocation attempt, likely not enough free pages were found\n");
+    }
     //returns void pointer to the caller
     printf("Pages allocated %d\n", pages_allocated);
     return ptr;
@@ -456,7 +534,7 @@ Page_Internal* does_pointer_exist(void* p, gthread_task_t* owner){
 }
 
 
-
+//concatenates adjacent unused page_internal nodes
 void concatenate(Page_Internal* PI, gthread_task_t* owner){
 	Page_Internal* prevPI = (Page_Internal*)findThreadPage(owner)->page_start_addr;
 	Page_Internal* nextPI = getNextPI(PI);
@@ -476,6 +554,8 @@ void concatenate(Page_Internal* PI, gthread_task_t* owner){
 		prevPI->space = prevPI->space + PI->space + sizeof(Page_Internal);
 	}
 }
+
+
 
 
 void pageFree(Page_Internal* PI, int freePages, Node* startingPage){
@@ -534,7 +614,6 @@ void clearUnusedPages(Page_Internal* PI, gthread_task_t* owner){
 //the space with any adjacent unused nodes.
 void myfree(void* p, gthread_task_t *owner){
 	//check if p is in shalloc region
-
 	if(p > (void*)shallocRegion){
 		myfreeShalloc(p);
 		return;
@@ -554,8 +633,10 @@ void myfree(void* p, gthread_task_t *owner){
 	//At this point, the pointer exists, and the node corresponding to it is valid
 	//The node's flag is set to unused = 'FALSE'
 	PI -> used = FALSE;
-
-	//concatenate
+	Node* firstPage = findThreadPage(owner);
+	//adjusts total space allocated
+	firstPage->space_allocated = firstPage->space_allocated - PI->space;
+	//concatenate any unused regions in memory
 	concatenate(PI, owner);
 	//clearUnusedPages(owner);
 	return;

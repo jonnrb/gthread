@@ -1,6 +1,7 @@
 #ifndef _MYMALLOC_H
 #define _MYMALLOC_H
 #define MAX_SIZE 8388608
+#define SWAP_SIZE 16777216
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
@@ -23,6 +24,7 @@ typedef struct _node{
     struct _node* first_page; //pointer to the first page metadata to which traversal can be done
     void* page_start_addr; //pointer where page starts
     void* page_end_addr; //pointer where page end (start of next page)
+    int space_allocated; //nubmer of bytes allocated in total for this thread (this number is only valid in first page structure)
 } Node;
 
 
