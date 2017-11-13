@@ -61,7 +61,7 @@ void printThread(gthread_task_t* owner){
 	}
 }
 
-void printThreadMemory(gthread_task_t* owner){
+void printInternalMemory(gthread_task_t* owner){
 	Node* page = findThreadPage(owner);
 	Page_Internal* PI = (Page_Internal*)page->page_start_addr;
 	while((void*)PI != (void*)getEndAddr(owner,NULL)){
@@ -178,12 +178,6 @@ void swapPages(Node* source, Node* target){
 	if(source == target){
 		return;
 	}
-	printf("\n");
-	printf("\n");
-printf("IN SWAP PAGES:: source=%p <--> target=%p\n", (void*)source->thread, (void*)target->thread);
-printf("PAGE ADDRS:: source=%d <--> target=%d\n", (void*)source->page_start_addr, (void*)target->page_start_addr);
-printf("\n");
-printf("\n");
 	void* tempstartaddr = source->page_start_addr;
 	void* tempendaddr = source->page_end_addr;
 	char temp[page_size]; //temporary holder of source page
@@ -251,12 +245,11 @@ return NULL;
 Page_Internal* findOpenSpace(int size, Node* pageMData){
 	debug("In findOpenSpace()");
 	Page_Internal* PI = (Page_Internal*)pageMData->page_start_addr;
-	printf("End Address %d\n", (void*)getEndAddr(NULL, pageMData));
 	while(PI->nextPI != NULL){
 		if(PI->used == FALSE && PI->space > sizeof(Page_Internal) + size){
 			return PI;
 		}
-		PI = (Page_Internal*)((char*)(PI+1) + PI->space);
+		PI = getNextPI(PI);
 	}
 	if(sizeof(Page_Internal) + size < getSpaceLeft() + PI->space && PI->used == FALSE){
 		return PI;
@@ -272,13 +265,26 @@ Node* getEmptyPage(){
 	int metacounter = 0;
 	while(metacounter < numb_of_pages){
 		if(metadata->thread == NULL){
-			debug("Found empty page");
 			return metadata;
 		}
 		metadata = metadata + 1;
 		metacounter++;
 	}
 	return NULL;
+}
+
+int howManyEmptyPages(){
+	Node* metadata = (Node*)meta_start;
+	int emptyP = 0;
+	int metacounter = 0;
+	while(metacounter < numb_of_pages){
+		if(metadata->thread == NULL){
+			emptyP++;
+		}
+		metadata = metadata + 1;
+		metacounter++;
+	}
+	return emptyP;
 }
 
 
@@ -309,6 +315,14 @@ void* allocate(Page_Internal* PI, int size, gthread_task_t* owner){
 		int spacecalc = size;
 		spacecalc = spacecalc - PI->space; //size after end of current page
 		Node* tempPage;
+
+
+		int empty_pages_left = howManyEmptyPages();
+		double pagesNeeded = ceil((double)spacecalc/(double)page_size);
+		if(pagesNeeded > empty_pages_left){
+			return NULL;
+		}
+
 		while(spacecalc > 0){
 			tempPage = getEmptyPage();
 			page->next_page = tempPage;
@@ -328,12 +342,9 @@ void* allocate(Page_Internal* PI, int size, gthread_task_t* owner){
 		PI->nextPI = unusedPI;
 		PI->used = TRUE;
 		PI->space = size;
-		printf("Unused size = %d\n",unusedPI->space);
-		printf("Current PI size = %d\n", PI->space);
 		placePagesContig(owner);
 	}
 
-    printf("RETURNING POINTER ADDRESS: %d\n",(void*)(PI+1));
 	return (void*)(PI+1);
 }
 

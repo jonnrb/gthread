@@ -26,12 +26,12 @@ void* important_task(void* arg) {
    //for (int i = 0; i < 26; ++i) {
  		  p = (int*)mymalloc(10000, (gthread_task_t*)gthread_tls_current_thread());
  		 x = (int*)mymalloc(10000, (gthread_task_t*)gthread_tls_current_thread());
- 		 z = (int*)mymalloc(100, (gthread_task_t*)gthread_tls_current_thread());
+ 		 z = (int*)mymalloc(1000, (gthread_task_t*)gthread_tls_current_thread());
  		  myfree(x, (gthread_task_t*)gthread_tls_current_thread());
  		// myfree(p, (gthread_task_t*)gthread_tls_current_thread());
  		//myfree(z, (gthread_task_t*)gthread_tls_current_thread());
  		  printThread((gthread_task_t*)gthread_tls_current_thread());
- 		  printThreadMemory((gthread_task_t*)gthread_tls_current_thread());
+ 		  printInternalMemory((gthread_task_t*)gthread_tls_current_thread());
 
    //}
 
