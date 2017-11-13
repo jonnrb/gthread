@@ -1,6 +1,11 @@
 package(default_visibility = ["//:__subpackages__"])
 
 cc_library(
+    name = "task_attr",
+    hdrs = ["task_attr.h"],
+)
+
+cc_library(
     name = "task",
     srcs = [
         "task.cc",
@@ -8,7 +13,7 @@ cc_library(
     ],
     hdrs = ["task.h"],
     deps = [
-        "//:gthread_include",
+        ":task_attr",
         "//arch",
         "//platform",
         "//util",
@@ -36,7 +41,7 @@ cc_library(
     hdrs = ["sched.h"],
     deps = [
         ":task",
-        "//:gthread_include",
+        ":task_attr",
         "//arch",
         "//platform",
         "//util",

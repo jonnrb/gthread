@@ -16,11 +16,11 @@
 namespace gthread {
 namespace {
 void task_end_handler(task* task) { sched::get().exit(task->return_value); }
+
+task* const k_pointer_lock = (task*)-1;
 }  // namespace
 
-task* const sched::k_pointer_lock = (task*)-1;
-
-sched::sched() : _interrupt_lock(nullptr), _min_vruntime(0), _freelist(64) {
+sched::sched() : _interrupt_lock(UNLOCKED), _min_vruntime(0), _freelist(64) {
   task::set_time_slice_trap([this](task* current) { return next(current); },
                             std::chrono::milliseconds{50});
   task::set_end_handler(task_end_handler);
@@ -38,16 +38,16 @@ sched& sched::get() {
  */
 task* sched::next(task* last_running_task) {
   // if for some reason, a task that was about to switch gets interrupted,
-  // switch to that task
-  task* waiter = nullptr;
-  if (branch_unexpected(
-          !_interrupt_lock.compare_exchange_strong(waiter, k_pointer_lock))) {
-    if (waiter == k_pointer_lock) {
+  // don't switch tasks
+  auto expected = UNLOCKED;
+  if (branch_unexpected(!_interrupt_lock.compare_exchange_strong(
+          expected, LOCKED_IN_SCHED, std::memory_order_acquire))) {
+    if (expected != LOCKED_IN_TASK) {
       gthread_log_fatal(
           "scheduler was interrupted by itself! this should be impossible. "
           "bug???");
     }
-    return waiter;
+    return nullptr;
   }
 
   // if the task was in a runnable state when the scheduler was invoked, push it
@@ -65,9 +65,11 @@ task* sched::next(task* last_running_task) {
       _sleepqueue.erase(sleeper);
     } else if (_runqueue.empty()) {
       // XXX: remove this if there other kinds of externally wakeable tasks
+      auto time = sleeper->first;
+      auto* t = sleeper->second;
       _sleepqueue.erase(sleeper);
-      std::this_thread::sleep_until(sleeper->first);
-      _runqueue.emplace(sleeper->second);
+      std::this_thread::sleep_until(time);
+      _runqueue.emplace(t);
     }
   } else if (_runqueue.empty()) {
     gthread_log_fatal("nothing to do. deadlock?");
@@ -77,7 +79,7 @@ task* sched::next(task* last_running_task) {
   task* next_task = *begin;
   _runqueue.erase(begin);
 
-  _interrupt_lock = nullptr;
+  _interrupt_lock.store(UNLOCKED, std::memory_order_release);
 
   // the task that was just popped from the `runqueue` a priori is the task
   // with the minimum vruntime. since new tasks must start with a reasonable

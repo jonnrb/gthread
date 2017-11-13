@@ -1,6 +1,7 @@
 #include "sched/task.h"
+
 #include "gtest/gtest.h"
-#include "gthread.h"
+#include "sched/task_attr.h"
 
 constexpr auto k_num_stress_tasks = 1000;
 constexpr auto k_num_switches = 1000;

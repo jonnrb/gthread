@@ -5,7 +5,7 @@
 #include <unistd.h>
 
 #include "arch/bit_twiddle.h"
-#include "gthread.h"
+#include "sched/task_attr.h"
 #include "util/compiler.h"
 
 namespace gthread {

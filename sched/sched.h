@@ -5,8 +5,8 @@
 #include <map>
 #include <set>
 
-#include "gthread.h"
 #include "sched/task.h"
+#include "sched/task_attr.h"
 #include "sched/task_freelist.h"
 
 namespace gthread {
@@ -33,12 +33,12 @@ class sched_handle {
 class sched {
  public:
   /**
-   * returns the current processor's scheduler
+   * returns the current task's scheduler
    */
   static sched& get();
 
   /**
-   * stops the current task and invokes the scheduler
+   * invokes the current task's scheduler which picks a new task to run
    *
    * the scheduler will pick the task that has had the minimum amount of
    * proportional processor time and run that task. when the current task meets
@@ -59,7 +59,8 @@ class sched {
    * sleeps the current task until |sleep_duration| has passed
    */
   template <class Rep, class Period>
-  void sleep_for(const std::chrono::duration<Rep, Period>& sleep_duration);
+  inline void sleep_for(
+      const std::chrono::duration<Rep, Period>& sleep_duration);
 
   /**
    * joins |task| when it finishes running (the caller will be suspended)
@@ -110,8 +111,8 @@ class sched {
 
   task* next(task* last_running_task);
 
-  static task* const k_pointer_lock;
-  std::atomic<task*> _interrupt_lock;
+  enum interrupt_lock { UNLOCKED = 0, LOCKED_IN_SCHED, LOCKED_IN_TASK };
+  std::atomic<interrupt_lock> _interrupt_lock;
 
   /**
    * tasks that can be switched to with the expectation that they will make

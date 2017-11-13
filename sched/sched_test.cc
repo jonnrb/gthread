@@ -159,3 +159,25 @@ TEST(gthread_sched, stress_threads) {
     }
   }
 }
+
+void* sleeper(void* _) {
+  auto& s = sched::get();
+  s.sleep_for(std::chrono::milliseconds{5});
+  return nullptr;
+}
+
+TEST(gthread_sched, sleep_for) {
+  auto& s = sched::get();
+  std::cout << "sleeping in main" << std::endl;
+  s.sleep_for(std::chrono::milliseconds{5});
+  {
+    std::cout << "sleeping in k_light_attr task" << std::endl;
+    auto h = s.spawn(k_light_attr, sleeper, nullptr);
+    s.join(&h, nullptr);
+  }
+  {
+    std::cout << "sleeping in k_default_attr task" << std::endl;
+    auto h = s.spawn(k_default_attr, sleeper, nullptr);
+    s.join(&h, nullptr);
+  }
+}

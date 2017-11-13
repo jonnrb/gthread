@@ -1,6 +1,6 @@
 #pragma once
 
-#include "gthread.h"
+#include "sched/task_attr.h"
 
 namespace gthread {
 

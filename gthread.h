@@ -3,43 +3,36 @@
 #include <cstdint>
 #include <cstdlib>
 
+#include "sched/sched.h"
+#include "sched/task_attr.h"
+#include "util/function_marshall.h"
+
 namespace gthread {
+class g {
+ public:
+  g();
+  ~g();
 
-struct attr {
-  struct stack_t {
-    void* addr;
-    size_t size;
-    size_t guardsize;
-  } stack;
+  template <typename Function, typename... Args>
+  explicit g(Function&& function, Args&&... args);
 
-  bool alloc_tls;
+  void join();
+
+  // void detach();
+
+ private:
+  std::unique_ptr<closure> _closure;
+  sched_handle _handle;
 };
 
-/**
- * task attributes that "feel" like a kernel thread: comes with a large stack
- * and thread-local storage turned on
- */
-constexpr attr k_default_attr = {
-    .stack =
-        {
-            .addr = nullptr,
-            .size = 4 * 1024 * 1024,              // 4 MB stack
-            .guardsize = static_cast<size_t>(-1)  // auto guard
-        },
-    .alloc_tls = true  // each task gets its own thread_locals
-};
+class self {
+ public:
+  inline void yield();
 
-/**
- * lean and mean task attributes to get in your daily dose of fiber
- */
-constexpr attr k_light_attr = {
-    .stack =
-        {
-            .addr = nullptr,
-            .size = 8 * 1024,                     // 8 KB stack
-            .guardsize = static_cast<size_t>(-1)  // auto guard
-        },
-    .alloc_tls = false  // no TLS so no errno and shared locale things
+  template <class Rep, class Period>
+  inline void sleep_for(
+      const std::chrono::duration<Rep, Period>& sleep_duration);
 };
-
 };  // namespace gthread
+
+#include "gthread_impl.h"

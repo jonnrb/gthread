@@ -7,7 +7,10 @@
 
 #include <sched.h>
 
+#include "gtest/gtest.h"
+
 using float_sec = std::chrono::duration<float>;
+using milliseconds = std::chrono::milliseconds;
 
 template <typename T>
 float_sec sleep_for(T t) {
@@ -19,9 +22,8 @@ float_sec sleep_for(T t) {
   return fsec;
 }
 
-int main() {
+TEST(gthread_clock, thread_clock_unaffected_by_sleep) {
   using namespace gthread;
-  using milliseconds = std::chrono::milliseconds;
 
   auto last = thread_clock::now();
   std::cout << "sizeof(thread_clock::now()) => " << sizeof(last) << std::endl;
@@ -29,21 +31,22 @@ int main() {
     auto sleep_time = sleep_for(milliseconds{10});
     auto t = thread_clock::now();
     float_sec elapsed = t - last;
-    assert(sleep_time > elapsed);
+    EXPECT_GT(sleep_time, elapsed);
     std::cout << "elapsed: " << (elapsed.count() * 1E3) << "ms" << std::endl;
     last = t;
   }
+}
 
+TEST(gthread_clock, thread_clock_no_drift) {
+  using namespace gthread;
   thread_clock::duration acc{0};
-  last = thread_clock::now();
+  auto last = thread_clock::now();
   while (thread_clock::now() - last < milliseconds{500}) {
     auto start = thread_clock::now();
-    for (uint64_t i = 0; i < 100000000; ++i) {
+    for (uint64_t i = 0; i < 1000000; ++i) {
       sched_yield();
     }
     acc += (thread_clock::now() - start);
   }
-  assert(thread_clock::now() - last >= acc);
-
-  return 0;
+  EXPECT_GE(thread_clock::now() - last, acc);
 }

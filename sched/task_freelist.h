@@ -2,8 +2,8 @@
 
 #include <list>
 
-#include "gthread.h"
 #include "sched/task.h"
+#include "sched/task_attr.h"
 
 namespace gthread {
 // TODO(jonnrb): match stack size to `gthread::attr`

@@ -5,8 +5,8 @@
 #include <functional>
 
 #include "arch/switch_to.h"
-#include "gthread.h"
 #include "platform/tls.h"
+#include "sched/task_attr.h"
 #include "util/compiler.h"
 
 namespace gthread {

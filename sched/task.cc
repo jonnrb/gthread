@@ -2,8 +2,8 @@
 
 #include <atomic>
 
-#include "gthread.h"
 #include "platform/memory.h"
+#include "sched/task_attr.h"
 #include "util/log.h"
 
 namespace gthread {

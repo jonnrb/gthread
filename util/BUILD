@@ -14,6 +14,24 @@ cc_library(
 )
 
 cc_library(
+    name = "function_marshall",
+    srcs = ["function_marshall_impl.h"],
+    hdrs = ["function_marshall.h"],
+    deps = [
+        ":compiler",
+    ]
+)
+
+cc_test(
+    name = "function_marshall_test",
+    srcs = ["function_marshall_test.cc"],
+    deps = [
+        ":function_marshall",
+        "@com_google_googletest//:gtest_main",
+    ]
+)
+
+cc_library(
     name = "log",
     hdrs = [
         "log.h",

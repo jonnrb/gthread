@@ -12,14 +12,14 @@ constexpr mutexattr k_default_mutexattr{};
 
 class mutex {
  public:
-  mutex(const mutexattr& a);
+  mutex(const mutexattr& a = k_default_mutexattr);
   ~mutex();
 
   int lock();
 
   int unlock();
 
-  // private:
+ private:
   std::atomic_flag _lock;
   task* _owner;
   std::list<task*> _waitqueue;

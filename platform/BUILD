@@ -42,6 +42,7 @@ cc_test(
     srcs = ["clock_test.cc"],
     deps = [
         ":clock",
+        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -55,7 +56,7 @@ cc_library(
     ],
     hdrs = ["memory.h"],
     deps = [
-        "//:gthread_include",
+        "//sched:task_attr",
         "//arch:bit_twiddle",
         "//util:compiler",
     ],
