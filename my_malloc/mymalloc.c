@@ -10,13 +10,6 @@ static Node* meta_start; //the first page metadata
 static int numb_of_pages; //number of total pages in the block (can be empty pages)
 Node* findThreadPage(gthread_task_t *owner);
 void* getEndAddr(gthread_task_t* owner, Node* inppage);
-typedef
-struct free_space{ //structure to pass information between traversePageInternals and allocateNewInsidePage functions
-	Page_Internal* PI;
-	Node* page;
-} FreeSpace;
-
-FreeSpace FS;
 
 //////////////////////////////////////////////////////////////////////
 //MALLOC//
@@ -26,6 +19,30 @@ FreeSpace FS;
 void debug(char* str){
 	printf("DEBUG: %s\n", str);
 	return;
+}
+
+
+Page_Internal* getNextPI(Page_Internal* PI){
+	return (Page_Internal*)((char*)(PI+1) + PI->space);
+}
+
+
+
+void* getEndAddr(gthread_task_t* owner, Node* inppage){
+	Node* page;
+	if(inppage != NULL){
+		page = inppage ->first_page;
+	}
+	else{
+	    page = findThreadPage(owner);
+	}
+	if(page == NULL){
+		return NULL;
+	}
+	while(page->next_page != NULL){
+		page = page->next_page;
+	}
+	return page->page_end_addr;
 }
 
 
@@ -47,44 +64,15 @@ void printThread(gthread_task_t* owner){
 void printThreadMemory(gthread_task_t* owner){
 	Node* page = findThreadPage(owner);
 	Page_Internal* PI = (Page_Internal*)page->page_start_addr;
-	while(1){
+	while((void*)PI != (void*)getEndAddr(owner,NULL)){
 		if(PI->used == TRUE){
 			printf("BLOCK USED: TRUE  BLOCK SIZE: %d\n", PI->space);
 		}
 		else{
 			printf("BLOCK USED: FALSE  BLOCK SIZE: %d\n", PI->space);
 		}
-		PI = (Page_Internal*)((char*)(PI + 1) + PI->space);
-		if(PI->nextPI == NULL){
-			if(PI->used == TRUE){
-				printf("BLOCK USED: TRUE  BLOCK SIZE: %d\n", PI->space);
-			}
-			else{
-				printf("BLOCK USED: FALSE  BLOCK SIZE: %d\n", PI->space);
-			}
-			break;
-		}
+		PI = getNextPI(PI);
 	}
-}
-
-
-
-
-void* getEndAddr(gthread_task_t* owner, Node* inppage){
-	Node* page;
-	if(inppage != NULL){
-		page = inppage ->first_page;
-	}
-	else{
-	    page = findThreadPage(owner);
-	}
-	if(page == NULL){
-		return NULL;
-	}
-	while(page->next_page != NULL){
-		page = page->next_page;
-	}
-	return page->page_end_addr;
 }
 
 
@@ -433,9 +421,7 @@ void* mymalloc(size_t size, gthread_task_t *owner){
 
 
 
-Page_Internal* getNextPI(Page_Internal* PI){
-	return (Page_Internal*)((char*)(PI+1) + PI->space);
-}
+
 
 
 //checks if the pointer inputted in the 'free()' function is inside the memory array
@@ -463,6 +449,7 @@ Page_Internal* does_pointer_exist(void* p, gthread_task_t* owner){
 void concatenate(Page_Internal* PI, gthread_task_t* owner){
 	Page_Internal* prevPI = (Page_Internal*)findThreadPage(owner)->page_start_addr;
 	Page_Internal* nextPI = getNextPI(PI);
+
 	if((void*)nextPI != (void*)getEndAddr(owner,NULL) && nextPI->used == FALSE){
 		PI->nextPI = nextPI->nextPI;
 		PI->space = PI->space + nextPI->space + sizeof(Page_Internal);
@@ -480,78 +467,56 @@ void concatenate(Page_Internal* PI, gthread_task_t* owner){
 }
 
 
+void pageFree(Page_Internal* PI, int freePages, Node* startingPage){
+	PI->space = PI->space - freePages*page_size;
+	Node* prevPage = startingPage->first_page;
+	while(prevPage->next_page != startingPage){
+		prevPage = prevPage->next_page;
+	}
 
-void checkForPagesBetween(Page_Internal* PI1, Page_Internal* PI2, Node* page){
-	void* addr1 = (void*) PI1;
-	void* addr2 = (void*) PI2;
-	Node* prevPage = NULL;
-	while(page != NULL){
-		if(addr1 < page->page_start_addr && addr2 > page->page_end_addr){
-			PI1->space = PI1->space - page_size;
-			prevPage->next_page = page->next_page;
-			page->first_page = NULL;
-			page->next_page = NULL;
-			page->thread = NULL;
-			pages_allocated--;
-			page = prevPage->next_page;
-			continue;
-		}
-		prevPage = page;
-		page = page->next_page;
+	while(freePages>0 || startingPage != NULL){
+		prevPage->next_page = startingPage->next_page;
+		startingPage->first_page = NULL;
+		startingPage->next_page = NULL;
+		startingPage->thread = NULL;
+		startingPage = prevPage->next_page;
+		freePages--;
 	}
 }
 
-void checkForPagesAfter(Page_Internal* PI1, Node* page){
-	void* addr = (void*)PI1;
-	Node* prevPage = NULL;
-	while(addr > page->page_end_addr && page->next_page != NULL){
-		prevPage = page;
-		page = page->next_page;
-	}
-	int remainspace = PI1->space;
-	if(page->next_page == NULL && PI1->space == page_size - sizeof(Page_Internal)){
-		if(prevPage == NULL){
-			page->first_page = NULL;
-			page->next_page = NULL;
-			page->thread = NULL;
-		}
-		else{
-			while(remainspace > page_size){
-				page->next_page->first_page = NULL;
-				page->next_page->next_page = NULL;
-				page->next_page->thread = NULL;
-				remainspace = remainspace - page_size;
-			}
-			prevPage->next_page = NULL;
-			page->first_page = NULL;
-			page->next_page = NULL;
-			page->thread = NULL;
-		}
-	}
-	else{
-		while(remainspace > page_size){
-			page->next_page->first_page = NULL;
-			page->next_page->next_page = NULL;
-			page->next_page->thread = NULL;
-			remainspace = remainspace - page_size;
-			}
-	}
-}
 
-void clearUnusedPages(gthread_task_t* owner){
+
+void clearUnusedPages(Page_Internal* PI, gthread_task_t* owner){
 	Node* page = findThreadPage(owner);
-	Page_Internal* PI = (Page_Internal*)page->page_start_addr;
-	while(PI != NULL){
-		if(PI->used == FALSE && PI->nextPI != NULL){
-			checkForPagesBetween(PI, PI->nextPI, page);
+	Node* page_iterator = page;
+	Node* startingFreePage = NULL;
+	Page_Internal* PI_iterator = (Page_Internal*)page->page_start_addr;
+	void* PIi_starting_addr;
+	void* PIi_ending_addr;
+	int freePages = 0;
+	if(PI_iterator != PI){
+		while(getNextPI(PI_iterator) != PI){ //while we dont get to the end of pages
+			PI_iterator = getNextPI(PI_iterator);
 		}
-		else if(PI->used == FALSE && PI->nextPI == NULL){
-
+		if(PI_iterator->used == TRUE){
+			PI_iterator = PI;
 		}
-		PI = PI->nextPI;
 	}
+	PIi_starting_addr = (void*)PI_iterator;
+	PIi_ending_addr = (void*)getNextPI(PI_iterator);
+	while((void*)page_iterator->page_start_addr > (void*)PIi_starting_addr &&
+			(void*)page_iterator->page_end_addr < (void*)PIi_ending_addr){
+		if(freePages == 0){
+			startingFreePage = page_iterator;
+		}
+		freePages ++ ;
+		page_iterator = page_iterator->next_page;
+	}
+	pageFree(PI_iterator, freePages, startingFreePage);
 
 }
+
+
 
 //Frees the usage of the space taken up by this pointer, changes
 //the metadata associated with it to inactive (used = FALSE), and concatenates
