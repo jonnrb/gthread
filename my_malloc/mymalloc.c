@@ -332,7 +332,7 @@ void* allocate(Page_Internal* PI, int size, gthread_task_t* owner){
 		}
 		//at this point spacecalc is negative so must make positive by adding page_size
 		spacecalc = spacecalc + page_size;
-		spaceleft = page_size - spacecalc;
+		spaceleft = page_size - (spacecalc + sizeof(Page_Internal));
 		unusedPI = (Page_Internal*)((char*)page->page_start_addr + spacecalc);
 		unusedPI->space = spaceleft;
 		unusedPI->used = FALSE;
@@ -340,6 +340,8 @@ void* allocate(Page_Internal* PI, int size, gthread_task_t* owner){
 		PI->nextPI = unusedPI;
 		PI->used = TRUE;
 		PI->space = size;
+		printf("Unused size = %d\n",unusedPI->space);
+		printf("Current PI size = %d\n", PI->space);
 		placePagesContig(owner);
 	}
 
