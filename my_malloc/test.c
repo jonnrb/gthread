@@ -19,13 +19,17 @@
 void* important_task(void* arg) {
   const char* msg = (const char*)arg;
    void* p;
+   void* x;
+   void* z;
    void* ptr[6];
    int t = 0;
    //for (int i = 0; i < 26; ++i) {
  		  p = (int*)mymalloc(10000, (gthread_task_t*)gthread_tls_current_thread());
- 		  p = (int*)mymalloc(10000, (gthread_task_t*)gthread_tls_current_thread());
- 		 p = (int*)mymalloc(100, (gthread_task_t*)gthread_tls_current_thread());
- 		  //myfree(p, (gthread_task_t*)gthread_tls_current_thread());
+ 		 x = (int*)mymalloc(10000, (gthread_task_t*)gthread_tls_current_thread());
+ 		 z = (int*)mymalloc(100, (gthread_task_t*)gthread_tls_current_thread());
+ 		  myfree(x, (gthread_task_t*)gthread_tls_current_thread());
+ 		 myfree(p, (gthread_task_t*)gthread_tls_current_thread());
+ 		 //myfree(z, (gthread_task_t*)gthread_tls_current_thread());
  		  printThread((gthread_task_t*)gthread_tls_current_thread());
  		  printThreadMemory((gthread_task_t*)gthread_tls_current_thread());
 

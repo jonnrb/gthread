@@ -52,7 +52,7 @@ void printThreadMemory(gthread_task_t* owner){
 			printf("BLOCK USED: TRUE  BLOCK SIZE: %d\n", PI->space);
 		}
 		else{
-			printf("BLOCK FALSE: TRUE  BLOCK SIZE: %d\n", PI->space);
+			printf("BLOCK USED: FALSE  BLOCK SIZE: %d\n", PI->space);
 		}
 		PI = (Page_Internal*)((char*)(PI + 1) + PI->space);
 		if(PI->nextPI == NULL){
@@ -60,7 +60,7 @@ void printThreadMemory(gthread_task_t* owner){
 				printf("BLOCK USED: TRUE  BLOCK SIZE: %d\n", PI->space);
 			}
 			else{
-				printf("BLOCK FALSE: TRUE  BLOCK SIZE: %d\n", PI->space);
+				printf("BLOCK USED: FALSE  BLOCK SIZE: %d\n", PI->space);
 			}
 			break;
 		}
@@ -433,7 +433,9 @@ void* mymalloc(size_t size, gthread_task_t *owner){
 
 
 
-
+Page_Internal* getNextPI(Page_Internal* PI){
+	return (Page_Internal*)((char*)(PI+1) + PI->space);
+}
 
 
 //checks if the pointer inputted in the 'free()' function is inside the memory array
@@ -444,11 +446,14 @@ Page_Internal* does_pointer_exist(void* p, gthread_task_t* owner){
 		return NULL;
 	}
 	Page_Internal* PI = (Page_Internal*)page->page_start_addr;
-	while(PI!=NULL){
+	while(1){
 		if((void*)(PI+1) == (void*)p){
 			return PI;
 		}
-		PI = PI->nextPI;
+		PI = getNextPI(PI);
+		if(PI->nextPI == NULL){
+			break;
+		}
 	}
 	return NULL;
 }
@@ -457,20 +462,20 @@ Page_Internal* does_pointer_exist(void* p, gthread_task_t* owner){
 
 void concatenate(Page_Internal* PI, gthread_task_t* owner){
 	Page_Internal* prevPI = (Page_Internal*)findThreadPage(owner)->page_start_addr;
-	Page_Internal* nextPI = PI->nextPI;
-	if(nextPI != NULL && nextPI->used == FALSE){
+	Page_Internal* nextPI = getNextPI(PI);
+	if((void*)nextPI != (void*)getEndAddr(owner,NULL) && nextPI->used == FALSE){
 		PI->nextPI = nextPI->nextPI;
-		PI->space = PI->space + nextPI->space;
+		PI->space = PI->space + nextPI->space + sizeof(Page_Internal);
 	}
-	while(prevPI->nextPI != PI){
+	while(getNextPI(prevPI) != PI){
 		if(prevPI == PI){
 			return;
 		}
-		prevPI = prevPI->nextPI;
+		prevPI = getNextPI(prevPI);
 	}
 	if(prevPI->used == FALSE){
 		prevPI->nextPI = PI->nextPI;
-		prevPI->space = prevPI->space + PI->space;
+		prevPI->space = prevPI->space + PI->space + sizeof(Page_Internal);
 	}
 }
 
@@ -559,7 +564,7 @@ void myfree(void* p, gthread_task_t *owner){
 		return;
 	}
 	//place pages contiguously from the owner
-	placePagesContig(findThreadPage(owner));
+	placePagesContig(owner);
     //checks if pointer is in the array
     Page_Internal* PI = does_pointer_exist(p, owner);
 
@@ -576,7 +581,7 @@ void myfree(void* p, gthread_task_t *owner){
 
 	//concatenate
 	concatenate(PI, owner);
-	clearUnusedPages(owner);
+	//clearUnusedPages(owner);
 	return;
 }
 
