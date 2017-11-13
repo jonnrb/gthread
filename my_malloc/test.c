@@ -21,17 +21,15 @@ void* important_task(void* arg) {
    void* p;
    void* ptr[6];
    int t = 0;
-   for (int i = 0; i < 26; ++i) {
+   //for (int i = 0; i < 26; ++i) {
+ 		  p = (int*)mymalloc(10000, (gthread_task_t*)gthread_tls_current_thread());
+ 		  p = (int*)mymalloc(10000, (gthread_task_t*)gthread_tls_current_thread());
+ 		 p = (int*)mymalloc(100, (gthread_task_t*)gthread_tls_current_thread());
+ 		  //myfree(p, (gthread_task_t*)gthread_tls_current_thread());
+ 		  printThread((gthread_task_t*)gthread_tls_current_thread());
+ 		  printThreadMemory((gthread_task_t*)gthread_tls_current_thread());
 
- 		  p = (int*)mymalloc(i + 1, (gthread_task_t*)gthread_tls_current_thread());
- 		  if(i == 10 || i == 11 || i == 13 || i == 14 || i ==15 || i == 16){
- 			 ptr[t] = shalloc(17000);;
- 			 t = t + 1;
- 		  }
-
-
-
-   }
+   //}
 
 
 
@@ -48,13 +46,17 @@ void* important_task(void* arg) {
 int init() {
   gthread_sched_handle_t tasks[26];
   char msgs[26] = {'A'};
-  for (int i = 0; i < 26; ++i) {
+ /* for (int i = 0; i < 26; ++i) {
     printf("creating task %d\n", i);
     msgs[i] = msgs[0] + i;
     assert(!gthread_sched_spawn(&tasks[i], NULL, important_task,
                                 (void*)(&msgs[i])));
-  }
-
+  }*/
+  assert(!gthread_sched_spawn(&tasks[0], NULL, important_task,
+                               (void*)(&msgs[0])));
+  printf("=======================================================\n");
+  assert(!gthread_sched_spawn(&tasks[1], NULL, important_task,
+                                (void*)(&msgs[0])));
 
   for (int i = 0; i < 26; ++i) {
     gthread_sched_join(tasks[i], NULL);
@@ -65,6 +67,5 @@ int init() {
 
 int main() {
   init();
-  printShallocRegion();
   return 0;
 }

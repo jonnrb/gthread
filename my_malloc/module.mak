@@ -4,7 +4,7 @@
 # info: gnu module.mak for memory allocation module
 
 MODULE := my_malloc
-LIBS := mymalloc shalloc swap
+LIBS := mymalloc shalloc
 TESTS := test
 TEST-DEPS := $(OBJDIR)/sched.a $(OBJDIR)/platform.a $(OBJDIR)/arch.a $(OBJDIR)/util.a $(OBJDIR)/concur.a
 
