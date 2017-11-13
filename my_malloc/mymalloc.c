@@ -68,6 +68,8 @@ void printThreadMemory(gthread_task_t* owner){
 }
 
 
+
+
 void* getEndAddr(gthread_task_t* owner, Node* inppage){
 	Node* page;
 	if(inppage != NULL){
@@ -222,7 +224,7 @@ Node* findNthPage(int n){
 
 //takes in metadata, and places all the pages associated with the thread of the metadata
 //at address 0 of mem block, contiguously (for malloc call)
-void placePagesContig(gthread_task_t* owner){
+int placePagesContig(gthread_task_t* owner){
 	int n = 0;
 	Node* page = findThreadPage(owner);
 	Node* swapout = NULL;
@@ -232,6 +234,7 @@ void placePagesContig(gthread_task_t* owner){
 		page = page->next_page;
 		n = n + 1;
 	}
+	return n;
 
 }
 

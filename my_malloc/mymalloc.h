@@ -47,6 +47,7 @@ void printpages();
 void printShallocRegion();
 void debug(char* str);
 void printThread(gthread_task_t* owner);
+int placePagesContig(gthread_task_t* owner);
 
 
 void* getShallocRegion(); //returns starting address of shalloc address space
