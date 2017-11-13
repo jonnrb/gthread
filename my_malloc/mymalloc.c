@@ -3,7 +3,7 @@
 static const long max_size = MAX_SIZE; //Maximum size for Virtual Memory
 static const long swap_size = SWAP_SIZE;
 extern char myblock[MAX_SIZE] = {}; //8MB memory block
-extern char swapblock[SWAP_SIZE] = {};
+extern char swapblock[SWAP_SIZE] = {}; //16 MB Swap Block
 static long page_size; //Page size for system
 static int threads_allocated; //number of threads that allocated space in Virtual Memory currently
 static int pages_allocated;
@@ -66,6 +66,19 @@ void printThread(gthread_task_t* owner){
 		page = page + 1;
 		numbpages --;
 	}
+	/*page = (Node*)swap_meta_start;
+	numbpages = numb_of_swap_pages;
+	while(numbpages > 0){
+		if(page->thread != NULL){
+			if(page->thread == owner){
+				printf("CURRENT THREAD -->>>");
+			}
+		printf("THREAD: %p, PAGE START ADDRESS: %d, PAGE END ADDRESS: %d\n", page->thread, page->page_start_addr, page->page_end_addr);
+		}
+		page = page + 1;
+		numbpages --;
+	}
+	*/
 }
 
 
@@ -105,7 +118,7 @@ double ceil(double num) {
 
 //sets metadata start address and number of pages expected on this machine
 void metadata_start_addr(){
-	int max = max_size - (2*sizeof(Node) + 4*page_size); //decrement by shalloc space
+	int max = max_size - (sizeof(Page_Internal) + 4*page_size); //decrement by shalloc space
 	double ratio = (double)sizeof(Node)/(double)page_size;
 	double metaSpace = (double)max*ratio;
 	metaSpace = ceil(metaSpace);
@@ -124,7 +137,7 @@ void swap_metadata_start_addr(){
 	numb_of_swap_pages = (int)metaSpace/sizeof(Node);
 	max = max - metaSpace;
 	int maxaddr = (int)max;
-	meta_start = (Node*)&swapblock[maxaddr-1];
+	swap_meta_start = (Node*)&swapblock[maxaddr-1];
 }
 
 
@@ -158,8 +171,9 @@ void* getSwapMetaStart(){
 void initblock(){
 	threads_allocated = 0; //initializes threads allocated counter
 	metadata_start_addr(); //sets meta_start and number_of_pages
+	swap_metadata_start_addr();
 	Node* metadata = (Node*)meta_start;
-
+	//creating metadata for memoryblock
 	int metaIterator = 0;
 	while(metaIterator < numb_of_pages){
 		metadata->thread = NULL;
@@ -170,8 +184,7 @@ void initblock(){
 		metadata = metadata+1;
 		metaIterator++;
 	}
-	//end of VirtualMemory node
-
+	//creating metadata for swapfileblock
 	Node* swapmetadata = (Node*)swap_meta_start;
 	metaIterator = 0;
 	while(metaIterator < numb_of_swap_pages){
@@ -183,6 +196,8 @@ void initblock(){
 		swapmetadata = swapmetadata+1;
 		metaIterator++;
 	}
+
+
 	//shalloc region creation
 	Page_Internal* shallocNode = (Page_Internal*)((char*)&myblock[max_size - 1] - (sizeof(Page_Internal) + 4*page_size)); //backtrack four pages
 	shallocNode->space = 4*page_size; //create shalloc metadata
@@ -558,18 +573,23 @@ void concatenate(Page_Internal* PI, gthread_task_t* owner){
 
 
 
-void pageFree(Page_Internal* PI, int freePages, Node* startingPage){
+void FreePages(Page_Internal* PI, int freePages, Node* startingPage){
 	PI->space = PI->space - freePages*page_size;
 	Node* prevPage = startingPage->first_page;
+	if(prevPage!=startingPage){
 	while(prevPage->next_page != startingPage){
 		prevPage = prevPage->next_page;
 	}
+	}
 
 	while(freePages>0 || startingPage != NULL){
-		prevPage->next_page = startingPage->next_page;
+		if(prevPage != startingPage){
+			prevPage->next_page = startingPage->next_page;
+		}
 		startingPage->first_page = NULL;
 		startingPage->next_page = NULL;
 		startingPage->thread = NULL;
+		pages_allocated--;
 		startingPage = prevPage->next_page;
 		freePages--;
 	}
@@ -579,31 +599,20 @@ void pageFree(Page_Internal* PI, int freePages, Node* startingPage){
 
 void clearUnusedPages(Page_Internal* PI, gthread_task_t* owner){
 	Node* page = findThreadPage(owner);
-	Node* page_iterator = page;
+	Node* page_iterator = (Node*)page;
 	Node* startingFreePage = NULL;
-	Page_Internal* PI_iterator = (Page_Internal*)page->page_start_addr;
-	void* PIi_starting_addr;
-	void* PIi_ending_addr;
+	void* PI_starting_addr = (void*)PI;
+	void* PI_ending_addr = (void*)getNextPI(PI);
 	int freePages = 0;
-	if(PI_iterator != PI){
-		while(getNextPI(PI_iterator) != PI){ //while we dont get to the end of pages
-			PI_iterator = getNextPI(PI_iterator);
-		}
-		if(PI_iterator->used == TRUE){
-			PI_iterator = PI;
+	while(page->next_page != NULL){
+		if(PI_starting_addr <= page->page_start_addr && PI_ending_addr >= page->page_end_addr){
+			if(freePages == 0){
+				startingFreePage = page;
+			}
+			freePages++;
 		}
 	}
-	PIi_starting_addr = (void*)PI_iterator;
-	PIi_ending_addr = (void*)getNextPI(PI_iterator);
-	while((void*)page_iterator->page_start_addr > (void*)PIi_starting_addr &&
-			(void*)page_iterator->page_end_addr < (void*)PIi_ending_addr){
-		if(freePages == 0){
-			startingFreePage = page_iterator;
-		}
-		freePages ++ ;
-		page_iterator = page_iterator->next_page;
-	}
-	pageFree(PI_iterator, freePages, startingFreePage);
+	FreePages(PI, freePages, startingFreePage);
 
 }
 
@@ -636,9 +645,10 @@ void myfree(void* p, gthread_task_t *owner){
 	Node* firstPage = findThreadPage(owner);
 	//adjusts total space allocated
 	firstPage->space_allocated = firstPage->space_allocated - PI->space;
+	clearUnusedPages(PI,owner);
 	//concatenate any unused regions in memory
 	concatenate(PI, owner);
-	//clearUnusedPages(owner);
+
 	return;
 }
 

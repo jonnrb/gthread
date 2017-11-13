@@ -57,5 +57,6 @@ int getPageSize();
 void* getMetaStart();
 
 extern char myblock[MAX_SIZE];
+extern char swapblock[SWAP_SIZE];
 
 #endif //_MYMALLOC_H
