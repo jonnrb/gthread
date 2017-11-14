@@ -27,10 +27,10 @@ class g {
 
 class self {
  public:
-  inline void yield();
+  inline static void yield();
 
   template <class Rep, class Period>
-  inline void sleep_for(
+  inline static void sleep_for(
       const std::chrono::duration<Rep, Period>& sleep_duration);
 };
 };  // namespace gthread

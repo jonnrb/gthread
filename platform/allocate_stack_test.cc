@@ -1,7 +1,9 @@
+#include <cstddef>
+#include <cstdint>
+
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <cstddef>
 
 #include "platform/memory.h"
 

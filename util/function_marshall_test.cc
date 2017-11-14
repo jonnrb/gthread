@@ -9,8 +9,8 @@ int f(int y, const char* z) {
 }
 
 TEST(gthread_function_marshall, instantiate) {
-  auto m = make_function_marshall(f, 4, "bar");
-  EXPECT_EQ(m(), 4);
+  auto m = make_unique_function_marshall(f, 4, "bar");
+  EXPECT_EQ((*m)(), 4);
 }
 
 TEST(gthread_function_marshall, move_only_to_lambda) {
@@ -18,6 +18,6 @@ TEST(gthread_function_marshall, move_only_to_lambda) {
   auto f = [](auto&& p) {
     return *p - 4;
   };
-  auto m = make_function_marshall(f, std::move(p));
-  EXPECT_EQ(m(), 122);
+  auto m = make_unique_function_marshall(f, std::move(p));
+  EXPECT_EQ((*m)(), 122);
 }

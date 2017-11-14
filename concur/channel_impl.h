@@ -4,9 +4,9 @@
 
 namespace gthread {
 template <typename T>
-absl::optional<T> channel_reader<T>::read() {
+std::optional<T> channel_reader<T>::read() {
   if (!_window) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   return _window->read();
 }
@@ -21,9 +21,9 @@ void channel_reader<T>::reset() {
 
 template <typename T>
 template <typename U>
-absl::optional<T> channel_writer<T>::write(U&& val) {
+std::optional<T> channel_writer<T>::write(U&& val) {
   if (!_window) {
-    return absl::optional<T>{std::forward<U>(val)};
+    return std::optional<T>{std::forward<U>(val)};
   }
   return _window->write(std::forward<U>(val));
 }

@@ -5,7 +5,6 @@ cc_library(
     hdrs = ["channel_window.h"],
     srcs = ["channel_window_impl.h"],
     deps = [
-        "@com_google_absl//absl/types:optional",
         "//sched:sched",
         "//sched:task",
     ],
@@ -17,6 +16,7 @@ cc_test(
     deps = [
         ":channel_window",
         "//concur:mutex",
+        "//:gthread",
         "@com_google_googletest//:gtest_main",
     ],
 )

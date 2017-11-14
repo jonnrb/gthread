@@ -1,6 +1,10 @@
 #pragma once
 
 #include "concur/internal/channel_window.h"
+
+#include <cassert>
+#include <optional>
+
 #include "sched/sched.h"
 #include "sched/task.h"
 
@@ -23,20 +27,21 @@ void channel_window<T>::close() {
 }
 
 template <typename T>
-absl::optional<T> channel_window<T>::read() {
+std::optional<T> channel_window<T>::read() {
   sched& s = sched::get();
-  absl::optional<T> ret;
+  std::optional<T> ret;
 
   if (!_closed) {
     std::unique_lock<sched> l{s};
     if (_closed) {
       return ret;
     }
+    assert(_reader == nullptr && !_hot_potato);
     if (_waiter == nullptr) {
       // read called before write
+      _reader = &ret;
       _waiter = task::current();
       _waiter->run_state = task::WAITING;
-      _reader = &ret;
       l.unlock();
       s.yield();
 
@@ -45,12 +50,13 @@ absl::optional<T> channel_window<T>::read() {
       l = std::move(_hot_potato);
     } else {
       // read called after write
-      task* writer = _waiter;
+      auto* writer = _waiter;
       _reader = &ret;
       _waiter = task::current();
-      _waiter->run_state = task::WAITING;
       _hot_potato = std::move(l);
       writer->switch_to();
+      l = std::move(_hot_potato);
+      _waiter = nullptr;
     }
   }
 
@@ -59,7 +65,7 @@ absl::optional<T> channel_window<T>::read() {
 
 template <typename T>
 template <typename U>
-absl::optional<T> channel_window<T>::write(U&& t) {
+std::optional<T> channel_window<T>::write(U&& t) {
   sched& s = sched::get();
 
   if (_closed) {
@@ -74,7 +80,7 @@ absl::optional<T> channel_window<T>::write(U&& t) {
 
   if (_waiter == nullptr) {
     // write called before read
-    task* current = task::current();
+    auto* current = task::current();
     _waiter = current;
     _waiter->run_state = task::WAITING;
     l.unlock();
@@ -90,9 +96,12 @@ absl::optional<T> channel_window<T>::write(U&& t) {
     // write into `_reader`
     assert(_reader != nullptr && static_cast<bool>(_hot_potato) &&
            _waiter != nullptr);
+    _hot_potato.unlock();
     _reader->emplace(std::move(t));
     _reader = nullptr;
-    l = std::move(_hot_potato);
+    _hot_potato.lock();
+    s.runqueue_push(task::current());
+    _waiter->switch_to();
   } else {
     // write called after read
     assert(_reader != nullptr && !_hot_potato);
@@ -107,7 +116,7 @@ absl::optional<T> channel_window<T>::write(U&& t) {
     reader->switch_to();
   }
 
-  return absl::nullopt;
+  return std::nullopt;
 }
 }  // namespace internal
 }  // namespace gthread

@@ -1,8 +1,8 @@
 #pragma once
 
 #include <mutex>
+#include <optional>
 
-#include "absl/types/optional.h"
 #include "sched/sched.h"
 #include "sched/task.h"
 
@@ -18,15 +18,15 @@ class channel_window {
   void close();
 
   template <typename U>
-  absl::optional<T> write(U&& t);
+  std::optional<T> write(U&& t);
 
-  absl::optional<T> read();
+  std::optional<T> read();
 
  private:
   // XXX: assumes no smp and the scheduler can be locked in the implementation
   // during crossover
   task* _waiter;
-  absl::optional<T>* _reader;
+  std::optional<T>* _reader;
   std::unique_lock<sched> _hot_potato;
   bool _closed;
 };

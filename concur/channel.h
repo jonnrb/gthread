@@ -1,5 +1,7 @@
 #pragma once
 
+#include <memory>
+#include <optional>
 #include <type_traits>
 
 #include "concur/internal/channel_window.h"
@@ -22,7 +24,7 @@ class channel_reader {
   channel_reader<T>& operator=(channel_reader<T>&) = delete;
   channel_reader<T>& operator=(channel_reader<T>&& other) = default;
 
-  absl::optional<T> read();
+  std::optional<T> read();
 
   void reset();
 
@@ -35,7 +37,7 @@ class channel_writer {
   static_assert(!std::is_reference<T>::value,
                 "cannot make a channel_writer with a reference type");
 
-  using write_t = absl::conditional_t<std::is_integral<T>::value, T, T&&>;
+  using write_t = std::conditional_t<std::is_integral<T>::value, T, T&&>;
 
  public:
   channel_writer() : _window(nullptr) {}
@@ -50,7 +52,7 @@ class channel_writer {
   channel_writer<T>& operator=(channel_writer<T>&& other) = default;
 
   template <typename U>
-  absl::optional<T> write(U&& val);
+  std::optional<T> write(U&& val);
 
   void reset();
 
