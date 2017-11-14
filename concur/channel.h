@@ -1,9 +1,9 @@
 #pragma once
 
 #include <memory>
-#include <optional>
 #include <type_traits>
 
+#include "absl/types/optional.h"
 #include "concur/internal/channel_window.h"
 
 namespace gthread {
@@ -24,7 +24,7 @@ class channel_reader {
   channel_reader<T>& operator=(channel_reader<T>&) = delete;
   channel_reader<T>& operator=(channel_reader<T>&& other) = default;
 
-  std::optional<T> read();
+  absl::optional<T> read();
 
   void reset();
 
@@ -52,7 +52,7 @@ class channel_writer {
   channel_writer<T>& operator=(channel_writer<T>&& other) = default;
 
   template <typename U>
-  std::optional<T> write(U&& val);
+  absl::optional<T> write(U&& val);
 
   void reset();
 

@@ -3,8 +3,8 @@
 #include "concur/internal/channel_window.h"
 
 #include <cassert>
-#include <optional>
 
+#include "absl/types/optional.h"
 #include "sched/sched.h"
 #include "sched/task.h"
 
@@ -27,9 +27,9 @@ void channel_window<T>::close() {
 }
 
 template <typename T>
-std::optional<T> channel_window<T>::read() {
+absl::optional<T> channel_window<T>::read() {
   sched& s = sched::get();
-  std::optional<T> ret;
+  absl::optional<T> ret;
 
   if (!_closed) {
     std::unique_lock<sched> l{s};
@@ -65,7 +65,7 @@ std::optional<T> channel_window<T>::read() {
 
 template <typename T>
 template <typename U>
-std::optional<T> channel_window<T>::write(U&& t) {
+absl::optional<T> channel_window<T>::write(U&& t) {
   sched& s = sched::get();
 
   if (_closed) {
@@ -116,7 +116,7 @@ std::optional<T> channel_window<T>::write(U&& t) {
     reader->switch_to();
   }
 
-  return std::nullopt;
+  return absl::nullopt;
 }
 }  // namespace internal
 }  // namespace gthread

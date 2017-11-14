@@ -7,6 +7,7 @@ cc_library(
     deps = [
         "//sched:sched",
         "//sched:task",
+        "@com_google_absl//absl/types:optional",
     ],
 )
 

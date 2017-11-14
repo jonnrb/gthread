@@ -1,8 +1,3 @@
-# author: JonNRb <jonbetti@gmail.com>
-# license: MIT
-# file: @gthread//concur/BUILD
-# info: concurrency primitives
-
 package(default_visibility = ["//:__subpackages__"])
 
 cc_library(
@@ -18,6 +13,7 @@ cc_library(
     hdrs = ["channel.h"],
     deps = [
         "//concur/internal:channel_window",
+        "@com_google_absl//absl/types:optional",
     ]
 )
 

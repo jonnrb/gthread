@@ -1,7 +1,6 @@
 #include "concur/internal/channel_window.h"
 
 #include <mutex>
-#include <optional>
 
 #include "concur/mutex.h"
 #include "gtest/gtest.h"
