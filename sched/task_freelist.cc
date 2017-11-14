@@ -36,7 +36,7 @@ void insert_task(Iterable* iterable, task* t) {
 task* task_freelist::make_task(const attr& a) {
   task* t = nullptr;
   {
-    std::lock_guard<sched> l(sched::get());
+    std::lock_guard l(sched::get());
     if (_l.size() > 0) {
       t = find_task(&_l, a);
     }
@@ -50,9 +50,19 @@ task* task_freelist::make_task(const attr& a) {
   return t;
 }
 
-void task_freelist::return_task(task* t) {
+template <>
+void task_freelist::return_task<true>(task* t) {
+  if (_l.size() < _max_size) {
+    insert_task(&_l, t);
+    return;
+  }
+  t->destroy();
+}
+
+template <>
+void task_freelist::return_task<false>(task* t) {
   {
-    std::lock_guard<sched> l(sched::get());
+    std::lock_guard l(sched::get());
     if (_l.size() < _max_size) {
       insert_task(&_l, t);
       return;

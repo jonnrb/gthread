@@ -50,17 +50,14 @@ class sched {
    * spawns a gthread, storing a handle in |handle|, where |entry| will be
    * invoked with argument |arg|. `gthread::sched::join()` must be called
    * eventually to clean up the called thread when it finishes
-   *
-   * TODO: sched::detach()
    */
   sched_handle spawn(const attr& a, task::entry_t entry, void* arg);
 
   /**
-   * sleeps the current task until |sleep_duration| has passed
+   * detaches from |task|, making it unjoinable. |task| will return its
+   * resources upon completion.
    */
-  template <class Rep, class Period>
-  inline void sleep_for(
-      const std::chrono::duration<Rep, Period>& sleep_duration);
+  void detach(sched_handle* task);
 
   /**
    * joins |task| when it finishes running (the caller will be suspended)
@@ -78,6 +75,13 @@ class sched {
    * however, if it must end abruptly, this function must be used.
    */
   void exit(void* return_value);
+
+  /**
+   * sleeps the current task until |sleep_duration| has passed
+   */
+  template <class Rep, class Period>
+  inline void sleep_for(
+      const std::chrono::duration<Rep, Period>& sleep_duration);
 
   /**
    * disables preemption by the scheduler

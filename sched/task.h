@@ -67,7 +67,8 @@ struct task {
   size_t _total_stack_size;
 
  public:
-  std::atomic<task*> joiner;
+  task* joiner;
+  bool detached;
 
   typedef enum { RUNNING, SUSPENDED, STOPPED, WAITING } run_state_t;
   run_state_t run_state;

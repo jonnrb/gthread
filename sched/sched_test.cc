@@ -181,3 +181,27 @@ TEST(gthread_sched, sleep_for) {
     s.join(&h, nullptr);
   }
 }
+
+void* exit_quick(void* _) {
+  std::cout << "exiting" << std::endl;
+  return nullptr;
+}
+
+TEST(gthread_sched, detach_test_exit_quick) {
+  auto& s = sched::get();
+  auto h = s.spawn(k_light_attr, exit_quick, nullptr);
+  s.sleep_for(std::chrono::milliseconds{5});
+  s.join(&h, nullptr);
+}
+
+void* exit_delay(void* _) {
+  sched::get().sleep_for(std::chrono::milliseconds{5});
+  std::cout << "exiting" << std::endl;
+  return nullptr;
+}
+
+TEST(gthread_sched, detach_test_exit_delay) {
+  auto& s = sched::get();
+  auto h = s.spawn(k_light_attr, exit_delay, nullptr);
+  s.join(&h, nullptr);
+}

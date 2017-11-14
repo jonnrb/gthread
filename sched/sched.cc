@@ -1,7 +1,9 @@
 #include "sched/sched.h"
 
 #include <atomic>
+#include <cassert>
 #include <iostream>
+#include <mutex>
 #include <set>
 #include <thread>
 
@@ -16,8 +18,6 @@
 namespace gthread {
 namespace {
 void task_end_handler(task* task) { sched::get().exit(task->return_value); }
-
-task* const k_pointer_lock = (task*)-1;
 }  // namespace
 
 sched::sched() : _interrupt_lock(UNLOCKED), _min_vruntime(0), _freelist(64) {
@@ -54,6 +54,9 @@ task* sched::next(task* last_running_task) {
   // to the runqueue
   if (last_running_task->run_state == task::RUNNING) {
     runqueue_push(last_running_task);
+  } else if (last_running_task->run_state == task::STOPPED &&
+             last_running_task->detached) {
+    _freelist.return_task<true>(last_running_task);
   }
 
   // NOTE: it may be more cache efficient to bulk remove items from the
@@ -117,68 +120,45 @@ sched_handle sched::spawn(const attr& attr, task::entry_t* entry, void* arg) {
   handle.t->arg = arg;
   handle.t->vruntime = _min_vruntime;
 
-  lock();
-
-  // this will start the task and immediately return control
-  if (branch_unexpected(handle.t->start())) {
-    _freelist.return_task(handle.t);
-    handle.t = nullptr;
-    return handle;
+  {
+    std::lock_guard l(*this);
+    // this will start the task and immediately return control
+    if (branch_expected(!handle.t->start())) {
+      runqueue_push(handle.t);
+      return handle;
+    }
   }
 
-  runqueue_push(handle.t);
-
-  unlock();
-
+  _freelist.return_task(handle.t);
+  handle.t = nullptr;
   return handle;
 }
 
-/**
- * waits for the task indicated by |handle| to finish
- *
- * cleans up |handle|'s task's memory after it has returned
- *
- * implementation details:
- *
- * this function is very basic except for a race condition. the task's `joiner`
- * property is used as a lock to prevent the race condition from leaving
- * something possibly permanently descheduled.
- *
- * if |handle|'s task has already exited, the function runs without blocking.
- * however, if |handle|'s task is still running, the `joiner` flag is locked to
- * the current task which will deschedule itself until |handle|'s task finishes.
- */
 void sched::join(sched_handle* handle, void** return_value) {
   if (branch_unexpected(handle == nullptr || !*handle)) {
     throw std::domain_error(
         "|handle| must be specified and must be a valid thread");
   }
 
-  task* current = task::current();
+  auto* current = task::current();
 
-  // flag to |thread| that you are the joiner
-  for (task* current_joiner = nullptr; branch_unexpected(
-           !handle->t->joiner.compare_exchange_strong(current_joiner, current));
-       current_joiner = nullptr) {
-    // if the joiner is not `nullptr` and is not locked, something else is
-    // joining, which is undefined behavior
-    if (branch_unexpected(current_joiner != (task*)k_pointer_lock &&
-                          current_joiner != nullptr)) {
+  {
+    std::unique_lock l(*this);
+
+    // if the joiner is not `nullptr`, something else is joining, which is
+    // undefined behavior
+    if (branch_unexpected(handle->t->joiner != nullptr)) {
       throw std::logic_error("a thread can only be joined from one place");
     }
-
-    yield();
+    if (handle->t->run_state != task::STOPPED) {
+      handle->t->joiner = current;
+      current->run_state = task::WAITING;
+      l.unlock();
+      yield();
+    }
   }
 
-  // if we have locked `handle.task->joiner`, we can deschedule ourselves by
-  // setting our `run_state` to "waiting" and yielding to the scheduler.
-  // |handle|'s task will reschedule us when it has stopped, in which case the
-  // loop will break and we know we can read off the return value and
-  // (optionally) destroy the thread memory.
-  while (handle->t->run_state != task::STOPPED) {
-    current->run_state = task::WAITING;
-    yield();
-  }
+  assert(handle->t->run_state == task::STOPPED);
 
   // take the return value of |thread| if |return_value| is given
   if (return_value != nullptr) {
@@ -189,40 +169,43 @@ void sched::join(sched_handle* handle, void** return_value) {
   handle->t = nullptr;
 }
 
-/**
- * immediately exits the current thread with return value |return_value|
- */
+void sched::detach(sched_handle* handle) {
+  if (branch_unexpected(handle == nullptr || !*handle)) {
+    throw std::domain_error(
+        "|handle| must be specified and must be a valid thread");
+  }
+
+  {
+    std::lock_guard l(*this);
+    if (handle->t->run_state != task::STOPPED) {
+      handle->t->detached = true;
+      handle->t = nullptr;
+      return;
+    }
+  }
+
+  assert(handle->t->run_state == task::STOPPED);
+
+  _freelist.return_task(handle->t);
+  handle->t = nullptr;
+}
+
 void sched::exit(void* return_value) {
-  task* current = task::current();
+  auto* current = task::current();
 
   // indicative that the current task is the root task. abort reallly hard.
   if (branch_unexpected(current->entry == nullptr)) {
     gthread_log_fatal("cannot exit from the root task!");
   }
 
-  // lock the joiner with a flag
-  task* joiner = nullptr;
-  current->joiner.compare_exchange_strong(joiner, k_pointer_lock);
+  {
+    std::lock_guard l(*this);
+    current->return_value = return_value;  // save |return_value|
+    current->run_state = task::STOPPED;    // deschedule permanently
 
-  current->return_value = return_value;  // save |return_value|
-  current->run_state = task::STOPPED;    // deschedule permanently
-
-  if (joiner != nullptr) {
-    // consider the very weird case where join() locked `joiner` but hasn't
-    // descheduled itself yet. it would be verrrryyy bad to put something in
-    // the tree twice. if this task is running and `joiner` is in the waiting
-    // state, it must be descheduled.
-    while (branch_unexpected(joiner->run_state != task::WAITING)) {
-      yield();
+    if (current->joiner != nullptr) {
+      runqueue_push(current->joiner);
     }
-
-    lock();
-    runqueue_push(joiner);
-    unlock();
-  } else {
-    // if there wasn't a joiner that suspended itself, we entered a critical
-    // section and we should unlock
-    current->joiner = nullptr;
   }
 
   yield();  // deschedule
@@ -230,5 +213,4 @@ void sched::exit(void* return_value) {
   // impossible to be here
   gthread_log_fatal("how did I get here?");
 }
-
 }  // namespace gthread

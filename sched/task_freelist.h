@@ -13,6 +13,7 @@ class task_freelist {
 
   task* make_task(const attr& a);
 
+  template <bool in_scheduler = false>
   void return_task(task* t);
 
  private:
