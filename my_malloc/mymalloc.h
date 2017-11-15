@@ -16,7 +16,7 @@
 
 
 typedef enum truth {TRUE, FALSE} BOOLEAN;
-
+typedef enum flag{BETWEEN, END, START} BETWEEN_OR_END;
 //PAGE METADATA
 typedef struct _node{
     gthread_task_t* thread; //thread to which the page belongs

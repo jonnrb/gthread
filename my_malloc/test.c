@@ -21,32 +21,19 @@ void* important_task(void* arg) {
    void* p;
    void* x;
    void* z;
-   void* ptr[6];
-   int t = 0;
-   //for (int i = 0; i < 26; ++i) {
+
  		  p = (int*)mymalloc(10000, (gthread_task_t*)gthread_tls_current_thread());
- 		 x = (int*)mymalloc(10000, (gthread_task_t*)gthread_tls_current_thread());
- 		 z = (int*)mymalloc(1000, (gthread_task_t*)gthread_tls_current_thread());
- 		 printThread((gthread_task_t*)gthread_tls_current_thread());
+ 		  x = (int*)mymalloc(10000, (gthread_task_t*)gthread_tls_current_thread());
+ 		  z = (int*)mymalloc(10000, (gthread_task_t*)gthread_tls_current_thread());
+ 		  debug("FREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREE");
+ 		  debug("FREEING SECOND 10000");
  		  myfree(x, (gthread_task_t*)gthread_tls_current_thread());
- 		  printf("After freeing 'x' 10000\n");
  		 printThread((gthread_task_t*)gthread_tls_current_thread());
- 		 myfree(z, (gthread_task_t*)gthread_tls_current_thread());
- 		printf("After freeing 'z' 1000\n");
- 		printThread((gthread_task_t*)gthread_tls_current_thread());
- 		myfree(p, (gthread_task_t*)gthread_tls_current_thread());
- 		printf("After freeing 'p' 10000\n");
+ 		printInternalMemory((gthread_task_t*)gthread_tls_current_thread());
+ 		 debug("FREEING LAST 10000-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=");
+ 		  myfree(z, (gthread_task_t*)gthread_tls_current_thread());
  		  printThread((gthread_task_t*)gthread_tls_current_thread());
  		  printInternalMemory((gthread_task_t*)gthread_tls_current_thread());
-
-   //}
-
-
-
-  /*for(int i = 1; i<200; i ++){
-	 void* c = shalloc(i);
-	 myfree(c,(gthread_task_t*)gthread_tls_current_thread());
-  }*/
 
 
 
@@ -65,11 +52,11 @@ int init() {
   assert(!gthread_sched_spawn(&tasks[0], NULL, important_task,
                                (void*)(&msgs[0])));
   printf("=======================================================\n");
-  assert(!gthread_sched_spawn(&tasks[1], NULL, important_task,
-                                (void*)(&msgs[0])));
+  //assert(!gthread_sched_spawn(&tasks[1], NULL, important_task,
+  //                              (void*)(&msgs[0])));
 
     gthread_sched_join(tasks[0], NULL);
-    gthread_sched_join(tasks[1], NULL);
+    //gthread_sched_join(tasks[1], NULL);
 
   printf("Test finished\n");
   return 0;
