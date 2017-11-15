@@ -100,10 +100,11 @@ void sched::sleep_for_impl(sleepqueue_clock::duration sleep_duration) {
   auto earliest_wake_time = sleepqueue_clock::now() + sleep_duration;
   auto* cur = task::current();
 
-  lock();
-  cur->run_state = task::WAITING;
-  _sleepqueue.emplace(earliest_wake_time, cur);
-  unlock();
+  {
+    std::lock_guard<sched> l(*this);
+    cur->run_state = task::WAITING;
+    _sleepqueue.emplace(earliest_wake_time, cur);
+  }
 
   yield();
 }
@@ -121,7 +122,7 @@ sched_handle sched::spawn(const attr& attr, task::entry_t* entry, void* arg) {
   handle.t->vruntime = _min_vruntime;
 
   {
-    std::lock_guard l(*this);
+    std::lock_guard<sched> l(*this);
     // this will start the task and immediately return control
     if (branch_expected(!handle.t->start())) {
       runqueue_push(handle.t);
@@ -143,7 +144,7 @@ void sched::join(sched_handle* handle, void** return_value) {
   auto* current = task::current();
 
   {
-    std::unique_lock l(*this);
+    std::unique_lock<sched> l(*this);
 
     // if the joiner is not `nullptr`, something else is joining, which is
     // undefined behavior
@@ -176,7 +177,7 @@ void sched::detach(sched_handle* handle) {
   }
 
   {
-    std::lock_guard l(*this);
+    std::lock_guard<sched> l(*this);
     if (handle->t->run_state != task::STOPPED) {
       handle->t->detached = true;
       handle->t = nullptr;
@@ -199,7 +200,7 @@ void sched::exit(void* return_value) {
   }
 
   {
-    std::lock_guard l(*this);
+    std::lock_guard<sched> l(*this);
     current->return_value = return_value;  // save |return_value|
     current->run_state = task::STOPPED;    // deschedule permanently
 

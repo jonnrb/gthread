@@ -1,10 +1,3 @@
-/**
- * author: JonNRb <jonbetti@gmail.com>
- * license: MIT
- * file: @gthread//arch/switch_to.S
- * info: AT&T assembly for switching to and spawning new contexts
- */
-
 .global gthread_switch_to
 gthread_switch_to:
   test %rdi, %rdi
@@ -38,8 +31,8 @@ gthread_switch_to_and_spawn:
   mov %r14, 0x28(%rdi)
   mov %r15, 0x30(%rdi)
 1:
-  lea -0x8(%rsi), %rsp # sets the stack pointer to 16 bytes before |stack|
-  mov $0x0, %rbp
-  movl $0xdeadbeef, (%rsp)
-  mov %rcx, %rdi # moves 4th parameter |arg| to the 1st parameter of |entry|
-  jmp *%rdx       # jumps to |entry|
+  lea -0x8(%rsi), %rsp  /* sets the stack pointer to 16 bytes before |stack| */
+  mov $0, %rbp
+  movq $0, (%rsp)
+  mov %rcx, %rdi  /* moves 4th parameter |arg| to the 1st parameter of |entry| */
+  jmp *%rdx       /* jumps to |entry| */
