@@ -23,14 +23,13 @@ void* important_task(void* arg) {
    void* z;
 
  		  p = (int*)mymalloc(10000, (gthread_task_t*)gthread_tls_current_thread());
- 		 printInternalMemory((gthread_task_t*)gthread_tls_current_thread());
- 		  x = (int*)mymalloc(2000, (gthread_task_t*)gthread_tls_current_thread());
- 		 printInternalMemory((gthread_task_t*)gthread_tls_current_thread());
+ 		  x = (int*)mymalloc(20000, (gthread_task_t*)gthread_tls_current_thread());
  		  z = (int*)mymalloc(10000, (gthread_task_t*)gthread_tls_current_thread());
 
 
  		 // debug("FREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREE");
- 		//  myfree(x, (gthread_task_t*)gthread_tls_current_thread());
+ 		  myfree(x, (gthread_task_t*)gthread_tls_current_thread());
+ 		x = (int*)mymalloc(150, (gthread_task_t*)gthread_tls_current_thread());
  		// printInternalMemory((gthread_task_t*)gthread_tls_current_thread());
  		// x = (int*)mymalloc(10000, (gthread_task_t*)gthread_tls_current_thread());
  		// printInternalMemory((gthread_task_t*)gthread_tls_current_thread());
@@ -56,11 +55,11 @@ int init() {
   assert(!gthread_sched_spawn(&tasks[0], NULL, important_task,
                                (void*)(&msgs[0])));
   printf("=======================================================\n");
-  //assert(!gthread_sched_spawn(&tasks[1], NULL, important_task,
-  //                              (void*)(&msgs[0])));
+  assert(!gthread_sched_spawn(&tasks[1], NULL, important_task,
+                                (void*)(&msgs[0])));
 
     gthread_sched_join(tasks[0], NULL);
-    //gthread_sched_join(tasks[1], NULL);
+    gthread_sched_join(tasks[1], NULL);
 
   printf("Test finished\n");
   return 0;

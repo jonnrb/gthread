@@ -456,7 +456,7 @@ void* allocate(Page_Internal* PI, int size, gthread_task_t* owner){
 				break;
 			}
 		}
-
+		placePagesContig(owner);
 		PI->space = size;
 		PI->used = TRUE;
 		if(allocationFlag == END){
@@ -475,10 +475,9 @@ void* allocate(Page_Internal* PI, int size, gthread_task_t* owner){
 			unusedPI->used = FALSE;
 			unusedPI->space = spaceleft - (size+sizeof(Page_Internal));
 		}
-
 		printf("ALLOCATE PI SADDR: %d, PI EDDR: %d, PI->Space: %d\n", (void*)(PI), (void*)getNextPI(PI),PI->space);
 		printf("ALLOCATE UnusedPI SADDR: %d, UnusedPI EDDR: %d, UnusedPI->Space: %d\n",(void*)unusedPI, (void*)getNextPI(unusedPI),unusedPI->space);
-		placePagesContig(owner);
+
 		printThread((gthread_task_t*)gthread_tls_current_thread());
 		firstPage->space_allocated = firstPage->space_allocated + size;
 		printf("Total space allocated %d\n", firstPage->space_allocated);
@@ -563,7 +562,7 @@ void* mymalloc(size_t size, gthread_task_t *owner){
     	return NULL;
     }
     ptr = allocate(PI, size, owner);
-    printf("Success");
+    printf("Success\n");
     if(ptr == NULL){
     	printf("Unsuccessful allocation attempt, likely not enough free pages were found\n");
     }
