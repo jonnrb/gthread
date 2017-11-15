@@ -109,7 +109,7 @@ void printInternalMemory(gthread_task_t* owner){
 
 //gets space left in total memory block.
 int getSpaceLeft(){
-	int pagesLeft = numb_of_pages - pages_allocated;
+	int pagesLeft = (numb_of_swap_pages + numb_of_pages) - pages_allocated;
 	int bytesleft = pagesLeft * (page_size);
 	return bytesleft;
 }
@@ -300,6 +300,7 @@ int placePagesContig(gthread_task_t* owner){
 	if(page==NULL){
 		return 0;
 	}
+
 	Node* swapout = NULL;
 	while(page != NULL){
 		n = page->page_offset;
@@ -360,13 +361,13 @@ Node* getEmptyPage(){
 		metacounter++;
 	}
 	//swap file check
-	metadata = (Node*)swap_meta_start;
+	Node* swapmeta = (Node*)swap_meta_start;
 	metacounter = 0;
 	while(metacounter < numb_of_swap_pages){
-		if(metadata->thread == NULL){
-			return metadata;
+		if(swapmeta->thread == NULL){
+			return swapmeta;
 		}
-		metadata = metadata + 1;
+		swapmeta = swapmeta + 1;
 		metacounter++;
 	}
 	return NULL;
@@ -398,6 +399,7 @@ Page_Internal* findOpenSpace(int size, Node* pageMData){
 	}
 
 	//find open space at the end
+	printf("SPACELEFT : %d\n", getSpaceLeft());
 	if(sizeof(Page_Internal) + size < getSpaceLeft() + PI->space && PI->used == FALSE){
 		debug("Allocation found to be in end.");
 		printf("Found PI with starting address %d and space %d\n", (void*)PI,PI->space);
@@ -440,7 +442,6 @@ void* allocate(Page_Internal* PI, int size, gthread_task_t* owner){
 		int PagesCreated = 0;
 		while(spaceNeeded > 0){
 			PagesCreated = 1;
-			printf("New page allocated\n");
 			tempPage = getEmptyPage();
 			Currentpage->next_page = tempPage;
 			tempPage->first_page = firstPage;
@@ -478,7 +479,6 @@ void* allocate(Page_Internal* PI, int size, gthread_task_t* owner){
 		printf("ALLOCATE PI SADDR: %d, PI EDDR: %d, PI->Space: %d\n", (void*)(PI), (void*)getNextPI(PI),PI->space);
 		printf("ALLOCATE UnusedPI SADDR: %d, UnusedPI EDDR: %d, UnusedPI->Space: %d\n",(void*)unusedPI, (void*)getNextPI(unusedPI),unusedPI->space);
 
-		printThread((gthread_task_t*)gthread_tls_current_thread());
 		firstPage->space_allocated = firstPage->space_allocated + size;
 		printf("Total space allocated %d\n", firstPage->space_allocated);
 		return (void*)(PI+1);
@@ -780,7 +780,6 @@ void myfree(void* p, gthread_task_t *owner){
 	//clearUnusedPages(PI,owner);
 	//concatenate any unused regions in memory
 	Page_Internal* concatenatedPI = concatenate(PI, owner);
-	printInternalMemory(owner);
 	clearUnusedPages(concatenatedPI, owner);
 	return;
 }
