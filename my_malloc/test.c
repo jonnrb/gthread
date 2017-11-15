@@ -23,17 +23,21 @@ void* important_task(void* arg) {
    void* z;
 
  		  p = (int*)mymalloc(10000, (gthread_task_t*)gthread_tls_current_thread());
- 		  x = (int*)mymalloc(10000, (gthread_task_t*)gthread_tls_current_thread());
+ 		 printInternalMemory((gthread_task_t*)gthread_tls_current_thread());
+ 		  x = (int*)mymalloc(2000, (gthread_task_t*)gthread_tls_current_thread());
+ 		 printInternalMemory((gthread_task_t*)gthread_tls_current_thread());
  		  z = (int*)mymalloc(10000, (gthread_task_t*)gthread_tls_current_thread());
- 		  debug("FREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREE");
- 		  debug("FREEING SECOND 10000");
- 		  myfree(x, (gthread_task_t*)gthread_tls_current_thread());
- 		 printThread((gthread_task_t*)gthread_tls_current_thread());
- 		printInternalMemory((gthread_task_t*)gthread_tls_current_thread());
- 		 debug("FREEING LAST 10000-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=");
- 		  myfree(z, (gthread_task_t*)gthread_tls_current_thread());
- 		  printThread((gthread_task_t*)gthread_tls_current_thread());
- 		  printInternalMemory((gthread_task_t*)gthread_tls_current_thread());
+
+
+ 		 // debug("FREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREEFREE");
+ 		//  myfree(x, (gthread_task_t*)gthread_tls_current_thread());
+ 		// printInternalMemory((gthread_task_t*)gthread_tls_current_thread());
+ 		// x = (int*)mymalloc(10000, (gthread_task_t*)gthread_tls_current_thread());
+ 		// printInternalMemory((gthread_task_t*)gthread_tls_current_thread());
+ 		// printThread((gthread_task_t*)gthread_tls_current_thread());
+ 		  //myfree(z, (gthread_task_t*)gthread_tls_current_thread());
+ 		  //myfree(p, (gthread_task_t*)gthread_tls_current_thread());
+
 
 
 

@@ -4,7 +4,7 @@ static const long max_size = MAX_SIZE; //Maximum size for Virtual Memory
 static const long swap_size = SWAP_SIZE;
 extern char myblock[MAX_SIZE] = {}; //8MB memory block
 extern char swapblock[SWAP_SIZE] = {}; //16 MB Swap Block
-static long page_size; //Page size for system
+static size_t page_size; //Page size for system
 static int threads_allocated; //number of threads that allocated space in Virtual Memory currently
 static int pages_allocated;
 static void* shallocRegion; //first shalloc metadata
@@ -113,6 +113,15 @@ int getSpaceLeft(){
 	int bytesleft = pagesLeft * (page_size);
 	return bytesleft;
 }
+
+
+
+
+void clearPage(Node* page){
+	memset(page->page_start_addr, 0, page_size);
+	return;
+}
+
 
 
 
@@ -374,22 +383,24 @@ int howManyEmptyPages(){
 //Traverses the array, searching for sections with size 'size', and returning it.
 //If no partition is found, and the index has overreached, then it returns NULL
 Page_Internal* findOpenSpace(int size, Node* pageMData){
+	debug("In findOpenSpace()");
 	Page_Internal* PI = (Page_Internal*)pageMData->page_start_addr;
 	//find open space in between
 	while((void*)getNextPI(PI) != getEndAddr(NULL, pageMData)){
 		if(PI->used == FALSE && PI->space > sizeof(Page_Internal) + size){
 			debug("Allocation found to be in between.");
-			printf("Found PI with starting address %d\n", (void*)PI);
+			printf("Found PI with starting address %d and space %d\n", (void*)PI, PI->space);
 			allocationFlag = BETWEEN;
 			return PI;
 		}
+
 		PI = getNextPI(PI);
 	}
 
 	//find open space at the end
 	if(sizeof(Page_Internal) + size < getSpaceLeft() + PI->space && PI->used == FALSE){
 		debug("Allocation found to be in end.");
-		printf("Found PI with starting address %d\n", (void*)PI);
+		printf("Found PI with starting address %d and space %d\n", (void*)PI,PI->space);
 		allocationFlag = END;
 		return PI;
 	}
@@ -404,46 +415,32 @@ Page_Internal* findOpenSpace(int size, Node* pageMData){
 //the current node's size is readjusted to reflect the size partitioned
 void* allocate(Page_Internal* PI, int size, gthread_task_t* owner){
 	printf("IN ALLOCATE(), size=%d\n",size);
+		int spacecalc;
 		Page_Internal* unusedPI; //PI for PI at the end of an used block
-		int spaceleft; //calculation of spaceleft
+		int spaceleft = PI->space; //calculation of spaceleft
+		printf("PI->space %d\n",spaceleft);
 		Node* firstPage = findThreadPage(owner); //get the first page of the thread
 		Node* Currentpage = whichPage(PI); //findout which page contains the block that was found to be open
-
 		int Offset = Currentpage->page_offset;
-		//space until next PI (or end of page)
-		int spaceUntilNextPI = 0;
 		//space calculations
 		int spaceNeeded = size + sizeof(Page_Internal);
-		if(allocationFlag == BETWEEN){
-			spaceUntilNextPI = PI->space;
-			//calculate space in between the start of the block to the end of the page
-			int spaceTillEndOfPage = Currentpage->page_end_addr - (void*)(PI+1);
-			spaceNeeded = spaceNeeded - spaceTillEndOfPage; //space required after end of current page
-		}
-		else{
-			spaceNeeded = spaceNeeded - (PI->space + sizeof(PI));
-		}
-		//if space is negative, then no new pages are needed
-		//space is positive, new pages are needed
+		int spaceToEnd = abs(((char*)(PI+1) - (char*)Currentpage->page_end_addr));
+		printf("Space to End of Current Page is %d\n",spaceToEnd);
+		spaceNeeded = spaceNeeded - spaceToEnd;
+		//if spaceNeeded is negative, then no new pages are needed
+		//spaceNeeded is positive, new pages are needed
 		Node* tempPage;
 		int empty_pages_left = howManyEmptyPages();
-
-		int pagesNeeded = 0;
-		if(allocationFlag == END){
-			//if PI ends at the end of a page, then ceiling
-			pagesNeeded = (int)ceil((double)spaceNeeded/(double)page_size);
-		}
-		else{
-			//if PI continues into another page, then floor
-			pagesNeeded = (int)((double)spaceNeeded/(double)page_size);
-		}
-
+		int pagesNeeded = spaceNeeded / page_size;
 		//checks if the pages needed are able to be allocated
 		if(pagesNeeded > empty_pages_left){
 			return NULL;
 		}
 		Node* savedNextPage = Currentpage->next_page;
-		while(pagesNeeded > 0){
+		int PagesCreated = 0;
+		while(spaceNeeded > 0){
+			PagesCreated = 1;
+			printf("New page allocated\n");
 			tempPage = getEmptyPage();
 			Currentpage->next_page = tempPage;
 			tempPage->first_page = firstPage;
@@ -452,30 +449,39 @@ void* allocate(Page_Internal* PI, int size, gthread_task_t* owner){
 			tempPage->page_offset = Offset;
 			Currentpage = tempPage;
 			spaceNeeded = spaceNeeded - page_size;
-			pagesNeeded--;
 			pages_allocated++;
+			if(spaceNeeded < 0){
+				spaceNeeded = spaceNeeded + page_size; //make positive again
+				tempPage->next_page = savedNextPage;
+				break;
+			}
 		}
-		tempPage->next_page = savedNextPage;
-		//at this point spacecalc is negative so must make positive by adding page_size
-		spaceNeeded = spaceNeeded + page_size;
-		PI->used = TRUE;
+
 		PI->space = size;
+		PI->used = TRUE;
 		if(allocationFlag == END){
-			spaceleft = page_size - (spaceNeeded + sizeof(Page_Internal));
-			unusedPI = (Page_Internal*)((char*)Currentpage->page_start_addr + spaceNeeded);
-			unusedPI->space = spaceleft;
+			unusedPI = getNextPI(PI);
 			unusedPI->used = FALSE;
+			if(PagesCreated != 0){
+			unusedPI->space = page_size - spaceNeeded;
+			}
+			else{
+			unusedPI->space	= spaceToEnd - (size + sizeof(Page_Internal));
+			}
+
 		}
-		else{
-			spaceleft = spaceUntilNextPI - (size + sizeof(Page_Internal));
-			unusedPI = (Page_Internal*)getNextPI(PI);
-			unusedPI->space = spaceleft;
+		else if(allocationFlag == BETWEEN){
+			Page_Internal* unusedPI = getNextPI(PI);
 			unusedPI->used = FALSE;
+			unusedPI->space = spaceleft - (size+sizeof(Page_Internal));
 		}
-		printf("ALLOCATE PI SADDR: %d, PI EDDR: %d, PI->Space: %d\n", (void*)PI, (void*)getNextPI(PI),PI->space);
+
+		printf("ALLOCATE PI SADDR: %d, PI EDDR: %d, PI->Space: %d\n", (void*)(PI), (void*)getNextPI(PI),PI->space);
 		printf("ALLOCATE UnusedPI SADDR: %d, UnusedPI EDDR: %d, UnusedPI->Space: %d\n",(void*)unusedPI, (void*)getNextPI(unusedPI),unusedPI->space);
 		placePagesContig(owner);
+		printThread((gthread_task_t*)gthread_tls_current_thread());
 		firstPage->space_allocated = firstPage->space_allocated + size;
+		printf("Total space allocated %d\n", firstPage->space_allocated);
 		return (void*)(PI+1);
 }
 
@@ -512,6 +518,7 @@ Node* createThreadPage(gthread_task_t *owner){
 void* mymalloc(size_t size, gthread_task_t *owner){
 	printf("+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+\n");
 	printf("DEBUG: Size request %ld, gthread ID: %p\n", size, (void*)owner);
+	allocationFlag = NONE;
 	page_size = sysconf(_SC_PAGESIZE);
 	void* ptr = NULL;
     //initialize myblock if not initialized
@@ -548,7 +555,6 @@ void* mymalloc(size_t size, gthread_task_t *owner){
     }
     //places pages contiguously at the start of the array
     placePagesContig(owner);
-
     //traverse array until free space is found
     Page_Internal* PI = findOpenSpace(size, page);
     //if the end is reached, no valid space is found
@@ -557,6 +563,7 @@ void* mymalloc(size_t size, gthread_task_t *owner){
     	return NULL;
     }
     ptr = allocate(PI, size, owner);
+    printf("Success");
     if(ptr == NULL){
     	printf("Unsuccessful allocation attempt, likely not enough free pages were found\n");
     }
@@ -747,6 +754,7 @@ void clearUnusedPages(Page_Internal* PI, gthread_task_t* owner){
 //the space with any adjacent unused nodes.
 void myfree(void* p, gthread_task_t *owner){
 	printf("IN MYFREE(), gthread ID: %p\n", (void*)owner);
+	allocationFlag = NONE;
 	//check if p is in shalloc region
 	if(p > (void*)shallocRegion){
 		myfreeShalloc(p);
