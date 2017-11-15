@@ -41,7 +41,8 @@ void myfree(void * data, gthread_task_t* owner);
 void* shalloc(size_t size);
 void myfreeShalloc(void* p);
 void swapPages(Node* source, Node* target);
-void initblock();
+void initblock(); //initializes memory block
+int placePagesContig(gthread_task_t* owner); //places pages owned by thread at start of memory in contig fashion
 
 //debugging prints
 void printInternalMemory(gthread_task_t* owner);
@@ -49,7 +50,7 @@ void printpages();
 void printShallocRegion();
 void debug(char* str);
 void printThread(gthread_task_t* owner);
-int placePagesContig(gthread_task_t* owner); //places pages owned by thread at start of memory in contig fashion
+
 
 
 void* getShallocRegion(); //returns starting address of shalloc address space
