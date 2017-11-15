@@ -24,14 +24,14 @@ typedef struct _node{
     struct _node* first_page; //pointer to the first page metadata to which traversal can be done
     void* page_start_addr; //pointer where page starts
     void* page_end_addr; //pointer where page end (start of next page)
-    int space_allocated; //nubmer of bytes allocated in total for this thread (this number is only valid in first page structure)
+    int space_allocated; //number of bytes allocated in total for this thread (this number is only valid in first page structure)
+    int page_offset; //offset from address space 0 that this page is in (incase pages in between gets cleared)
 } Node;
 
 
 //Internal Metadata of the page (think mymalloc)
 typedef struct page_internal{
 	int space; //space inside the current page
-	struct page_internal* nextPI ;
 	BOOLEAN used;
 } Page_Internal;
 
