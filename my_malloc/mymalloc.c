@@ -62,7 +62,7 @@ void printThread(gthread_task_t* owner){
 			if(page->thread == owner){
 				printf("CURRENT THREAD -->>>");
 			}
-		printf("THREAD: %p,PAGE OFFSET: %d, PAGE SADDR: %d, PAGE EDDR: %d\n", page->thread,page->page_offset,page->page_start_addr, page->page_end_addr);
+		printf("THREAD: %p,PAGE OFFSET: %lu, PAGE SADDR: %lu, PAGE EDDR: %lu\n", page->thread,page->page_offset,page->page_start_addr, page->page_end_addr);
 		}
 		page = page + 1;
 		numbpages --;
@@ -74,7 +74,7 @@ void printThread(gthread_task_t* owner){
 			if(page->thread == owner){
 				printf("CURRENT THREAD -->>>");
 			}
-		printf("THREAD: %p, PAGE START ADDRESS: %d, PAGE END ADDRESS: %d\n", page->thread, page->page_start_addr, page->page_end_addr);
+		printf("THREAD: %p, PAGE START ADDRESS: %lu, PAGE END ADDRESS: %lu\n", page->thread, page->page_start_addr, page->page_end_addr);
 		}
 		page = page + 1;
 		numbpages --;
@@ -95,12 +95,12 @@ void printInternalMemory(gthread_task_t* owner){
 	printf("============================================================\n");
 	while((void*)PI != (void*)getEndAddr(owner,NULL)){
 		if(PI->used == TRUE){
-			printf("PI STARTING ADDR: %d, PI ENDING ADDR: %d\n",(void*)PI, (void*)getNextPI(PI));
-			printf("BLOCK USED: TRUE  BLOCK SIZE: %d\n", PI->space);
+			printf("PI STARTING ADDR: %lu, PI ENDING ADDR: %lu\n",(void*)PI, (void*)getNextPI(PI));
+			printf("BLOCK USED: TRUE  BLOCK SIZE: %lu\n", PI->space);
 		}
 		else{
-			printf("PI STARTING ADDR: %d, PI ENDING ADDR: %d\n",(void*)PI, (void*)getNextPI(PI));
-			printf("BLOCK USED: FALSE  BLOCK SIZE: %d\n", PI->space);
+			printf("PI STARTING ADDR: %lu, PI ENDING ADDR: %lu\n",(void*)PI, (void*)getNextPI(PI));
+			printf("BLOCK USED: FALSE  BLOCK SIZE: %lu\n", PI->space);
 		}
 		PI = getNextPI(PI);
 	}
@@ -221,7 +221,7 @@ void initblock(){
 
 	//shalloc region creation
 	Page_Internal* shallocNode = (Page_Internal*)((char*)&myblock[max_size - 1] -  4*page_size); //backtrack four pages
-	shallocNode->space = 4*page_size; //create shalloc metadata
+	shallocNode->space = 4*page_size - sizeof(Page_Internal); //create shalloc metadata
 	shallocNode->used = FALSE;
 	shallocRegion = (void*)shallocNode;
 }
@@ -303,7 +303,7 @@ printPageSADDR(){
 	int x = 0;
 	Node* meta = meta_start;
 	while(x<numb_of_pages){
-		printf("Starting SADDR: %d, EADDR: %d, counter: %d\n",meta->page_start_addr,meta->page_end_addr, x);
+		printf("Starting SADDR: %lu, EADDR: %lu, counter: %lu\n",meta->page_start_addr,meta->page_end_addr, x);
 		meta = meta + 1;
 		x++;
 	}
@@ -313,7 +313,7 @@ printSwapSADDR(){
 	int x = 0;
 	Node* meta = swap_meta_start;
 	while(x<numb_of_swap_pages){
-		printf("SWAP SADDR: %d, EADDR: %d, counter: %d\n",meta->page_start_addr,meta->page_end_addr, x);
+		printf("SWAP SADDR: %lu, EADDR: %lu, counter: %lu\n",meta->page_start_addr,meta->page_end_addr, x);
 		meta = meta + 1;
 		x++;
 	}
@@ -420,7 +420,7 @@ Page_Internal* findOpenSpace(int size, Node* pageMData){
 	while((void*)getNextPI(PI) != getEndAddr(NULL, pageMData)){
 		if(PI->used == FALSE && PI->space > sizeof(Page_Internal) + size){
 			debug("Allocation found to be in between.");
-			printf("Found PI with starting address %d and space %d\n", (void*)PI, PI->space);
+			printf("Found PI with starting address %lu and space %lu\n", (void*)PI, PI->space);
 			allocationFlag = BETWEEN;
 			return PI;
 		}
@@ -429,10 +429,10 @@ Page_Internal* findOpenSpace(int size, Node* pageMData){
 	}
 
 	//find open space at the end
-	printf("SPACELEFT : %d\n", getSpaceLeft());
+	printf("SPACELEFT : %lu\n", getSpaceLeft());
 	if(sizeof(Page_Internal) + size < getSpaceLeft() + PI->space && PI->used == FALSE){
 		debug("Allocation found to be in end.");
-		printf("Found PI with starting address %d and space %d\n", (void*)PI,PI->space);
+		printf("Found PI with starting address %lu and space %lu\n", (void*)PI,PI->space);
 		allocationFlag = END;
 		return PI;
 	}
@@ -446,18 +446,18 @@ Page_Internal* findOpenSpace(int size, Node* pageMData){
 //When a valid partition is found, a node is created to hold the space after the partition, and
 //the current node's size is readjusted to reflect the size partitioned
 void* allocate(Page_Internal* PI, int size, gthread_task_t* owner){
-	printf("IN ALLOCATE(), size=%d\n",size);
+	printf("IN ALLOCATE(), size=%lu\n",size);
 		int spacecalc;
 		Page_Internal* unusedPI; //PI for PI at the end of an used block
 		int spaceleft = PI->space; //calculation of spaceleft
-		printf("PI->space %d\n",spaceleft);
+		printf("PI->space %lu\n",spaceleft);
 		Node* firstPage = findThreadPage(owner); //get the first page of the thread
 		Node* Currentpage = whichPage(PI); //findout which page contains the block that was found to be open
 		int Offset = Currentpage->page_offset;
 		//space calculations
 		int spaceNeeded = size + sizeof(Page_Internal);
 		int spaceToEnd = abs(((char*)(PI+1) - (char*)Currentpage->page_end_addr));
-		printf("Space to End of Current Page is %d\n",spaceToEnd);
+		printf("Space to End of Current Page is %lu\n",spaceToEnd);
 		spaceNeeded = spaceNeeded - spaceToEnd;
 		//if spaceNeeded is negative, then no new pages are needed
 		//spaceNeeded is positive, new pages are needed
@@ -506,11 +506,11 @@ void* allocate(Page_Internal* PI, int size, gthread_task_t* owner){
 			unusedPI->used = FALSE;
 			unusedPI->space = spaceleft - (size+sizeof(Page_Internal));
 		}
-		printf("ALLOCATE PI SADDR: %d, PI EDDR: %d, PI->Space: %d\n", (void*)(PI), (void*)getNextPI(PI),PI->space);
-		printf("ALLOCATE UnusedPI SADDR: %d, UnusedPI EDDR: %d, UnusedPI->Space: %d\n",(void*)unusedPI, (void*)getNextPI(unusedPI),unusedPI->space);
+		printf("ALLOCATE PI SADDR: %lu, PI EDDR: %lu, PI->Space: %lu\n", (void*)(PI), (void*)getNextPI(PI),PI->space);
+		printf("ALLOCATE UnusedPI SADDR: %lu, UnusedPI EDDR: %lu, UnusedPI->Space: %lu\n",(void*)unusedPI, (void*)getNextPI(unusedPI),unusedPI->space);
 
 		firstPage->space_allocated = firstPage->space_allocated + size;
-		printf("Total space allocated %d\n", firstPage->space_allocated);
+		printf("Total space allocated %lu\n", firstPage->space_allocated);
 		return (void*)(PI+1);
 }
 
@@ -569,7 +569,7 @@ void* mymalloc(size_t size, gthread_task_t *owner){
     //traverse array until the pages for the requested thread is found, if
     //not found, create new thread page.
     Node* page = findThreadPage(owner);
-    //printf("Page starting addr: %d\n", page->page_start_addr);
+    //printf("Page starting addr: %lu\n", page->page_start_addr);
     if(page == NULL){ //if thread does not have an allocated space
     	page = createThreadPage(owner);
     }
@@ -658,9 +658,9 @@ Page_Internal* concatenate(Page_Internal* PI, gthread_task_t* owner){
 
 void FreePages(Page_Internal* PI, int freePages, Node* startingPage){
 	debug("FREEPAGES + FREEPAGES + FREEPAGES + FREEPAGES + FREEPAGES====================");
-	printf("PI SADDR %d, PI EDDR %d\n", (void*)PI, (void*)getNextPI(PI));
-	printf("FreePages: %d\n", freePages);
-	printf("First Page to be cleared: %d, Page Offset %d\n", (void*)startingPage->page_start_addr, startingPage->page_offset);
+	printf("PI SADDR %lu, PI EDDR %lu\n", (void*)PI, (void*)getNextPI(PI));
+	printf("FreePages: %lu\n", freePages);
+	printf("First Page to be cleared: %lu, Page Offset %d\n", (void*)startingPage->page_start_addr, startingPage->page_offset);
 	//find page before the page that is set to be freed
 	void* PI_starting_addr = (void*)PI;
 	void* PI_ending_addr = (void*)getNextPI(PI);
@@ -696,7 +696,7 @@ void FreePages(Page_Internal* PI, int freePages, Node* startingPage){
 			freePages--;
 			startingPage = startingPage->next_page;
 		}
-	printf("prevPage offset is: %d\n", prevPage->page_offset);
+	printf("prevPage offset is: %lu\n", prevPage->page_offset);
 	while(freePages>0 && startingPage != NULL){
 		debug("STANDARD CLEAR");
 		prevPage->next_page = startingPage->next_page;
@@ -717,9 +717,9 @@ void FreePages(Page_Internal* PI, int freePages, Node* startingPage){
 			PI->space = PI->space - page_size;
 		}
 	}
-	printf("Page allocated %d\n", pages_allocated);
-	printf("End of page ADDRESS: %d\n", (void*)getEndAddr(NULL,prevPage));
-	printf("End of end Page_internal Address %d\n", (void*)getNextPI(PI));
+	printf("Page allocated %lu\n", pages_allocated);
+	printf("End of page ADDRESS: %lu\n", (void*)getEndAddr(NULL,prevPage));
+	printf("End of end Page_internal Address %lu\n", (void*)getNextPI(PI));
 	debug("Returning from FreePages()");
 	debug("FREEPAGES + FREEPAGES + FREEPAGES + FREEPAGES + FREEPAGES++++++++++++++++++++++++");
 }

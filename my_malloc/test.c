@@ -21,8 +21,11 @@ void* task1(void* arg) {
   	  void* p = mymalloc(10000, (gthread_task_t*)gthread_tls_current_thread());
 	  void* x = mymalloc(20000, (gthread_task_t*)gthread_tls_current_thread());
 	  void* z = mymalloc(10000, (gthread_task_t*)gthread_tls_current_thread());
+	  myfree(x, (gthread_task_t*)gthread_tls_current_thread());
 	  printInternalMemory((gthread_task_t*)gthread_tls_current_thread());
-	  //printThread((gthread_task_t*)gthread_tls_current_thread());
+	  void* sp = shalloc(1000);
+	  myfree(sp, (gthread_task_t*)gthread_tls_current_thread());
+	  printShallocRegion();
 	  return NULL;
 }
 
@@ -31,7 +34,11 @@ void* task2(void* arg) {
 	  printf("TASK2\n");
   	  void* p = mymalloc(8000000, (gthread_task_t*)gthread_tls_current_thread());
   	  void* x = mymalloc(8000000, (gthread_task_t*)gthread_tls_current_thread()); //should fail
+  	  myfree(p, (gthread_task_t*)gthread_tls_current_thread());
+  	  //printThread((gthread_task_t*)gthread_tls_current_thread());
 	  printInternalMemory((gthread_task_t*)gthread_tls_current_thread());
+	  shalloc(2000);
+	  printShallocRegion();
 	  return NULL;
 }
 
@@ -40,9 +47,13 @@ void* task3(void* arg){
 	  printf("TASK3\n");
 	  void* p = mymalloc(8000000, (gthread_task_t*)gthread_tls_current_thread());
 	  printInternalMemory((gthread_task_t*)gthread_tls_current_thread());
+	  shalloc(3000);
+	  printShallocRegion();
 	  return NULL;
 
 }
+
+
 
 
 
