@@ -2,17 +2,17 @@
 
 static const long max_size = MAX_SIZE; //Maximum size for Virtual Memory
 static const long swap_size = SWAP_SIZE;
-extern char myblock[MAX_SIZE] = {}; //8MB memory block
-extern char swapblock[SWAP_SIZE] = {}; //16 MB Swap Block
-static size_t page_size; //Page size for system
-static int threads_allocated; //number of threads that allocated space in Virtual Memory currently
-static int pages_allocated;
-static void* shallocRegion; //first shalloc metadata
-static Node* meta_start; //the first page metadata
-static Node* swap_meta_start;
-static int numb_of_pages; //number of total pages in the block (can be empty pages)
-static int numb_of_swap_pages;
-static BETWEEN_OR_END allocationFlag;
+char myblock[MAX_SIZE] = {}; //8MB memory block
+char swapblock[SWAP_SIZE] = {}; //16 MB Swap Block
+size_t page_size; //Page size for system
+int threads_allocated; //number of threads that allocated space in Virtual Memory currently
+int pages_allocated;
+void* shallocRegion; //first shalloc metadata
+Node* meta_start; //the first page metadata
+Node* swap_meta_start;
+int numb_of_pages; //number of total pages in the block (can be empty pages)
+int numb_of_swap_pages;
+BETWEEN_OR_END allocationFlag;
 Node* findThreadPage(gthread_task_t *owner);
 void* getEndAddr(gthread_task_t* owner, Node* inppage);
 
