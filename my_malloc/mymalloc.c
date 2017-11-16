@@ -85,6 +85,7 @@ void printThread(gthread_task_t* owner){
 
 //Prints the internal memory of the current thread (size allocated, block used, etc)
 void printInternalMemory(gthread_task_t* owner){
+	debug("PRINTING INTERNAL MEMORY");
 	placePagesContig(owner);
 	Node* page = findThreadPage(owner);
 	if(page == NULL){
@@ -136,11 +137,11 @@ double ceil(double num) {
 
 //sets metadata start address and number of pages expected on this machine
 void metadata_start_addr(){
-	int max = max_size - (sizeof(Page_Internal) + 4*page_size); //decrement by shalloc space
+	int max = max_size - (4*page_size); //decrement by shalloc space
 	double ratio = (double)sizeof(Node)/(double)page_size;
 	double metaSpace = (double)max*ratio;
 	metaSpace = ceil(metaSpace);
-	numb_of_pages = (int)metaSpace/sizeof(Node);
+	numb_of_pages = (int)metaSpace/sizeof(Node) - 50;
 	max = max - metaSpace;
 	int maxaddr = (int)max;
 	meta_start = (Node*)&myblock[maxaddr-1];
@@ -152,7 +153,7 @@ void swap_metadata_start_addr(){
 	double ratio = (double)sizeof(Node)/(double)page_size;
 	double metaSpace = (double)max*ratio;
 	metaSpace = ceil(metaSpace);
-	numb_of_swap_pages = (int)metaSpace/sizeof(Node);
+	numb_of_swap_pages = (int)metaSpace/sizeof(Node) - 100;
 	max = max - metaSpace;
 	int maxaddr = (int)max;
 	swap_meta_start = (Node*)&swapblock[maxaddr-1];
@@ -219,7 +220,7 @@ void initblock(){
 
 
 	//shalloc region creation
-	Page_Internal* shallocNode = (Page_Internal*)((char*)&myblock[max_size - 1] - (sizeof(Page_Internal) + 4*page_size)); //backtrack four pages
+	Page_Internal* shallocNode = (Page_Internal*)((char*)&myblock[max_size - 1] -  4*page_size); //backtrack four pages
 	shallocNode->space = 4*page_size; //create shalloc metadata
 	shallocNode->used = FALSE;
 	shallocRegion = (void*)shallocNode;
@@ -286,11 +287,38 @@ Node* findNthPage(int n){
 	void* start = (void*)&myblock[0];
 	start = (void*)((char*)start + n*page_size);
 	Node* meta = (void*)meta_start;
+	int counter = 0;
 	while(meta->page_start_addr != start){
 		meta = meta + 1;
+		counter++;
+		if(counter == numb_of_pages){
+			meta = swap_meta_start;
+		}
 	}
 	return meta;
 }
+
+
+printPageSADDR(){
+	int x = 0;
+	Node* meta = meta_start;
+	while(x<numb_of_pages){
+		printf("Starting SADDR: %d, EADDR: %d, counter: %d\n",meta->page_start_addr,meta->page_end_addr, x);
+		meta = meta + 1;
+		x++;
+	}
+}
+
+printSwapSADDR(){
+	int x = 0;
+	Node* meta = swap_meta_start;
+	while(x<numb_of_swap_pages){
+		printf("SWAP SADDR: %d, EADDR: %d, counter: %d\n",meta->page_start_addr,meta->page_end_addr, x);
+		meta = meta + 1;
+		x++;
+	}
+}
+
 
 //takes in metadata, and places all the pages associated with the thread of the metadata
 //at address 0 of mem block, contiguously (for malloc call)
@@ -304,6 +332,8 @@ int placePagesContig(gthread_task_t* owner){
 	Node* swapout = NULL;
 	while(page != NULL){
 		n = page->page_offset;
+		if(n == 40){
+		}
 		swapout = findNthPage(n);
 		swapPages(swapout, page);
 		page = page->next_page;
