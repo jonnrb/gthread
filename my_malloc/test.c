@@ -34,7 +34,6 @@ void* task2(void* arg) {
 	  printf("TASK2\n");
   	  void* p = mymalloc(8000000, (gthread_task_t*)gthread_tls_current_thread());
   	  void* x = mymalloc(8000000, (gthread_task_t*)gthread_tls_current_thread()); //should fail
-  	  myfree(p, (gthread_task_t*)gthread_tls_current_thread());
   	  //printThread((gthread_task_t*)gthread_tls_current_thread());
 	  printInternalMemory((gthread_task_t*)gthread_tls_current_thread());
 	  shalloc(2000);
