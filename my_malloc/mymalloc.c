@@ -1,10 +1,18 @@
 #include "mymalloc.h"
 
-static const long max_size = MAX_SIZE; //Maximum size for Virtual Memory
-static const long swap_size = SWAP_SIZE;
-char myblock[MAX_SIZE] = {}; //8MB memory block
-char swapblock[SWAP_SIZE] = {}; //16 MB Swap Block
+#include <fcntl.h>
+#include <sys/mman.h>
+
+size_t max_size = -1; //Maximum size for Virtual Memory
+void* myblock = NULL; //8MB memory block
+void* myblock_userdata = NULL;
+
+size_t swap_size = -1;
+void* swapblock = NULL; //16 MB Swap Block
+void* swapblock_userdata = NULL;
+
 size_t page_size; //Page size for system
+
 int threads_allocated; //number of threads that allocated space in Virtual Memory currently
 int pages_allocated;
 void* shallocRegion; //first shalloc metadata
@@ -13,7 +21,6 @@ Node* swap_meta_start;
 int numb_of_pages; //number of total pages in the block (can be empty pages)
 int numb_of_swap_pages;
 BETWEEN_OR_END allocationFlag;
-Node* findThreadPage(gthread_task_t *owner);
 void* getEndAddr(gthread_task_t* owner, Node* inppage);
 
 
@@ -123,75 +130,64 @@ void clearPage(Node* page){
 	return;
 }
 
-
-
-
-//ceil function (my linux needed a special flag to compile math.h, didn't wanna deal)
-double ceil(double num) {
-    int inum = (int)num;
-    if (num == (double)inum) {
-        return (double)inum;
-    }
-    return (double)(inum + 1);
-}
-
 //sets metadata start address and number of pages expected on this machine
 void metadata_start_addr(){
-	int max = max_size - (4*page_size); //decrement by shalloc space
-	double ratio = (double)sizeof(Node)/((double)page_size + (double)sizeof(Node));
-	double metaSpace = (double)max*ratio;
-	metaSpace = (int)(metaSpace);
-	numb_of_pages = (int)metaSpace/sizeof(Node);
-	max = max - metaSpace;
-	int maxaddr = (int)max;
-	meta_start = (Node*)&myblock[maxaddr-1];
+	size_t malloc_space = max_size - (4*page_size); //decrement by shalloc space
+	numb_of_pages = malloc_space / (page_size + sizeof(Node));
+
+	meta_start = (Node*)myblock;
+	myblock_userdata =
+		(void*)((char*)myblock + max_size - numb_of_pages * page_size);
 }
 
 //sets metadata start address and number of pages expected on this machine for swap block
 void swap_metadata_start_addr(){
-	int max = swap_size; //decrement by shalloc space
-	double ratio = (double)sizeof(Node)/((double)page_size + (double)sizeof(Node));
-	double metaSpace = (double)max*ratio;
-	metaSpace = (int)(metaSpace);
-	numb_of_swap_pages = (int)metaSpace/sizeof(Node);
-	max = max - metaSpace;
-	int maxaddr = (int)max;
-	swap_meta_start = (Node*)&swapblock[maxaddr-1];
+	numb_of_swap_pages = swap_size / (page_size + sizeof(Node));
+	swap_meta_start = (Node*)myblock;
+	swapblock_userdata =
+		(void*)((char*)swapblock + swap_size - numb_of_swap_pages * page_size);
 }
-
-
-
-
-
 
 //returns for other source files to get static variables (extern seems to not work)
 void* getShallocRegion(){
 	return shallocRegion;
 }
 
-//returns page size
-int getPageSize(){
-	return page_size;
-}
-//returns address of region where metadata starts in memory block
-void* getMetaStart(){
-	return (void*)meta_start;
-}
-//returns address of region where metadata starts in swap file block
-void* getSwapMetaStart(){
-	return (void*)swap_meta_start;
-}
-
-
-
-
 //initializes the array
 //creates a start node, and an end node
 void initblock(){
+	max_size = (MAX_SIZE / page_size + !!(MAX_SIZE % page_size)) * page_size;
+	myblock = mmap(NULL, max_size,
+	               PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+	if (myblock == MAP_FAILED) {
+		perror("could not mmap() memory");
+	}
+	assert(myblock != MAP_FAILED);
+
+	int fd = open("gthread_swap", O_RDWR | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
+	if (fd < 0) {
+		perror("could not open swap file; swap will not be file backed");
+	}
+
+	swap_size = (SWAP_SIZE / page_size + !!(SWAP_SIZE % page_size)) * page_size;
+	if (fd >= 0) {
+		if (ftruncate(fd, swap_size) < 0) {
+			perror("could not reserve space for swap file");
+			fd = -1;
+		}
+	}
+	swapblock = mmap(NULL, swap_size, PROT_READ | PROT_WRITE,
+	                 (fd >= 0 ? MAP_SHARED : MAP_ANONYMOUS | MAP_PRIVATE),
+	                 fd, 0);
+	if (swapblock == MAP_FAILED) {
+		perror("could not mmap() memory");
+	}
+	assert(swapblock != MAP_FAILED);
+
 	threads_allocated = 0; //initializes threads allocated counter
+
 	metadata_start_addr(); //sets meta_start and number_of_pages
-	swap_metadata_start_addr();
-	Node* metadata = (Node*)meta_start;
+	Node* metadata = meta_start;
 	//creating metadata for memoryblock
 	int metaIterator = 0;
 	while(metaIterator < numb_of_pages){
@@ -199,21 +195,23 @@ void initblock(){
 		metadata->first_page = NULL;
 		metadata->next_page = NULL;
 		metadata->page_offset = 0;
-		metadata->page_start_addr = (void*)(&myblock[0] + page_size*metaIterator);
-		metadata->page_end_addr = (void*)(&myblock[0] + page_size*(metaIterator+1));
+		metadata->page_start_addr = (void*)((char*)myblock_userdata + page_size*metaIterator);
+		metadata->page_end_addr = (void*)((char*)myblock_userdata + page_size*(metaIterator+1));
 		metadata = metadata+1;
 		metaIterator++;
 	}
+
 	//creating metadata for swapfileblock
-	Node* swapmetadata = (Node*)swap_meta_start;
+	swap_metadata_start_addr();
+	Node* swapmetadata = swap_meta_start;
 	metaIterator = 0;
 	while(metaIterator < numb_of_swap_pages){
 		swapmetadata->thread = NULL;
 		swapmetadata->first_page = NULL;
 		swapmetadata->next_page = NULL;
 		swapmetadata->page_offset = 0;
-		swapmetadata->page_start_addr = (void*)(&swapblock[0] + page_size*metaIterator);
-		swapmetadata->page_end_addr = (void*)(&swapblock[0] + page_size*(metaIterator+1));
+		swapmetadata->page_start_addr = (void*)((char*)swapblock_userdata + page_size*metaIterator);
+		swapmetadata->page_end_addr = (void*)((char*)swapblock_userdata + page_size*(metaIterator+1));
 		swapmetadata = swapmetadata+1;
 		metaIterator++;
 	}
@@ -230,8 +228,7 @@ void initblock(){
 
 
 //returns the page in which the PageInternal pointer belongs to
-Node* whichPage(Page_Internal* PI){
-	void* addr = (void*)PI;
+Node* whichPage(void* addr){
 	Node* page = (Node*)meta_start;
 	//start = lower address end = higher address
 	void* start; void* end;
@@ -284,8 +281,7 @@ void swapPages(Node* source, Node* target){
 
 //finds metadata of the nth page in the memory block
 Node* findNthPage(int n){
-	void* start = (void*)&myblock[0];
-	start = (void*)((char*)start + n*page_size);
+	void* start = (void*)((char*)myblock_userdata + n*page_size);
 	Node* meta = (void*)meta_start;
 	int counter = 0;
 	while(meta->page_start_addr != start){
@@ -293,6 +289,8 @@ Node* findNthPage(int n){
 		counter++;
 		if(counter == numb_of_pages){
 			meta = swap_meta_start;
+		}else if (counter == numb_of_swap_pages + numb_of_pages){
+			return NULL;
 		}
 	}
 	return meta;
@@ -789,5 +787,3 @@ void myfree(void* p, gthread_task_t *owner){
 	clearUnusedPages(concatenatedPI, owner);
 	return;
 }
-
-
