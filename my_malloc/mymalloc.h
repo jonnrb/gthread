@@ -43,6 +43,8 @@ void myfreeShalloc(void* p);
 void swapPages(Node* source, Node* target);
 void initblock(); //initializes memory block
 int placePagesContig(gthread_task_t* owner); //places pages owned by thread at start of memory in contig fashion
+Node* whichPage(void* addr); //locate page associated with an address
+Node* findThreadPage(gthread_task_t *owner);
 
 //debugging prints
 void printInternalMemory(gthread_task_t* owner);
@@ -54,10 +56,9 @@ void printThread(gthread_task_t* owner);
 
 
 void* getShallocRegion(); //returns starting address of shalloc address space
-int getPageSize();
-void* getMetaStart();
 
-extern char myblock[MAX_SIZE];
-extern char swapblock[SWAP_SIZE];
+extern void* myblock;
+extern void* swapblock;
+extern size_t page_size;
 
 #endif //_MYMALLOC_H

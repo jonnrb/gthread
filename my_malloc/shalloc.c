@@ -79,7 +79,7 @@ void* shalloc(size_t size){
         return NULL;
     }
     //initialize
-    if(myblock[0] == 0){
+    if(myblock == NULL){
     	initblock();
     }
 
