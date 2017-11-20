@@ -11,12 +11,12 @@
 
 void printShallocRegion() {
   Page_Internal* start = (Page_Internal*)getShallocRegion();
-  printf("SHALLOC REGION +=-++=-++=-++=-++=-++=-++=-++=-++=-+\n");
+  debug("SHALLOC REGION +=-++=-++=-++=-++=-++=-++=-++=-++=-+");
   while ((void*)start != (void*)&myblock[MAX_SIZE - 1]) {
     if (start->used == TRUE) {
-      printf("SHALLOC USED: TRUE, SPACE: %d\n", start->space);
+      debug("SHALLOC USED: TRUE, SPACE: %d", start->space);
     } else {
-      printf("SHALLOC USED: FALSE, SPACE: %d\n", start->space);
+      debug("SHALLOC USED: FALSE, SPACE: %d", start->space);
     }
 
     start = (Page_Internal*)((char*)(start + 1) + start->space);
@@ -163,7 +163,9 @@ void myfreeShalloc(void* p) {
 
   // if pointer is not in the array, throw error, return
   if (valid == FALSE) {
-    printf(
+    debug("invalid free of p=%p", p);
+    fprintf(
+        stderr,
         "Invalid input pointer. Pointer must be at the start of a previously "
         "allocated area of the memory array\n");
     return;
@@ -177,7 +179,7 @@ void myfreeShalloc(void* p) {
   // the pointer was not allocated for
   if (ptr->used == FALSE) {
     // error
-    printf("Error, attempted to free an unallocated pointer!\n");
+    fprintf(stderr, "Error, attempted to free an unallocated pointer!\n");
     return;
   }
 
