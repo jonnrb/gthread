@@ -1,7 +1,9 @@
-#include "mymalloc.h"
+#include "my_malloc/mymalloc.h"
 
 #include <fcntl.h>
 #include <sys/mman.h>
+
+#include "my_malloc/log.h"
 
 size_t max_size = -1; //Maximum size for Virtual Memory
 void* myblock = NULL; //8MB memory block
@@ -25,20 +27,10 @@ void* getEndAddr(gthread_task_t* owner, Node* inppage);
 
 /////////////////////////GENERAL FUNCTIONS////////////////////////////////////////
 
-//prints out in format "DEBUG: INPUT STRING"
-#ifndef NDEBUG
-#define debug_impl(fmt, ...) \
-  fprintf(stderr, "DEBUG: " fmt "%s\n", __VA_ARGS__)
-#define debug(...) debug_impl(__VA_ARGS__, "")
-#else
-#define debug(...)
-#endif
-
 //pointer arithmatic to get new Page_Internal node.
 Page_Internal* getNextPI(Page_Internal* PI){
 	return (Page_Internal*)((char*)(PI+1) + PI->space);
 }
-
 
 //gets end of address space for the current thread
 void* getEndAddr(gthread_task_t* owner, Node* inppage){
@@ -125,12 +117,14 @@ void clearPage(Node* page){
 
 //sets metadata start address and number of pages expected on this machine
 void metadata_start_addr(){
-	size_t malloc_space = max_size - (4*page_size); //decrement by shalloc space
-	numb_of_pages = malloc_space / (page_size + sizeof(Node));
+  size_t malloc_space = max_size - (4*page_size); //decrement by shalloc space
+  numb_of_pages = malloc_space / (page_size + sizeof(Node));
 
-	meta_start = (Node*)myblock;
-	myblock_userdata =
-		(void*)((char*)myblock + max_size - numb_of_pages * page_size);
+  meta_start = (Node*)myblock;
+  myblock_userdata =
+    (void*)((char*)myblock + max_size - numb_of_pages * page_size);
+
+  debug("meta_start=%p, myblock_userdata=%p", meta_start, myblock_userdata);
 }
 
 //sets metadata start address and number of pages expected on this machine for swap block
@@ -149,33 +143,35 @@ void* getShallocRegion(){
 //initializes the array
 //creates a start node, and an end node
 void initblock(){
-	max_size = (MAX_SIZE / page_size + !!(MAX_SIZE % page_size)) * page_size;
-	myblock = mmap(NULL, max_size,
-	               PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
-	if (myblock == MAP_FAILED) {
-		perror("could not mmap() memory");
-	}
-	assert(myblock != MAP_FAILED);
+  max_size = (MAX_SIZE / page_size + !!(MAX_SIZE % page_size)) * page_size;
+  myblock = mmap(NULL, max_size,
+                 PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+  if (myblock == MAP_FAILED) {
+  	perror("could not mmap() memory");
+  }
+  assert(myblock != MAP_FAILED);
+  debug("myblock located at %p with size %zu", myblock, max_size);
 
-	int fd = open("gthread_swap", O_RDWR | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
-	if (fd < 0) {
-		perror("could not open swap file; swap memory will not be file backed");
-	}
+  int fd = open("gthread_swap", O_RDWR | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
+  if (fd < 0) {
+    perror("could not open swap file; swap memory will not be file backed");
+  }
 
-	swap_size = (SWAP_SIZE / page_size + !!(SWAP_SIZE % page_size)) * page_size;
-	if (fd >= 0) {
-		if (ftruncate(fd, swap_size) < 0) {
-			perror("could not reserve space for swap file");
-			fd = -1;
-		}
-	}
-	swapblock = mmap(NULL, swap_size, PROT_READ | PROT_WRITE,
-	                 (fd >= 0 ? MAP_SHARED : MAP_ANONYMOUS | MAP_PRIVATE),
-	                 fd, 0);
-	if (swapblock == MAP_FAILED) {
-		perror("could not mmap() memory");
-	}
-	assert(swapblock != MAP_FAILED);
+  swap_size = (SWAP_SIZE / page_size + !!(SWAP_SIZE % page_size)) * page_size;
+  if (fd >= 0) {
+    if (ftruncate(fd, swap_size) < 0) {
+      perror("could not reserve space for swap file");
+      fd = -1;
+    }
+  }
+  swapblock = mmap(NULL, swap_size, PROT_READ | PROT_WRITE,
+                   (fd >= 0 ? MAP_SHARED : MAP_ANONYMOUS | MAP_PRIVATE),
+                   fd, 0);
+  if (swapblock == MAP_FAILED) {
+    perror("could not mmap() memory");
+  }
+  assert(swapblock != MAP_FAILED);
+  debug("swapblock located at %p with size %zu", swapblock, swap_size);
 
 	threads_allocated = 0; //initializes threads allocated counter
 
@@ -495,18 +491,19 @@ void* mymalloc(size_t size, gthread_task_t *owner){
 	debug("+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+");
 	debug("Size request %ld, gthread ID: %p", size, (void*)owner);
 	allocationFlag = NONE;
-	if (page_size == 0) {
-		long ret = sysconf(_SC_PAGESIZE);
-		if (ret == -1) {
-			perror("Could not get system page size");
-			return NULL;
-		}
-		page_size = (size_t)ret;
-	}
+  if (page_size == 0) {
+    long ret = sysconf(_SC_PAGESIZE);
+    if (ret == -1) {
+      perror("Could not get system page size");
+      return NULL;
+    }
+    page_size = (size_t)ret;
+    debug("page_size is %zu", page_size);
+  }
 	void* ptr = NULL;
     //initialize myblock if not initialized
     if(size < 1){
-				// malloc() does this but there is no good reason for us to
+        // malloc() does this but there is no good reason for us to
         fprintf(stderr, "mymalloc does not support 0 sized allocations\n");
         return NULL;
     }
@@ -519,7 +516,6 @@ void* mymalloc(size_t size, gthread_task_t *owner){
     if(meta_start == NULL){
     	initblock();
     }
-
 
     //traverse array until the pages for the requested thread is found, if
     //not found, create new thread page.
@@ -727,8 +723,9 @@ void myfree(void* p, gthread_task_t *owner){
 	Page_Internal* PI = does_pointer_exist(p, owner);
 	//if pointer is not in the array, throw error, return
 	if(PI == NULL){
-		fprintf(stderr, "Invalid input pointer. Pointer must be at the start of a "
-		                "previously allocated area of the memory array\n");
+    debug("bad free p=%p", p);
+    fprintf(stderr, "Invalid input pointer. Pointer must be at the start of a "
+                    "previously allocated area of the memory array\n");
 		return;
 	}
 
