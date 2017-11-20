@@ -9,9 +9,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+
+#include "my_malloc/mymalloc.h"
 #include "platform/clock.h"
 #include "sched/sched.h"
-#include "mymalloc.h"
 
 void* tasksupersimple(void* _) {
   printf("TASK SUPER SIMPLE\n");
@@ -31,7 +32,7 @@ void* tasksupersimple(void* _) {
 }
 
 void* task1(void* arg) {
-  printf("TASK1\n");
+  printf("TASK1 is %p\n", gthread_task_current());
 
   void* p = mymalloc(10000, gthread_task_current());
   void* x = mymalloc(20000, gthread_task_current());
@@ -50,11 +51,13 @@ void* task1(void* arg) {
 }
 
 void* task2(void* arg) {
-  printf("TASK2\n");
+  printf("TASK2 is %p\n", gthread_task_current());
 
   void* p = mymalloc(8000000, gthread_task_current());
+  assert(p != NULL);
   void* x = mymalloc(8000000, gthread_task_current());
-  //printThread(gthread_task_current());
+  assert(x == NULL);
+  printThread(gthread_task_current());
   printInternalMemory(gthread_task_current());
 
   shalloc(2000);
@@ -62,11 +65,15 @@ void* task2(void* arg) {
   return NULL;
 }
 
-void* task3(void* arg){
-  printf("TASK3\n");
+void* task3(void* arg) {
+  printf("TASK3 is %p\n", gthread_task_current());
 
-  void* p = mymalloc(8000000, gthread_task_current());
-  printInternalMemory(gthread_task_current());
+  for (int i = 0; i < 3; ++i) {
+    void* p = mymalloc(8000000, gthread_task_current());
+    assert(p != NULL);
+    printInternalMemory(gthread_task_current());
+    myfree(p, gthread_task_current());
+  }
 
   shalloc(3000);
   printShallocRegion();
@@ -82,8 +89,6 @@ int main() {
   assert(!ret);
   ret = gthread_sched_join(simple_task, NULL);
   assert(!ret);
-
-  return 0;
 
   gthread_sched_handle_t parallel_tasks[3] = {NULL};
 

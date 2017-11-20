@@ -10,7 +10,7 @@
 // each Page_Internal
 
 void printShallocRegion() {
-  Page_Internal* start = (Page_Internal*)getShallocRegion();
+  Page_Internal* start = (Page_Internal*)shallocRegion;
   debug("SHALLOC REGION +=-++=-++=-++=-++=-++=-++=-++=-++=-+");
   while ((void*)start != (void*)&myblock[MAX_SIZE - 1]) {
     if (start->used == TRUE) {
@@ -27,7 +27,7 @@ void printShallocRegion() {
 // it.  If no partition is found, and the index has overreached, then it returns
 // NULL
 Page_Internal* traverse(int size) {
-  Page_Internal* ptr = (Page_Internal*)getShallocRegion();
+  Page_Internal* ptr = (Page_Internal*)shallocRegion;
   while (ptr->used == TRUE || ptr->space < (size + sizeof(Page_Internal))) {
     // increment Page_Internal pointer by shifting the pointer by 1
     // Page_Internal space + Page_Internal->size
@@ -111,10 +111,10 @@ Page_Internal* checkLeftShalloc(Page_Internal* ptr) {
     // error
     return NULL;
   }
-  if ((void*)ptr == getShallocRegion()) {
+  if ((void*)ptr == shallocRegion) {
     return NULL;
   }
-  Page_Internal* leftp = (Page_Internal*)getShallocRegion();
+  Page_Internal* leftp = (Page_Internal*)shallocRegion;
   // while the next Page_Internal does not = the Page_Internal currently being
   // worked on
   while (((Page_Internal*)((char*)(leftp + 1) + leftp->space)) != ptr) {
@@ -143,7 +143,7 @@ Page_Internal* checkRightShalloc(Page_Internal* ptr) {
 // checks if the pointer inputted in the 'free()' function is inside the memory
 // array  returns TRUE if it is, false if it is not
 BOOLEAN checkpointShalloc(void* p) {
-  Page_Internal* current = (Page_Internal*)getShallocRegion();
+  Page_Internal* current = (Page_Internal*)shallocRegion;
   // current is not at the end
   while ((void*)current != (void*)&myblock[MAX_SIZE - 1]) {
     if ((void*)(current + 1) == p) {

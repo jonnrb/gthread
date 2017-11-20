@@ -53,12 +53,9 @@ void printShallocRegion();
 void debug(char* str);
 void printThread(gthread_task_t* owner);
 
-
-
-void* getShallocRegion(); //returns starting address of shalloc address space
-
 extern void* myblock;
 extern void* swapblock;
+extern void* shallocRegion;
 extern size_t page_size;
 
 #endif //_MYMALLOC_H

@@ -57,7 +57,7 @@ void printThread(gthread_task_t* owner){
 	while(numbpages > 0){
 		if(page->thread != NULL){
 			const char* indicator = page->thread == owner ? "C ->" : "    ";
-			debug("%s THREAD: %p,PAGE OFFSET: %d, PAGE SADDR: %p, PAGE EDDR: %p\n", indicator, page->thread,page->page_offset,page->page_start_addr, page->page_end_addr);
+			debug("%s THREAD: %p,PAGE OFFSET: %d, PAGE SADDR: %p, PAGE EDDR: %p", indicator, page->thread,page->page_offset,page->page_start_addr, page->page_end_addr);
 		}
 		page = page + 1;
 		numbpages --;
@@ -67,7 +67,7 @@ void printThread(gthread_task_t* owner){
 	while(numbpages > 0){
 		if(page->thread != NULL){
 			const char* indicator = page->thread == owner ? "C ->" : "    ";
-			debug("%s THREAD: %p, PAGE START ADDRESS: %p, PAGE END ADDRESS: %p\n", indicator, page->thread, page->page_start_addr, page->page_end_addr);
+			debug("%s THREAD: %p, PAGE START ADDRESS: %p, PAGE END ADDRESS: %p", indicator, page->thread, page->page_start_addr, page->page_end_addr);
 		}
 		page = page + 1;
 		numbpages --;
@@ -133,11 +133,6 @@ void swap_metadata_start_addr(){
 	swap_meta_start = (Node*)myblock;
 	swapblock_userdata =
 		(void*)((char*)swapblock + swap_size - numb_of_swap_pages * page_size);
-}
-
-//returns for other source files to get static variables (extern seems to not work)
-void* getShallocRegion(){
-	return shallocRegion;
 }
 
 //initializes the array
@@ -206,10 +201,11 @@ void initblock(){
 	}
 
 	//shalloc region creation
-	Page_Internal* shallocNode = (Page_Internal*)((char*)&myblock[max_size - 1] -  4*page_size); //backtrack four pages
-	shallocNode->space = 4*page_size - sizeof(Page_Internal); //create shalloc metadata
+	Page_Internal* shallocNode = (Page_Internal*)((char*)myblock + max_size - 4 * page_size); //backtrack four pages
+	shallocNode->space = 4 * page_size - sizeof(Page_Internal); //create shalloc metadata
 	shallocNode->used = FALSE;
 	shallocRegion = (void*)shallocNode;
+	debug("shallocRegion=%p", shallocRegion);
 }
 
 //returns the page in which the PageInternal pointer belongs to
@@ -714,7 +710,7 @@ void myfree(void* p, gthread_task_t *owner){
 
 	//check if p is in shalloc region
 	if((uintptr_t)p >= (uintptr_t)shallocRegion){
-		debug("delegating free to shalloc");
+		debug("(p=%p > shallocRegion=%p), delegating free to shalloc", p, shallocRegion);
 		myfreeShalloc(p);
 		return;
 	}
