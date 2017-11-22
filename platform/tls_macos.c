@@ -1,5 +1,3 @@
-#define _GNU_SOURCE
-
 #include "platform/tls.h"
 
 #include <assert.h>

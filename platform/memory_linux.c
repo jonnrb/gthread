@@ -5,9 +5,6 @@
  * info: implements Linux specific functionality
  */
 
-// lets us build in C11 mode
-#define _GNU_SOURCE
-
 #include "platform/memory.h"
 
 #include <errno.h>

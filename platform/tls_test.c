@@ -4,7 +4,6 @@
  * file: @gthread//platform/tls.c
  * info: text-includes platform-specific tls stuff (for make easy gnu)
  */
-#define _GNU_SOURCE
 
 #include "platform/tls.h"
 
