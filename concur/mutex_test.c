@@ -20,7 +20,7 @@ static char last_task_with_mutex = '-';
 static uint64_t mutextarget = 0;
 static bool go = false;
 
-#define k_num_loops 10 * 1000 * 1000
+#define k_num_loops 1000 * 1000
 
 void* important_task(void* arg) {
   const char* msg = (const char*)arg;
