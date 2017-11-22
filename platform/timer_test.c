@@ -42,7 +42,7 @@ int main() {
   assert(!gthread_timer_set_interval(g_usec_interval));
   int64_t now, start = gthread_clock_process();
   assert(start >= 0);
-  while (g_traps < 10) gthread_nsleep(10 * 1000);
+  while (g_traps < 10) {}
   now = gthread_clock_process();
   assert(now >= 0);
   double d_elapsed = (double)(now - start) / (1000 * 1000 * 1000);
