@@ -10,3 +10,4 @@ yujie_benchmark/vectorMultiply
 libmy_pthread.a
 *.d
 *.o
+gthread_swap

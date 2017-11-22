@@ -12,6 +12,7 @@
 #include <stdio.h>
 
 #include "arch/atomic.h"
+#include "my_malloc/mymalloc.h"
 #include "platform/clock.h"
 #include "platform/memory.h"
 #include "util/compiler.h"
@@ -140,8 +141,6 @@ static inline gthread_task_t* sched(gthread_task_t* last_running_task) {
 
   gthread_rb_node_t* node = gthread_rb_pop_min(&gthread_sched_runqueue);
 
-  g_interrupt_lock = 0;
-
   // XXX: remove the assumption that the runqueue is never empty. this is true
   // if all tasks are sleeping and there is actually nothing to do. right now
   // it is impossible to be in this state without some sort of deadlock.
@@ -158,7 +157,12 @@ static inline gthread_task_t* sched(gthread_task_t* last_running_task) {
     min_vruntime = next_task->s.rq.vruntime;
   }
 
+  // switch emulated task-owned memory regions
+  placePagesContig(next_task);
+
   maybe_end_stats_interval();
+
+  g_interrupt_lock = 0;
 
   return next_task;
 }

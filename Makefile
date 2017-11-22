@@ -12,6 +12,11 @@ local_LDFLAGS := -lm
 
 
 
+# TODO(jonnrb): remove -DLOG_DEBUG on release
+#local_CFLAGS += -DLOG_DEBUG
+
+
+
 SRCDIR = .
 OBJDIR = obj
 BINDIR = bin
@@ -33,6 +38,7 @@ include concur/module.mak
 include platform/module.mak
 include sched/module.mak
 include util/module.mak
+include my_malloc/module.mak
 #########
 
 objs: $(OBJECTS)
