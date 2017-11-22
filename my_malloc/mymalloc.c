@@ -5,6 +5,9 @@
 
 #include "my_malloc/log.h"
 
+#define MAX_SIZE 8388608
+#define SWAP_SIZE 16777216
+
 size_t max_size = -1; //Maximum size for Virtual Memory
 void* myblock = NULL; //8MB memory block
 void* myblock_userdata = NULL;
@@ -122,7 +125,7 @@ void metadata_start_addr(){
 
   meta_start = (Node*)myblock;
   myblock_userdata =
-    (void*)((char*)myblock + max_size - numb_of_pages * page_size);
+    (void*)((char*)myblock + malloc_space - numb_of_pages * page_size);
 
   debug("meta_start=%p, myblock_userdata=%p", meta_start, myblock_userdata);
 }
@@ -130,7 +133,7 @@ void metadata_start_addr(){
 //sets metadata start address and number of pages expected on this machine for swap block
 void swap_metadata_start_addr(){
 	numb_of_swap_pages = swap_size / (page_size + sizeof(Node));
-	swap_meta_start = (Node*)myblock;
+	swap_meta_start = (Node*)swapblock;
 	swapblock_userdata =
 		(void*)((char*)swapblock + swap_size - numb_of_swap_pages * page_size);
 }
@@ -138,11 +141,21 @@ void swap_metadata_start_addr(){
 //initializes the array
 //creates a start node, and an end node
 void initblock(){
+  if (page_size == 0) {
+    long ret = sysconf(_SC_PAGESIZE);
+    if (ret == -1) {
+      perror("Could not get system page size");
+      abort();
+    }
+    page_size = (size_t)ret;
+    debug("page_size is %zu", page_size);
+  }
+
   max_size = (MAX_SIZE / page_size + !!(MAX_SIZE % page_size)) * page_size;
   myblock = mmap(NULL, max_size,
                  PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
   if (myblock == MAP_FAILED) {
-  	perror("could not mmap() memory");
+    perror("could not mmap() memory");
   }
   assert(myblock != MAP_FAILED);
   debug("myblock located at %p with size %zu", myblock, max_size);
@@ -171,33 +184,29 @@ void initblock(){
 	threads_allocated = 0; //initializes threads allocated counter
 
 	metadata_start_addr(); //sets meta_start and number_of_pages
-	Node* metadata = meta_start;
 	//creating metadata for memoryblock
-	int metaIterator = 0;
-	while(metaIterator < numb_of_pages){
-		metadata->thread = NULL;
-		metadata->first_page = NULL;
-		metadata->next_page = NULL;
-		metadata->page_offset = 0;
-		metadata->page_start_addr = (void*)((char*)myblock_userdata + page_size*metaIterator);
-		metadata->page_end_addr = (void*)((char*)myblock_userdata + page_size*(metaIterator+1));
-		metadata = metadata+1;
-		metaIterator++;
+	for(int metaIterator = 0; metaIterator < numb_of_pages; metaIterator++){
+		assert((uintptr_t)&meta_start[metaIterator] < (uintptr_t)myblock_userdata);
+		meta_start[metaIterator].thread = NULL;
+		meta_start[metaIterator].first_page = NULL;
+		meta_start[metaIterator].next_page = NULL;
+		meta_start[metaIterator].page_offset = 0;
+		meta_start[metaIterator].page_start_addr = (void*)((char*)myblock_userdata + page_size*metaIterator);
+		meta_start[metaIterator].page_end_addr = (void*)((char*)myblock_userdata + page_size*(metaIterator+1));
+		assert((uintptr_t)meta_start[metaIterator].page_end_addr <= (uintptr_t)((char*)myblock + max_size - 4 * page_size));
 	}
 
 	//creating metadata for swapfileblock
 	swap_metadata_start_addr();
-	Node* swapmetadata = swap_meta_start;
-	metaIterator = 0;
-	while(metaIterator < numb_of_swap_pages){
-		swapmetadata->thread = NULL;
-		swapmetadata->first_page = NULL;
-		swapmetadata->next_page = NULL;
-		swapmetadata->page_offset = 0;
-		swapmetadata->page_start_addr = (void*)((char*)swapblock_userdata + page_size*metaIterator);
-		swapmetadata->page_end_addr = (void*)((char*)swapblock_userdata + page_size*(metaIterator+1));
-		swapmetadata = swapmetadata+1;
-		metaIterator++;
+	for(int metaIterator = 0; metaIterator < numb_of_swap_pages; metaIterator++){
+		assert((uintptr_t)&swap_meta_start[metaIterator] < (uintptr_t)swapblock_userdata);
+		swap_meta_start[metaIterator].thread = NULL;
+		swap_meta_start[metaIterator].first_page = NULL;
+		swap_meta_start[metaIterator].next_page = NULL;
+		swap_meta_start[metaIterator].page_offset = 0;
+		swap_meta_start[metaIterator].page_start_addr = (void*)((char*)swapblock_userdata + page_size*metaIterator);
+		swap_meta_start[metaIterator].page_end_addr = (void*)((char*)swapblock_userdata + page_size*(metaIterator+1));
+		assert((uintptr_t)swap_meta_start[metaIterator].page_end_addr <= (uintptr_t)((char*)swapblock + swap_size));
 	}
 
 	//shalloc region creation
@@ -349,24 +358,20 @@ return NULL;
 
 //returns an empty page in the memory block. Returns NULL if empty page not found
 Node* getEmptyPage(){
-	Node* metadata = (Node*)meta_start;
-	int metacounter = 0;
-	while(metacounter < numb_of_pages){
+	Node* metadata = meta_start;
+	for(int metacounter = 0; metacounter < numb_of_pages; metacounter++){
 		if(metadata->thread == NULL){
 			return metadata;
 		}
-		metadata = metadata + 1;
-		metacounter++;
+		metadata++;
 	}
 	//swap file check
 	Node* swapmeta = (Node*)swap_meta_start;
-	metacounter = 0;
-	while(metacounter < numb_of_swap_pages){
+	for(int metacounter = 0; metacounter < numb_of_swap_pages; metacounter++){
 		if(swapmeta->thread == NULL){
 			return swapmeta;
 		}
-		swapmeta = swapmeta + 1;
-		metacounter++;
+		swapmeta++;
 	}
 	return NULL;
 }
@@ -485,17 +490,8 @@ Node* createThreadPage(gthread_task_t *owner){
 
 void* mymalloc(size_t size, gthread_task_t *owner){
 	debug("+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+");
-	debug("Size request %ld, gthread ID: %p", size, (void*)owner);
+	debug("Size request %zu, gthread ID: %p", size, (void*)owner);
 	allocationFlag = NONE;
-  if (page_size == 0) {
-    long ret = sysconf(_SC_PAGESIZE);
-    if (ret == -1) {
-      perror("Could not get system page size");
-      return NULL;
-    }
-    page_size = (size_t)ret;
-    debug("page_size is %zu", page_size);
-  }
 	void* ptr = NULL;
     //initialize myblock if not initialized
     if(size < 1){
@@ -510,15 +506,17 @@ void* mymalloc(size_t size, gthread_task_t *owner){
 
     //initialize entire memory array, create metadata nodes at the end of the memory block (before shalloc region)
     if(meta_start == NULL){
-    	initblock();
+        initblock();
     }
 
     //traverse array until the pages for the requested thread is found, if
     //not found, create new thread page.
     Node* page = findThreadPage(owner);
-    //printf("Page starting addr: %p\n", page->page_start_addr);
     if(page == NULL){ //if thread does not have an allocated space
-    	page = createThreadPage(owner);
+        page = createThreadPage(owner);
+        if (page != NULL) {
+            debug("created thread page at %p with page_start_addr=%p", page, page->page_start_addr);
+        }
     }
     if(page == NULL){ //no space for thread left in VM
     	fprintf(stderr, "No space left in VM for requested thread Memory Allocation.\n");

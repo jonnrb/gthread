@@ -1,7 +1,6 @@
 #ifndef _MYMALLOC_H
 #define _MYMALLOC_H
-#define MAX_SIZE 8388608
-#define SWAP_SIZE 16777216
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
@@ -33,6 +32,7 @@ typedef struct _node{
 typedef struct page_internal{
 	int space; //space inside the current page
 	BOOLEAN used;
+	char data[0];
 } Page_Internal;
 
 
@@ -54,8 +54,12 @@ void debug(char* str);
 void printThread(gthread_task_t* owner);
 
 extern void* myblock;
-extern void* swapblock;
 extern void* shallocRegion;
+extern size_t max_size;
+
+extern void* swapblock;
+extern size_t swap_size;
+
 extern size_t page_size;
 
 #endif //_MYMALLOC_H

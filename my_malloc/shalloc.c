@@ -1,5 +1,7 @@
 #include "my_malloc/mymalloc.h"
 
+#include <stddef.h>
+
 #include "my_malloc/log.h"
 
 //////////////////////////////////////////////////////////////////////
@@ -10,17 +12,18 @@
 // each Page_Internal
 
 void printShallocRegion() {
-  Page_Internal* start = (Page_Internal*)shallocRegion;
+  Page_Internal* it = (Page_Internal*)shallocRegion;
   debug("SHALLOC REGION +=-++=-++=-++=-++=-++=-++=-++=-++=-+");
-  while ((void*)start != (void*)&myblock[MAX_SIZE - 1]) {
-    if (start->used == TRUE) {
-      debug("SHALLOC USED: TRUE, SPACE: %d", start->space);
+  while ((uintptr_t)it < (uintptr_t)((char*)myblock + max_size)) {
+    if (it->used == TRUE) {
+      debug("SHALLOC USED: TRUE, SPACE: %d", it->space);
     } else {
-      debug("SHALLOC USED: FALSE, SPACE: %d", start->space);
+      debug("SHALLOC USED: FALSE, SPACE: %d", it->space);
     }
 
-    start = (Page_Internal*)((char*)(start + 1) + start->space);
+    it = (Page_Internal*)(it->data + it->space);
   }
+  assert((uintptr_t)it == (uintptr_t)((char*)myblock + max_size));
 }
 
 // Traverses the array, searching for sections with size 'size', and returning
@@ -28,16 +31,17 @@ void printShallocRegion() {
 // NULL
 Page_Internal* traverse(int size) {
   Page_Internal* ptr = (Page_Internal*)shallocRegion;
-  while (ptr->used == TRUE || ptr->space < (size + sizeof(Page_Internal))) {
+  while ((uintptr_t)ptr < (uintptr_t)((char*)myblock + max_size)) {
+    // last Page_Internal, denoting the end of the memory array
+    if (ptr->used == FALSE && ptr->space >= (size + sizeof(Page_Internal))) {
+      return ptr;
+    }
     // increment Page_Internal pointer by shifting the pointer by 1
     // Page_Internal space + Page_Internal->size
-    ptr = (Page_Internal*)((char*)(ptr + 1) + (ptr->space));
-    // last Page_Internal, denoting the end of the memory array
-    if ((void*)ptr == (void*)&myblock[MAX_SIZE - 1]) {
-      return NULL;
-    }
+    ptr = (Page_Internal*)(ptr->data + ptr->space);
   }
-  return ptr;
+  assert((uintptr_t)ptr == (uintptr_t)((char*)myblock + max_size));
+  return NULL;
 }
 
 // When a valid partition is found, a Page_Internal is created to hold the space
@@ -53,7 +57,7 @@ void* allocatenew(Page_Internal* Page_Internalptr, int size) {
   // space  and create a new Page_Internal to indicate the space left
   if (totalspace > 0) {
     temptr = Page_Internalptr;
-    temptr = (Page_Internal*)((char*)(temptr + 1) + size);
+    temptr = (Page_Internal*)(temptr->data + size);
     temptr->space = totalspace;
     temptr->used = FALSE;
   }
@@ -64,15 +68,14 @@ void* allocatenew(Page_Internal* Page_Internalptr, int size) {
   Page_Internalptr->used = TRUE;
   // a void pointer to the space after the Page_Internal(the space requested),
   // is returned to the main malloc function
-  void* ptr = (void*)(Page_Internalptr + 1);
-  return ptr;
+  return Page_Internalptr->data;
 }
 
 void* shalloc(size_t size) {
   void* ptr = NULL;
   // initialize myblock if not initialized
   if (size < 1) {
-    fprintf(stderr, "mymalloc does not support 0 sized allocations\n");
+    fprintf(stderr, "shalloc does not support 0 sized allocations\n");
     return NULL;
   }
   // initialize
@@ -145,11 +148,11 @@ Page_Internal* checkRightShalloc(Page_Internal* ptr) {
 BOOLEAN checkpointShalloc(void* p) {
   Page_Internal* current = (Page_Internal*)shallocRegion;
   // current is not at the end
-  while ((void*)current != (void*)&myblock[MAX_SIZE - 1]) {
-    if ((void*)(current + 1) == p) {
+  while ((uintptr_t)current < (uintptr_t)((char*)myblock + max_size)) {
+    if (current->data == p) {
       return TRUE;
     }
-    current = (Page_Internal*)((char*)(current + 1) + current->space);
+    current = (Page_Internal*)(current->data + current->space);
   }
   return FALSE;
 }
@@ -172,8 +175,8 @@ void myfreeShalloc(void* p) {
   }
   // converts pointer to a Page_Internal type, and subtracts it by 1 to get to
   // the Page_Internal that corresponds to it
-  Page_Internal* ptr = (Page_Internal*)p;
-  ptr = ptr - 1;
+  Page_Internal* ptr =
+      (Page_Internal*)((char*)p - offsetof(Page_Internal, data));
 
   // Checks Page_Internal, if null or the 'used' flag is found to be false, then
   // the pointer was not allocated for

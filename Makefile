@@ -12,6 +12,11 @@ local_LDFLAGS := -lm
 
 
 
+# TODO(jonnrb): remove -DLOG_DEBUG on release
+#local_CFLAGS += -DLOG_DEBUG
+
+
+
 SRCDIR = .
 OBJDIR = obj
 BINDIR = bin
