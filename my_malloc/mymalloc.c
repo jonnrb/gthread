@@ -34,15 +34,6 @@ void* getEndAddr(gthread_task_t* owner, Node* inppage);
 
 /////////////////////////GENERAL FUNCTIONS////////////////////////////////////////
 
-//prints out in format "DEBUG: INPUT STRING"
-#ifndef NDEBUG
-#define debug_impl(fmt, ...) \
-  fprintf(stderr, "DEBUG: " fmt "%s\n", __VA_ARGS__)
-#define debug(...) debug_impl(__VA_ARGS__, "")
-#else
-#define debug(...)
-#endif
-
 //pointer arithmatic to get new Page_Internal node.
 Page_Internal* getNextPI(Page_Internal* PI){
 	return (Page_Internal*)((char*)(PI+1) + PI->space);
@@ -72,8 +63,7 @@ void printThread(gthread_task_t* owner){
 	int numbpages = numb_of_pages;
 	while(numbpages > 0){
 		if(page->thread != NULL){
-			const char* indicator = page->thread == owner ? "C ->" : "    ";
-			debug("%s THREAD: %p,PAGE OFFSET: %d, PAGE SADDR: %p, PAGE EDDR: %p", indicator, page->thread,page->page_offset,page->page_start_addr, page->page_end_addr);
+			debug("%s THREAD: %p,PAGE OFFSET: %d, PAGE SADDR: %p, PAGE EDDR: %p", page->thread == owner ? "C ->" : "    ", page->thread,page->page_offset,page->page_start_addr, page->page_end_addr);
 		}
 		page = page + 1;
 		numbpages --;
@@ -82,8 +72,7 @@ void printThread(gthread_task_t* owner){
 	numbpages = numb_of_swap_pages;
 	while(numbpages > 0){
 		if(page->thread != NULL){
-			const char* indicator = page->thread == owner ? "C ->" : "    ";
-			debug("%s THREAD: %p, PAGE START ADDRESS: %p, PAGE END ADDRESS: %p", indicator, page->thread, page->page_start_addr, page->page_end_addr);
+			debug("%s THREAD: %p, PAGE START ADDRESS: %p, PAGE END ADDRESS: %p", page->thread == owner ? "C ->" : "    ", page->thread, page->page_start_addr, page->page_end_addr);
 		}
 		page = page + 1;
 		numbpages --;
