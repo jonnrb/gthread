@@ -2,7 +2,11 @@
 
 #include <stddef.h>
 
+#include "concur/mutex.h"
 #include "my_malloc/log.h"
+
+static gthread_mutex_t shalloc_mu;
+static int shalloc_mu_init = 0;
 
 //////////////////////////////////////////////////////////////////////
 // SHALLOC//
@@ -10,7 +14,6 @@
 
 // Goes through each Page_Internal in the array and prints the attributes of
 // each Page_Internal
-
 void printShallocRegion() {
   Page_Internal* it = (Page_Internal*)shallocRegion;
   debug("SHALLOC REGION +=-++=-++=-++=-++=-++=-++=-++=-++=-+");
@@ -83,10 +86,24 @@ void* shalloc(size_t size) {
     initblock();
   }
 
+  gthread_sched_uninterruptable_lock();
+  if (shalloc_mu_init != 1) {
+    if (gthread_mutex_init(&shalloc_mu, NULL)) {
+      fprintf(stderr, "could not initialize mutex\n");
+      fflush(stderr);
+      abort();
+    }
+    shalloc_mu_init = 1;
+  }
+  gthread_sched_uninterruptable_unlock();
+
+  gthread_mutex_lock(&shalloc_mu);
+
   // traverse array until free space is found
   Page_Internal* Page_Internalptr = traverse(size);
   // if the end is reached, no valid space is found
   if (Page_Internalptr == NULL) {
+    gthread_mutex_unlock(&shalloc_mu);
     return NULL;
   }
   // another verification for the metadata
@@ -95,6 +112,8 @@ void* shalloc(size_t size) {
     // allocate new space and return
     ptr = allocatenew(Page_Internalptr, size);
   }
+
+  gthread_mutex_unlock(&shalloc_mu);
 
   // returns void pointer to the caller
   return ptr;
@@ -164,6 +183,8 @@ void myfreeShalloc(void* p) {
   // checks if pointer is in the array
   BOOLEAN valid = checkpointShalloc(p);
 
+  gthread_mutex_lock(&shalloc_mu);
+
   // if pointer is not in the array, throw error, return
   if (valid == FALSE) {
     debug("invalid free of p=%p", p);
@@ -171,6 +192,7 @@ void myfreeShalloc(void* p) {
         stderr,
         "Invalid input pointer. Pointer must be at the start of a previously "
         "allocated area of the memory array\n");
+    gthread_mutex_unlock(&shalloc_mu);
     return;
   }
   // converts pointer to a Page_Internal type, and subtracts it by 1 to get to
@@ -183,6 +205,7 @@ void myfreeShalloc(void* p) {
   if (ptr->used == FALSE) {
     // error
     fprintf(stderr, "Error, attempted to free an unallocated pointer!\n");
+    gthread_mutex_unlock(&shalloc_mu);
     return;
   }
 
@@ -205,5 +228,7 @@ void myfreeShalloc(void* p) {
     leftp->space = leftp->space + ptr->space + sizeof(Page_Internal);
     ptr = NULL;
   }
+
+  gthread_mutex_unlock(&shalloc_mu);
   return;
 }

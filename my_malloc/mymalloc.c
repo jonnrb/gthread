@@ -10,7 +10,7 @@
 #define MAX_SIZE 8388608
 #define SWAP_SIZE 16777216
 
-gthread_mutex_t malloc_mu;
+static gthread_mutex_t malloc_mu;
 
 size_t max_size = -1; //Maximum size for Virtual Memory
 void* myblock = NULL; //8MB memory block
