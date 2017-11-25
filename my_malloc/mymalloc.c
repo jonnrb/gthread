@@ -3,10 +3,14 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 
+#include "concur/mutex.h"
 #include "my_malloc/log.h"
+#include "my_malloc/protection.h"
 
 #define MAX_SIZE 8388608
 #define SWAP_SIZE 16777216
+
+gthread_mutex_t malloc_mu;
 
 size_t max_size = -1; //Maximum size for Virtual Memory
 void* myblock = NULL; //8MB memory block
@@ -137,6 +141,17 @@ void swap_metadata_start_addr(){
 //initializes the array
 //creates a start node, and an end node
 void initblock(){
+  gthread_sched_uninterruptable_lock();
+  if (page_size == 0) {
+    if (gthread_mutex_init(&malloc_mu, NULL)) {
+      fprintf(stderr, "could not initialize mutex\n");
+      fflush(stderr);
+      abort();
+    }
+  }
+  gthread_sched_uninterruptable_unlock();
+
+  gthread_mutex_lock(&malloc_mu);
   if (page_size == 0) {
     long ret = sysconf(_SC_PAGESIZE);
     if (ret == -1) {
@@ -145,6 +160,9 @@ void initblock(){
     }
     page_size = (size_t)ret;
     debug("page_size is %zu", page_size);
+  } else {
+    gthread_mutex_unlock(&malloc_mu);
+    return;
   }
 
   max_size = (MAX_SIZE / page_size + !!(MAX_SIZE % page_size)) * page_size;
@@ -191,6 +209,7 @@ void initblock(){
 		meta_start[metaIterator].page_end_addr = (void*)((char*)myblock_userdata + page_size*(metaIterator+1));
 		assert((uintptr_t)meta_start[metaIterator].page_end_addr <= (uintptr_t)((char*)myblock + max_size - 4 * page_size));
 	}
+	gthread_malloc_protect_region(myblock_userdata, numb_of_pages * page_size);
 
 	//creating metadata for swapfileblock
 	swap_metadata_start_addr();
@@ -204,6 +223,7 @@ void initblock(){
 		swap_meta_start[metaIterator].page_end_addr = (void*)((char*)swapblock_userdata + page_size*(metaIterator+1));
 		assert((uintptr_t)swap_meta_start[metaIterator].page_end_addr <= (uintptr_t)((char*)swapblock + swap_size));
 	}
+	gthread_malloc_protect_region(swapblock_userdata, numb_of_swap_pages * page_size);
 
 	//shalloc region creation
 	Page_Internal* shallocNode = (Page_Internal*)((char*)myblock + max_size - 4 * page_size); //backtrack four pages
@@ -211,6 +231,11 @@ void initblock(){
 	shallocNode->used = FALSE;
 	shallocRegion = (void*)shallocNode;
 	debug("shallocRegion=%p", shallocRegion);
+
+	// set segv handler
+	gthread_malloc_protection_init();
+
+  gthread_mutex_unlock(&malloc_mu);
 }
 
 //returns the page in which the PageInternal pointer belongs to
@@ -249,6 +274,12 @@ void swapPages(Node* source, Node* target){
 	if(source == NULL || target == NULL){
 		return;
 	}
+	if (source->thread != gthread_task_current()) {
+		gthread_malloc_unprotect_region(source->page_start_addr, page_size);
+	}
+	if (target->thread != gthread_task_current()) {
+		gthread_malloc_unprotect_region(target->page_start_addr, page_size);
+	}
 	void* tempstartaddr = source->page_start_addr;
 	void* tempendaddr = source->page_end_addr;
 	char temp[page_size]; //temporary holder of source page
@@ -259,6 +290,12 @@ void swapPages(Node* source, Node* target){
 	source->page_end_addr = target->page_end_addr;
 	target->page_start_addr = tempstartaddr;
 	target->page_end_addr = tempendaddr;
+	if (source->thread != gthread_task_current()) {
+		gthread_malloc_protect_region(source->page_start_addr, page_size);
+	}
+	if (target->thread != gthread_task_current()) {
+		gthread_malloc_protect_region(target->page_start_addr, page_size);
+	}
 	//swap complete
 	return;
 }
@@ -611,6 +648,7 @@ void FreePages(Page_Internal* PI, int freePages, Node* startingPage, BETWEEN_OR_
 			page_iterator->page_offset = 0;
 			pages_allocated--;
 			page_iterator = nextPage;
+			gthread_malloc_protect_region(page_iterator->page_start_addr, page_size);
 		}
 		threads_allocated--;
 		return;

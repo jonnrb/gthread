@@ -1,11 +1,26 @@
 #include "my_malloc/protection.h"
 
 #include <signal.h>
+#include <sys/mman.h>
 
+#include "my_malloc/log.h"
 #include "my_malloc/mymalloc.h"
 
-static void gthread_segv_trap(int signum, siginfo_t* info, ucontext_t* uap) {
+static int restore_signal(int signum) {
+  struct sigaction sa;
+
+  sa.sa_flags = SA_SIGINFO;
+  sigemptyset(&sa.sa_mask);
+  sa.sa_handler = SIG_DFL;
+  return sigaction(signum, &sa, NULL);
+}
+
+static void gthread_segv_trap(int signum, siginfo_t* info, void* uctx) {
+#ifdef __APPLE__
+  assert(signum == SIGSEGV || signum == SIGBUS);
+#else
   assert(signum == SIGSEGV);
+#endif
 
   gthread_task_t* current = gthread_task_current();
   Node* page = whichPage(info->si_addr);
@@ -13,7 +28,12 @@ static void gthread_segv_trap(int signum, siginfo_t* info, ucontext_t* uap) {
     fprintf(stderr, "segmentation fault by task %p at address %p\n", current,
             info->si_addr);
     fflush(stderr);
-    abort();
+    // attempt to let the original signal to crash the process
+    if (restore_signal(signum)) {
+      abort();
+    } else {
+      return;
+    }
   }
   if (branch_unexpected(page->thread != current)) {
     fprintf(stderr,
@@ -21,7 +41,12 @@ static void gthread_segv_trap(int signum, siginfo_t* info, ucontext_t* uap) {
             "at address %p\n",
             current, page->thread, info->si_addr);
     fflush(stderr);
-    abort();
+    // attempt to let the original signal to crash the process
+    if (restore_signal(signum)) {
+      abort();
+    } else {
+      return;
+    }
   }
 
   // check size of page is a multiple of `page_size`
@@ -31,18 +56,32 @@ static void gthread_segv_trap(int signum, siginfo_t* info, ucontext_t* uap) {
   // check page start address is aligned to `page_size` boundary
   assert((uintptr_t)page->page_start_addr % page_size == 0);
 
-  mprotect(page->page_start_addr,
-           (uintptr_t)page->page_end_addr - (uintptr_t)page->page_start_addr,
-           PROT_READ | PROT_WRITE);
+  gthread_malloc_unprotect_region(
+      page->page_start_addr,
+      (uintptr_t)page->page_end_addr - (uintptr_t)page->page_start_addr);
 }
 
 void gthread_malloc_protection_init() {
   struct sigaction sa;
 
   sa.sa_flags = SA_SIGINFO;
-  sigemptyset(&sa.sa_mask);
-  sa.sa_sigaction = handler;
-  if (!sigaction(SIGSEGV, &sa, NULL)) {
+  // block all signals (delaying timers)
+  sigfillset(&sa.sa_mask);
+  sa.sa_sigaction = gthread_segv_trap;
+  if (sigaction(SIGSEGV, &sa, NULL) != 0) {
     fprintf(stderr, "warning: memory protection will not work as expected\n");
   }
+#ifdef __APPLE__
+  if (sigaction(SIGBUS, &sa, NULL) != 0) {
+    fprintf(stderr, "warning: memory protection will not work as expected\n");
+  }
+#endif
+}
+
+void gthread_malloc_protect_region(void* region, size_t size) {
+  mprotect(region, size, PROT_NONE);
+}
+
+void gthread_malloc_unprotect_region(void* region, size_t size) {
+  mprotect(region, size, PROT_READ | PROT_WRITE);
 }

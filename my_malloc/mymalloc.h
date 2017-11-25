@@ -50,7 +50,6 @@ Node* findThreadPage(gthread_task_t *owner);
 void printInternalMemory(gthread_task_t* owner);
 void printpages();
 void printShallocRegion();
-void debug(char* str);
 void printThread(gthread_task_t* owner);
 
 extern void* myblock;
