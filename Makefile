@@ -7,7 +7,7 @@ include makeutils.mak
 
 
 
-local_CFLAGS := -xc -std=c11 -Wall -fPIC -I.
+local_CFLAGS := -xc -std=c11 -Wall -fPIC -I. -D_GNU_SOURCE
 local_LDFLAGS := -lm
 
 

@@ -5,8 +5,6 @@
  * info: implement thread local storage (ELF spec) on linux piggybacking glibc
  */
 
-#define _GNU_SOURCE
-
 #include "platform/tls.h"
 
 #include <asm/prctl.h>

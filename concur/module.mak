@@ -6,6 +6,6 @@
 MODULE := concur
 LIBS := mutex
 TESTS := mutex_test
-TEST-DEPS := $(OBJDIR)/my_malloc.a $(OBJDIR)/sched.a $(OBJDIR)/platform.a $(OBJDIR)/arch.a $(OBJDIR)/util.a
+TEST-DEPS := $(OBJDIR)/sched.a $(OBJDIR)/my_malloc.a $(OBJDIR)/platform.a $(OBJDIR)/arch.a $(OBJDIR)/util.a
 
 include make_module.mak
