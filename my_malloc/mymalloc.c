@@ -34,6 +34,15 @@ void* getEndAddr(gthread_task_t* owner, Node* inppage);
 
 /////////////////////////GENERAL FUNCTIONS////////////////////////////////////////
 
+//prints out in format "DEBUG: INPUT STRING"
+#ifndef NDEBUG
+#define debug_impl(fmt, ...) \
+  fprintf(stderr, "DEBUG: " fmt "%s\n", __VA_ARGS__)
+#define debug(...) debug_impl(__VA_ARGS__, "")
+#else
+#define debug(...)
+#endif
+
 //pointer arithmatic to get new Page_Internal node.
 Page_Internal* getNextPI(Page_Internal* PI){
 	return (Page_Internal*)((char*)(PI+1) + PI->space);
