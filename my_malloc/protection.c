@@ -56,6 +56,7 @@ static void gthread_segv_trap(int signum, siginfo_t* info, void* uctx) {
   // check page start address is aligned to `page_size` boundary
   assert((uintptr_t)page->page_start_addr % page_size == 0);
 
+  page->protected = FALSE;
   gthread_malloc_unprotect_region(
       page->page_start_addr,
       (uintptr_t)page->page_end_addr - (uintptr_t)page->page_start_addr);
@@ -84,4 +85,14 @@ void gthread_malloc_protect_region(void* region, size_t size) {
 
 void gthread_malloc_unprotect_region(void* region, size_t size) {
   mprotect(region, size, PROT_READ | PROT_WRITE);
+}
+
+void gthread_malloc_protect_own_pages() {
+  gthread_task_t* current = gthread_task_current();
+  for (Node* it = findThreadPage(current); it != NULL; it = it->next_page) {
+    if (it->protected == FALSE) {
+      gthread_malloc_protect_region(it->page_start_addr, page_size);
+      it->protected = TRUE;
+    }
+  }
 }

@@ -11,4 +11,6 @@ void gthread_malloc_protect_region(void* region, size_t size);
 
 void gthread_malloc_unprotect_region(void* region, size_t size);
 
+void gthread_malloc_protect_own_pages();
+
 #endif  // MY_MALLOC_PROTECTION_H_

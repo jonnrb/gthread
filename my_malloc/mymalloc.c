@@ -216,6 +216,7 @@ void initblock(){
 		meta_start[metaIterator].page_offset = 0;
 		meta_start[metaIterator].page_start_addr = (void*)((char*)myblock_userdata + page_size*metaIterator);
 		meta_start[metaIterator].page_end_addr = (void*)((char*)myblock_userdata + page_size*(metaIterator+1));
+		meta_start[metaIterator].protected = TRUE;
 		assert((uintptr_t)meta_start[metaIterator].page_end_addr <= (uintptr_t)((char*)myblock + max_size - 4 * page_size));
 	}
 	gthread_malloc_protect_region(myblock_userdata, numb_of_pages * page_size);
@@ -230,6 +231,7 @@ void initblock(){
 		swap_meta_start[metaIterator].page_offset = 0;
 		swap_meta_start[metaIterator].page_start_addr = (void*)((char*)swapblock_userdata + page_size*metaIterator);
 		swap_meta_start[metaIterator].page_end_addr = (void*)((char*)swapblock_userdata + page_size*(metaIterator+1));
+		swap_meta_start[metaIterator].protected = TRUE;
 		assert((uintptr_t)swap_meta_start[metaIterator].page_end_addr <= (uintptr_t)((char*)swapblock + swap_size));
 	}
 	gthread_malloc_protect_region(swapblock_userdata, numb_of_swap_pages * page_size);
@@ -283,10 +285,10 @@ void swapPages(Node* source, Node* target){
 	if(source == NULL || target == NULL){
 		return;
 	}
-	if (source->thread != gthread_task_current()) {
+	if (source->thread != gthread_task_current() && source->protected == TRUE) {
 		gthread_malloc_unprotect_region(source->page_start_addr, page_size);
 	}
-	if (target->thread != gthread_task_current()) {
+	if (target->thread != gthread_task_current() && target->protected == TRUE) {
 		gthread_malloc_unprotect_region(target->page_start_addr, page_size);
 	}
 	void* tempstartaddr = source->page_start_addr;
@@ -299,10 +301,10 @@ void swapPages(Node* source, Node* target){
 	source->page_end_addr = target->page_end_addr;
 	target->page_start_addr = tempstartaddr;
 	target->page_end_addr = tempendaddr;
-	if (source->thread != gthread_task_current()) {
+	if (source->thread != gthread_task_current() && source->protected == TRUE) {
 		gthread_malloc_protect_region(source->page_start_addr, page_size);
 	}
-	if (target->thread != gthread_task_current()) {
+	if (target->thread != gthread_task_current() && target->protected == TRUE) {
 		gthread_malloc_protect_region(target->page_start_addr, page_size);
 	}
 	//swap complete
@@ -656,8 +658,11 @@ void FreePages(Page_Internal* PI, int freePages, Node* startingPage, BETWEEN_OR_
 			page_iterator->thread = NULL;
 			page_iterator->page_offset = 0;
 			pages_allocated--;
+			if (page_iterator->protected == FALSE) {
+				gthread_malloc_protect_region(page_iterator->page_start_addr, page_size);
+				page_iterator->protected = TRUE;
+			}
 			page_iterator = nextPage;
-			gthread_malloc_protect_region(page_iterator->page_start_addr, page_size);
 		}
 		threads_allocated--;
 		return;
@@ -670,15 +675,12 @@ void FreePages(Page_Internal* PI, int freePages, Node* startingPage, BETWEEN_OR_
 	debug("prevPage offset is: %d", prevPage->page_offset);
 	while(freePages>0 && startingPage != NULL){
 		prevPage->next_page = startingPage->next_page;
-		if(prevPage->next_page == NULL){
-		}
 		startingPage->first_page = NULL;
 		startingPage->next_page = NULL;
 		startingPage->thread = NULL;
 		startingPage->page_offset = 0;
 		pages_allocated--;
 		startingPage = prevPage->next_page;
-
 		freePages--;
 	}
 	if(allocationFlag == END){

@@ -13,6 +13,7 @@
 
 #include "arch/atomic.h"
 #include "my_malloc/mymalloc.h"
+#include "my_malloc/protection.h"
 #include "platform/clock.h"
 #include "platform/memory.h"
 #include "util/compiler.h"
@@ -159,6 +160,7 @@ static inline gthread_task_t* sched(gthread_task_t* last_running_task) {
 
   // switch emulated task-owned memory regions
   placePagesContig(next_task);
+  gthread_malloc_protect_own_pages();
 
   maybe_end_stats_interval();
 
