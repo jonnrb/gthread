@@ -121,6 +121,7 @@ void* busy_task(void* arg) {
   }
 
   myfree(arr, gthread_task_current());
+  fprintf(stderr, "busy_task %p finished\n", gthread_task_current());
 
   return NULL;
 }
