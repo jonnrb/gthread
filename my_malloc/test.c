@@ -5,12 +5,15 @@
  * info: tests mutex by locking and unlocking in a tight loop across threads
  */
 
+// run `make clean && make CFLAGS=-DLOG_DEBUG bin-test/my_malloc/test` to get
+// debug logging for my_malloc
+
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 
-#include "my_malloc/mymalloc.h"
+#include "my_malloc.h"
 #include "platform/clock.h"
 #include "sched/sched.h"
 
@@ -18,7 +21,7 @@ void* tasksupersimple(void* _) {
   printf("TASK SUPER SIMPLE\n");
 
   printf("TASK SUPER SIMPLE: allocating\n");
-  volatile int* p = (int*)mymalloc(1000 * sizeof(int), gthread_task_current());
+  volatile int* p = (int*)malloc(1000 * sizeof(int));
 
   printf("TASK SUPER SIMPLE: writing\n");
   for (int i = 0; i < 1000; ++i) {
@@ -26,7 +29,7 @@ void* tasksupersimple(void* _) {
   }
 
   printf("TASK SUPER SIMPLE: freeing\n");
-  myfree((void*)p, gthread_task_current());
+  free((void*)p);
 
   return NULL;
 }
@@ -35,17 +38,17 @@ void* task1(void* arg) {
   printf("TASK1 is %p\n", gthread_task_current());
 
   printf("allocating several blocks and then freeing them\n");
-  void* p = mymalloc(10000, gthread_task_current());
-  void* x = mymalloc(20000, gthread_task_current());
-  void* z = mymalloc(10000, gthread_task_current());
-  myfree(p, gthread_task_current());
-  myfree(x, gthread_task_current());
-  myfree(z, gthread_task_current());
+  void* p = malloc(10000);
+  void* x = malloc(20000);
+  void* z = malloc(10000);
+  free(p);
+  free(x);
+  free(z);
 
   printInternalMemory(gthread_task_current());
 
   void* sp = shalloc(1000);
-  myfree(sp, gthread_task_current());
+  free(sp);
   printShallocRegion();
 
   return NULL;
@@ -55,25 +58,25 @@ void* task2(void* arg) {
   printf("TASK2 is %p\n", gthread_task_current());
 
   printf("allocating 8MB; should work\n");
-  void* p = mymalloc(8000000, gthread_task_current());
+  void* p = malloc(8000000);
   assert(p != NULL);
 
   printf("allocating 8MB; should fail\n");
-  void* x = mymalloc(8000000, gthread_task_current());
+  void* x = malloc(8000000);
   assert(x == NULL);
 
   printf("freeing pointer %p\n", p);
-  myfree(p, gthread_task_current());
+  free(p);
 
   printf("freeing pointer %p (expecting failure)\n", x);
-  myfree(x, gthread_task_current());
+  free(x);
 
   printf("shalloc()ing 2K\n");
   void* s = shalloc(2000);
   assert(s != NULL);
   printShallocRegion();
   printf("freeing shalloc memory\n");
-  myfree(s, gthread_task_current());
+  free(s);
 
   return NULL;
 }
@@ -82,10 +85,10 @@ void* task3(void* arg) {
   printf("TASK3 is %p\n", gthread_task_current());
 
   for (int i = 0; i < 3; ++i) {
-    void* p = mymalloc(8000000, gthread_task_current());
+    void* p = malloc(8000000);
     assert(p != NULL);
     printInternalMemory(gthread_task_current());
-    myfree(p, gthread_task_current());
+    free(p);
   }
 
   shalloc(3000);
@@ -101,8 +104,7 @@ void* busy_task(void* arg) {
 
   unsigned size = range[1] - range[0];
 
-  unsigned* arr =
-      (unsigned*)mymalloc(size * sizeof(unsigned), gthread_task_current());
+  unsigned* arr = (unsigned*)malloc(size * sizeof(unsigned));
   printf("task %p using array at %p of size %zu\n", gthread_task_current(), arr,
          size * sizeof(unsigned));
 
@@ -120,7 +122,7 @@ void* busy_task(void* arg) {
     }
   }
 
-  myfree(arr, gthread_task_current());
+  free(arr);
   fprintf(stderr, "busy_task %p finished\n", gthread_task_current());
 
   return NULL;

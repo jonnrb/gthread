@@ -35,6 +35,9 @@ threads in modern software systems).
 
 - `concur`: concurrency primitives, i.e., a mutex
 
+- `my_malloc`: support for memory allocation and simulation of low level
+  virtual memory
+
 - `sched`: the scheduler (the interesting bit)
 
 
