@@ -5,16 +5,11 @@
 #include <tuple>
 
 namespace gthread {
-class closure {
- public:
-  closure& operator()();
-};
-
 /**
  * designed to be single use (to start tasks that take move-only parameters)
  */
 template <typename Function, typename... Args>
-class function_marshall : public closure {
+class function_marshall {
  public:
   function_marshall(Function&& f, Args&&... args);
 

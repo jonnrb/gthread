@@ -1,9 +1,9 @@
 #pragma once
 
-#include <atomic>
 #include <list>
 
-#include "sched/task.h"
+#include "concur/internal/waiter.h"
+#include "concur/internal/spin_lock.h"
 
 namespace gthread {
 struct mutexattr {};
@@ -20,9 +20,9 @@ class mutex {
   int unlock();
 
  private:
-  std::atomic_flag _lock;
+  internal::spin_lock _lock;
   task* _owner;
-  std::list<task*> _waitqueue;
+  std::list<internal::waiter> _waitqueue;
   uint64_t _priority_boost;
 };
 }  // namespace gthread

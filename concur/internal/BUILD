@@ -2,11 +2,11 @@ package(default_visibility = ["//concur:__pkg__"])
 
 cc_library(
     name = "channel_window",
-    hdrs = ["channel_window.h"],
     srcs = ["channel_window_impl.h"],
+    hdrs = ["channel_window.h"],
     deps = [
-        "//sched:sched",
-        "//sched:task",
+        ":waiter",
+        "//:gthread",
         "@com_google_absl//absl/types:optional",
     ],
 )
@@ -16,7 +16,54 @@ cc_test(
     srcs = ["channel_window_test.cc"],
     deps = [
         ":channel_window",
+        "//:gthread",
         "//concur:mutex",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "ring_buffer",
+    srcs = ["ring_buffer_impl.h"],
+    hdrs = ["ring_buffer.h"],
+    deps = [
+        ":waiter",
+        "//:gthread",
+        "@com_google_absl//absl/types:optional",
+    ],
+)
+
+cc_test(
+    name = "ring_buffer_test",
+    srcs = ["ring_buffer_test.cc"],
+    deps = [
+        ":ring_buffer",
+        "//:gthread",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "spin_lock",
+    hdrs = ["spin_lock.h"],
+    deps = ["//sched"],
+)
+
+cc_library(
+    name = "waiter",
+    srcs = [
+        "waiter.cc",
+        "waiter_impl.h",
+    ],
+    hdrs = ["waiter.h"],
+    deps = ["//sched"],
+)
+
+cc_test(
+    name = "waiter_test",
+    srcs = ["waiter_test.cc"],
+    deps = [
+        ":waiter",
         "//:gthread",
         "@com_google_googletest//:gtest_main",
     ],

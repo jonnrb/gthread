@@ -2,13 +2,12 @@ package(default_visibility = ["//visibility:public"])
 
 cc_library(
     name = "gthread",
-    hdrs = ["gthread.h"],
     srcs = ["gthread_impl.h"],
+    hdrs = ["gthread.h"],
     deps = [
-        "//sched:sched",
-        "//sched:task_attr",
+        "//sched",
         "//util:function_marshall",
-    ]
+    ],
 )
 
 cc_test(
@@ -17,5 +16,5 @@ cc_test(
     deps = [
         ":gthread",
         "@com_google_googletest//:gtest_main",
-    ]
+    ],
 )

@@ -13,7 +13,7 @@ class g {
   /**
    * constructs an empty object not corresponding to any execution context
    */
-  g();
+  g() : _handle() {}
 
   /**
    * if this represents an execution context and is destructed, it will be

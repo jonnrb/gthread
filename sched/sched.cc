@@ -21,9 +21,18 @@ void task_end_handler(task* task) { sched::get().exit(task->return_value); }
 }  // namespace
 
 sched::sched() : _interrupt_lock(UNLOCKED), _min_vruntime(0), _freelist(64) {
+  task::set_end_handler(task_end_handler);
+  enable_timer_preemption();
+}
+
+void sched::enable_timer_preemption() {
   task::set_time_slice_trap([this](task* current) { return next(current); },
                             std::chrono::milliseconds{50});
-  task::set_end_handler(task_end_handler);
+}
+
+void sched::disable_timer_preemption() {
+  task::set_time_slice_trap([](task* current) { return current; },
+                            std::chrono::milliseconds{0});
 }
 
 sched& sched::get() {

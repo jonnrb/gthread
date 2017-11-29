@@ -9,6 +9,11 @@ cc_library(
 )
 
 cc_library(
+    name = "close_wrapper",
+    hdrs = ["close_wrapper.h"],
+)
+
+cc_library(
     name = "compiler",
     hdrs = ["compiler.h"],
 )
@@ -19,7 +24,7 @@ cc_library(
     hdrs = ["function_marshall.h"],
     deps = [
         ":compiler",
-    ]
+    ],
 )
 
 cc_test(
@@ -28,7 +33,7 @@ cc_test(
     deps = [
         ":function_marshall",
         "@com_google_googletest//:gtest_main",
-    ]
+    ],
 )
 
 cc_library(

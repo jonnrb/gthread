@@ -11,7 +11,9 @@ namespace gthread {
 template <typename Function, typename... Args>
 function_marshall<Function, Args...>::function_marshall(Function&& function,
                                                         Args&&... args)
-    : _used(false), _function(function), _args(std::forward<Args>(args)...) {}
+    : _used(false),
+      _function(std::forward<Function>(function)),
+      _args(std::forward<Args>(args)...) {}
 
 template <typename Function, typename... Args>
 typename std::result_of<Function(Args...)>::type

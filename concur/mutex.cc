@@ -1,36 +1,23 @@
 #include "concur/mutex.h"
 
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <atomic>
+#include <cassert>
 #include <mutex>
+#include <stdexcept>
 
-#include "sched/sched.h"
+#include "gthread.h"
 #include "sched/task.h"
 #include "util/compiler.h"
 
 namespace gthread {
-
-namespace {
-static inline void spin_acquire(std::atomic_flag* lock) {
-  while (!lock->test_and_set()) sched::get().yield();
-}
-}  // namespace
-
 mutex::mutex(const mutexattr& a)
-    : _lock{false}, _owner{nullptr}, _priority_boost{0} {}
+    : _lock(), _owner(nullptr), _waitqueue(), _priority_boost(0) {}
 
 mutex::~mutex() {}
 
-using sched_lock = std::lock_guard<sched>;
-
 // locks the mutex. will wait if the lock is contended.
 int mutex::lock() {
-  task* cur = task::current();
-
-  // spin acquire lock
-  spin_acquire(&_lock);
+  std::unique_lock<internal::spin_lock> l(_lock);
 
   // slow path
   while (branch_unexpected(_owner != nullptr)) {
@@ -38,66 +25,48 @@ int mutex::lock() {
     ++_owner->priority_boost;
 
     // put the thread on the waitqueue
-    {
-      sched_lock l(sched::get());
-      cur->run_state = task::WAITING;
-      _waitqueue.push_back(cur);
-    }
-
-    _lock.clear();
-
-    // deschedule self until woken up
-    sched::get().yield();
-
-    // reacquire mutex lock
-    spin_acquire(&_lock);
+    auto& waiter = _waitqueue.emplace_back();
+    l.unlock();
+    bool succ = waiter.park();
+    assert(succ);
+    l.lock();
 
     --_priority_boost;
   }
 
+  auto* cur = task::current();
   _owner = cur;
   cur->priority_boost = _priority_boost;
-
-  // release lock
-  _lock.clear();
 
   return 0;
 }
 
 // Unlocks a given mutex.
 int mutex::unlock() {
-  task* cur = task::current();
-  if (branch_unexpected(_owner != cur)) {
-    errno = EINVAL;
-    return -1;
-  }
+  auto* current = task::current();
 
-  spin_acquire(&_lock);
+  std::unique_lock<internal::spin_lock> l(_lock);
+
+  if (branch_unexpected(_owner != current)) {
+    throw std::logic_error("unlock called from context other than the owner's");
+  }
 
   // fast path
   if (branch_expected(_waitqueue.empty())) {
     _owner = nullptr;
-    _lock.clear();
+    l.unlock();
     return 0;
   }
 
-  task* waiter = *_waitqueue.begin();
+  auto waiter = _waitqueue.begin();
+  while (!waiter->unpark()) self::yield();
   _waitqueue.pop_front();
-
-  waiter->run_state = task::SUSPENDED;
-
-  {
-    sched_lock l(sched::get());
-    sched::get().runqueue_push(waiter);
-  }
-
   _owner = nullptr;
-  cur->priority_boost = 0;
+  current->priority_boost = 0;
 
-  _lock.clear();
-
-  sched::get().yield();
-
+  // unlock spinlock before yielding
+  l.unlock();
+  self::yield();
   return 0;
 }
 

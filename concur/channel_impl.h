@@ -2,43 +2,37 @@
 
 #include "concur/channel.h"
 
+#include <memory>
+
+#include "concur/internal/channel_window.h"
+#include "concur/internal/ring_buffer.h"
+#include "util/close_wrapper.h"
+
 namespace gthread {
-template <typename T>
-absl::optional<T> channel_reader<T>::read() {
-  if (!_window) {
-    return absl::nullopt;
-  }
-  return _window->read();
+namespace internal {
+template <typename T, typename Monitor>
+auto make_wishbone_channel() {
+  auto monitor = std::make_shared<Monitor>();
+  using wrapper = internal::close_wrapper<decltype(monitor)>;
+
+  auto read = [w = wrapper(monitor)]() { return w->read(); };
+
+  auto write = [w = wrapper(monitor)](auto&& t) {
+    return w->write(std::forward<T>(t));
+  };
+
+  return channel<decltype(read), decltype(write)>{std::move(read),
+                                                  std::move(write)};
 }
+}  // namespace internal
 
 template <typename T>
-void channel_reader<T>::reset() {
-  if (_window) {
-    _window->close();
-    _window.reset();
-  }
+auto make_channel() {
+  return internal::make_wishbone_channel<T, internal::channel_window<T>>();
 }
 
-template <typename T>
-template <typename U>
-absl::optional<T> channel_writer<T>::write(U&& val) {
-  if (!_window) {
-    return absl::optional<T>{std::forward<U>(val)};
-  }
-  return _window->write(std::forward<U>(val));
-}
-
-template <typename T>
-void channel_writer<T>::reset() {
-  if (_window) {
-    _window->close();
-    _window.reset();
-  }
-}
-
-template <typename T>
-channel<T> make_channel() {
-  auto window = std::make_shared<internal::channel_window<T>>();
-  return {channel_reader<T>{window}, channel_writer<T>{window}};
+template <typename T, size_t Size>
+auto make_buffered_channel() {
+  return internal::make_wishbone_channel<T, internal::ring_buffer<T, Size>>();
 }
 }  // namespace gthread

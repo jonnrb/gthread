@@ -9,8 +9,9 @@
 #include "sched/task_attr.h"
 #include "util/compiler.h"
 
-namespace gthread {
+// TODO: create task_host
 
+namespace gthread {
 struct task {
  public:
   /**
@@ -111,7 +112,6 @@ struct task {
   static bool _timer_enabled;
   static time_slice_trap _time_slice_trap;
 };
-
 }  // namespace gthread
 
 #include "sched/task_inline.h"

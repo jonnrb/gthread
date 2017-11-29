@@ -1,6 +1,7 @@
 #include "concur/internal/channel_window.h"
 
 #include <mutex>
+#include <thread>
 
 #include "concur/mutex.h"
 #include "gtest/gtest.h"
@@ -11,55 +12,20 @@ using namespace gthread;
 using namespace gthread::internal;
 
 TEST(gthread_channel_window, quick_and_dirty) {
-  constexpr auto n = 1E4;
+  constexpr auto n = 1E5;
   channel_window<int> cw{};
 
   gthread::g reader([&cw]() {
     for (auto i = 0; i < n; ++i) {
       auto v = cw.read();
+      ASSERT_EQ(static_cast<bool>(v), true);
       EXPECT_EQ(*v, i);
     }
   });
 
   gthread::g writer([&cw]() {
     for (auto i = 0; i < n; ++i) {
-      cw.write(i);
-    }
-  });
-
-  reader.join();
-  writer.join();
-}
-
-TEST(gthread_channel_window, mutex_comparison) {
-  constexpr auto n = 1E4;
-  mutex mu;
-  bool mail_flag;
-  int mail;
-
-  gthread::g reader([&mu, &mail_flag, &mail]() {
-    for (auto i = 0; i < n; ++i) {
-      while (true) {
-        std::lock_guard<mutex> l{mu};
-        if (mail_flag) {
-          EXPECT_EQ(mail, i);
-          mail_flag = false;
-          break;
-        }
-      }
-    }
-  });
-
-  gthread::g writer([&mu, &mail_flag, &mail]() {
-    for (auto i = 0; i < n; ++i) {
-      while (true) {
-        std::lock_guard<mutex> l{mu};
-        if (!mail_flag) {
-          mail = i;
-          mail_flag = true;
-          break;
-        }
-      }
+      ASSERT_EQ(static_cast<bool>(cw.write(i)), false);
     }
   });
 

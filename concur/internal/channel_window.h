@@ -1,17 +1,17 @@
 #pragma once
 
-#include <mutex>
+#include <atomic>
 
 #include "absl/types/optional.h"
-#include "sched/sched.h"
-#include "sched/task.h"
+#include "concur/internal/waiter.h"
 
 namespace gthread {
 namespace internal {
 template <typename T>
 class channel_window {
  public:
-  channel_window() : _waiter(nullptr), _reader(nullptr), _closed(false) {}
+  channel_window()
+      : _waiter(), _reader(nullptr), _closed(false) {}
 
   constexpr bool is_closed() const { return _closed; }
 
@@ -23,12 +23,9 @@ class channel_window {
   absl::optional<T> read();
 
  private:
-  // XXX: assumes no smp and the scheduler can be locked in the implementation
-  // during crossover
-  task* _waiter;
+  waiter _waiter;
   absl::optional<T>* _reader;
-  std::unique_lock<sched> _hot_potato;
-  bool _closed;
+  std::atomic<bool> _closed;
 };
 }  // namespace internal
 }  // namespace gthread

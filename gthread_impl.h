@@ -3,6 +3,7 @@
 #include "gthread.h"
 
 #include <stdexcept>
+#include <vector>
 
 #include "sched/sched.h"
 #include "util/compiler.h"

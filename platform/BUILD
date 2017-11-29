@@ -56,8 +56,8 @@ cc_library(
     ],
     hdrs = ["memory.h"],
     deps = [
-        "//sched:task_attr",
         "//arch:bit_twiddle",
+        "//sched:task_attr",
         "//util:compiler",
     ],
 )

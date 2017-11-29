@@ -103,6 +103,10 @@ class sched {
    */
   inline void unlock();
 
+  void enable_timer_preemption();
+
+  void disable_timer_preemption();
+
   inline void runqueue_push(task* t);
 
  private:
