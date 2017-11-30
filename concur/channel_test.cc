@@ -37,7 +37,7 @@ TEST(gthread_channel, read_and_write) {
 }
 
 TEST(gthread_channel, fill_and_drain) {
-  constexpr size_t size = 8;
+  constexpr auto size = 8;
   auto c = gthread::make_buffered_channel<int, size>();
 
   for (auto i = 0; i < size; ++i) {
