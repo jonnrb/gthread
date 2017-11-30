@@ -70,9 +70,9 @@ TEST(gthread_mutex, contention) {
 template <typename Mutex, typename Thread, typename Yield>
 void do_mutex_comparison(Yield& yield) {
   constexpr auto n = 1E5;
-  Mutex mu;
-  bool mail_flag;
-  int mail;
+  Mutex mu{};
+  bool mail_flag = false;
+  int mail = 0;
 
   Thread reader([&mu, &mail_flag, &mail, &yield]() {
     for (auto i = 0; i < n; ++i) {
