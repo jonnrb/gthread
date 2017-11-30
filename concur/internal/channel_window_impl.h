@@ -30,7 +30,7 @@ absl::optional<T> channel_window<T>::read() {
       assert(_reader == nullptr);
       while (_waiter && !_waiter.unpark()) gthread::self::yield();
       break;
-    } else if (_waiter.unpark()) {
+    } else if (_waiter.swap()) {
       break;
     }
     gthread::self::yield();
