@@ -1,0 +1,7 @@
+COPTS = [
+    "-flto",
+]
+
+LINKOPTS = [
+    "-flto",
+]

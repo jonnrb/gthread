@@ -1,9 +1,13 @@
+load("//:flags.bzl", "COPTS", "LINKOPTS")
+
 package(default_visibility = ["//concur:__pkg__"])
 
 cc_library(
     name = "channel_window",
     srcs = ["channel_window_impl.h"],
     hdrs = ["channel_window.h"],
+    copts = COPTS,
+    linkopts = LINKOPTS,
     deps = [
         ":waiter",
         "//:gthread",
@@ -14,6 +18,8 @@ cc_library(
 cc_test(
     name = "channel_window_test",
     srcs = ["channel_window_test.cc"],
+    copts = COPTS,
+    linkopts = LINKOPTS,
     deps = [
         ":channel_window",
         "//:gthread",
@@ -26,6 +32,8 @@ cc_library(
     name = "ring_buffer",
     srcs = ["ring_buffer_impl.h"],
     hdrs = ["ring_buffer.h"],
+    copts = COPTS,
+    linkopts = LINKOPTS,
     deps = [
         ":waiter",
         "//:gthread",
@@ -36,6 +44,8 @@ cc_library(
 cc_test(
     name = "ring_buffer_test",
     srcs = ["ring_buffer_test.cc"],
+    copts = COPTS,
+    linkopts = LINKOPTS,
     deps = [
         ":ring_buffer",
         "//:gthread",
@@ -46,6 +56,8 @@ cc_test(
 cc_library(
     name = "spin_lock",
     hdrs = ["spin_lock.h"],
+    copts = COPTS,
+    linkopts = LINKOPTS,
     deps = ["//sched"],
 )
 
@@ -56,12 +68,16 @@ cc_library(
         "waiter_impl.h",
     ],
     hdrs = ["waiter.h"],
+    copts = COPTS,
+    linkopts = LINKOPTS,
     deps = ["//sched"],
 )
 
 cc_test(
     name = "waiter_test",
     srcs = ["waiter_test.cc"],
+    copts = COPTS,
+    linkopts = LINKOPTS,
     deps = [
         ":waiter",
         "//:gthread",

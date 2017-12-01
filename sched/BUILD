@@ -1,3 +1,5 @@
+load("//:flags.bzl", "COPTS", "LINKOPTS")
+
 package(default_visibility = ["//:__subpackages__"])
 
 cc_library(
@@ -12,6 +14,8 @@ cc_library(
         "task_inline.h",
     ],
     hdrs = ["task.h"],
+    copts = COPTS,
+    linkopts = LINKOPTS,
     deps = [
         ":task_attr",
         "//arch",
@@ -24,6 +28,8 @@ cc_test(
     name = "task_test",
     timeout = "short",
     srcs = ["task_test.cc"],
+    copts = COPTS,
+    linkopts = LINKOPTS,
     deps = [
         ":task",
         "@com_google_googletest//:gtest_main",
@@ -39,6 +45,8 @@ cc_library(
         "task_freelist.h",
     ],
     hdrs = ["sched.h"],
+    copts = COPTS,
+    linkopts = LINKOPTS,
     deps = [
         ":task",
         ":task_attr",
@@ -52,6 +60,8 @@ cc_test(
     name = "sched_test",
     timeout = "short",
     srcs = ["sched_test.cc"],
+    copts = COPTS,
+    linkopts = LINKOPTS,
     deps = [
         ":sched",
         "@com_google_googletest//:gtest_main",
@@ -62,5 +72,6 @@ cc_test(
     name = "std_thread_test",
     timeout = "short",
     srcs = ["std_thread_test.cc"],
-    linkopts = ["-lpthread"],
+    copts = COPTS,
+    linkopts = ["-lpthread"] + LINKOPTS,
 )
