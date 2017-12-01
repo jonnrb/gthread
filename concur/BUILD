@@ -46,6 +46,15 @@ cc_library(
     ],
 )
 
+cc_binary(
+    name = "mutex_benchmark",
+    srcs = ["mutex_benchmark.cc"],
+    deps = [
+        ":mutex",
+        "@jonnrb_bazel_googlebenchmark//:benchmark",
+    ],
+)
+
 cc_test(
     name = "mutex_test",
     timeout = "short",
