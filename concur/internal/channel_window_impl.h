@@ -37,7 +37,7 @@ absl::optional<T> channel_window<T>::read() {
   }
 
   return ret;
-}  // namespace internal
+}
 
 template <typename T>
 template <typename U>

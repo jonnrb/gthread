@@ -22,6 +22,15 @@ cc_library(
     ],
 )
 
+cc_binary(
+    name = "channel_benchmark",
+    srcs = ["channel_benchmark.cc"],
+    deps = [
+        ":channel",
+        "@jonnrb_bazel_googlebenchmark//:benchmark",
+    ],
+)
+
 cc_test(
     name = "channel_test",
     timeout = "short",

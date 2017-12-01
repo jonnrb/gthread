@@ -31,7 +31,7 @@ void sched::enable_timer_preemption() {
 }
 
 void sched::disable_timer_preemption() {
-  task::set_time_slice_trap([](task* current) { return current; },
+  task::set_time_slice_trap([this](task* current) { return next(current); },
                             std::chrono::milliseconds{0});
 }
 
