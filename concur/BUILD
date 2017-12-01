@@ -25,6 +25,9 @@ cc_library(
 cc_binary(
     name = "channel_benchmark",
     srcs = ["channel_benchmark.cc"],
+    linkopts = [
+        "-pthread",
+    ],
     deps = [
         ":channel",
         "@jonnrb_bazel_googlebenchmark//:benchmark",
