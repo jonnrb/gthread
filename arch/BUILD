@@ -43,6 +43,9 @@ cc_binary(
         "-Wno-deprecated-declarations",  # uses ucontext.h which is deprecated
         "-D_XOPEN_SOURCE",  # for ucontext.h on macOS
     ],
+    linkopts = [
+        "-pthread",
+    ],
     deps = [
         ":switch_to",
         "//platform:memory",
