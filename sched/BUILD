@@ -8,10 +8,62 @@ cc_library(
 )
 
 cc_library(
+    name = "sched",
+    srcs = [
+        "sched.cc",
+        "sched_impl.h",
+    ],
+    hdrs = ["sched.h"],
+    copts = COPTS,
+    linkopts = LINKOPTS,
+    deps = [
+        ":preempt",
+        ":task",
+        ":task_attr",
+        "//arch",
+        "//platform",
+        "//sched/internal:task_freelist",
+        "//util",
+    ],
+)
+
+cc_test(
+    name = "sched_test",
+    timeout = "short",
+    srcs = ["sched_test.cc"],
+    copts = COPTS,
+    linkopts = LINKOPTS,
+    deps = [
+        ":sched",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "preempt",
+    srcs = ["preempt.cc"],
+    hdrs = ["preempt.h"],
+    copts = COPTS,
+    linkopts = LINKOPTS,
+    deps = [
+        ":sched_node",
+        "//platform:alarm",
+    ],
+)
+
+cc_test(
+    name = "preempt_test",
+    srcs = ["preempt_test.cc"],
+    copts = COPTS,
+    linkopts = LINKOPTS,
+    deps = [":preempt"],
+)
+
+cc_library(
     name = "task",
     srcs = [
         "task.cc",
-        "task_inline.h",
+        "task_impl.h",
     ],
     hdrs = ["task.h"],
     copts = COPTS,
@@ -21,6 +73,17 @@ cc_library(
         "//arch",
         "//platform",
         "//util",
+    ],
+)
+
+cc_binary(
+    name = "task_benchmark",
+    srcs = ["task_benchmark.cc"],
+    copts = COPTS,
+    linkopts = LINKOPTS,
+    deps = [
+        ":task",
+        "@jonnrb_bazel_googlebenchmark//:benchmark",
     ],
 )
 
@@ -37,34 +100,12 @@ cc_test(
 )
 
 cc_library(
-    name = "sched",
-    srcs = [
-        "sched.cc",
-        "sched_impl.h",
-        "task_freelist.cc",
-        "task_freelist.h",
-    ],
-    hdrs = ["sched.h"],
-    copts = COPTS,
-    linkopts = LINKOPTS,
+    name = "sched_node",
+    srcs = ["sched_node.cc"],
+    hdrs = ["sched_node.h"],
     deps = [
-        ":task",
-        ":task_attr",
-        "//arch",
-        "//platform",
-        "//util",
-    ],
-)
-
-cc_test(
-    name = "sched_test",
-    timeout = "short",
-    srcs = ["sched_test.cc"],
-    copts = COPTS,
-    linkopts = LINKOPTS,
-    deps = [
-        ":sched",
-        "@com_google_googletest//:gtest_main",
+        "//sched/internal:rq",
+        "//sched/internal:task_freelist",
     ],
 )
 

@@ -11,32 +11,43 @@ constexpr uint64_t k_num_stress_tasks = 10000;
 
 using namespace gthread;
 
+void* returner(void* arg) {
+  std::cout << "hi" << std::endl;
+  auto i = reinterpret_cast<intptr_t>(arg);
+  return reinterpret_cast<void*>(i + 1);
+}
+
+TEST(gthread_sched, basic_spawn_and_join) {
+  auto h = sched::spawn(k_default_attr, returner, reinterpret_cast<void*>(5));
+  void* ret;
+  sched::join(&h, &ret);
+  EXPECT_EQ(reinterpret_cast<intptr_t>(ret), 6);
+}
+
 void* test_thread(void* arg) {
   uint64_t i = (uint64_t)arg;
-  auto& s = sched::get();
   for (auto start = thread_clock::now();
-       thread_clock::now() - start < std::chrono::milliseconds{5};) {
-    s.yield();
+       thread_clock::now() - start < std::chrono::milliseconds{1};) {
+    sched::yield();
   }
-  s.exit((void*)(i + 1));
+  sched::exit((void*)(i + 1));
   gthread_log_fatal("cannot be here!");
   return NULL;
 }
 
 TEST(gthread_sched, lots_of_yields) {
-  sched_handle threads[k_num_tasks];
-  auto& s = sched::get();
+  sched::handle threads[k_num_tasks];
 
   for (int i = 0; i < 3; ++i) {
     std::cout << "spawning " << k_num_tasks << " threads" << std::endl;
     for (uint64_t i = 0; i < k_num_tasks; ++i) {
-      threads[i] = s.spawn(k_default_attr, test_thread, (void*)i);
+      threads[i] = sched::spawn(k_default_attr, test_thread, (void*)i);
     }
 
     std::cout << "joining ALL the threads" << std::endl;
     for (uint64_t i = 0; i < k_num_tasks; ++i) {
       void* ret;
-      s.join(&threads[i], &ret);
+      sched::join(&threads[i], &ret);
       EXPECT_EQ((uint64_t)ret, i + 1);
     }
   }
@@ -44,29 +55,27 @@ TEST(gthread_sched, lots_of_yields) {
 
 void* sleepy_test_thread(void* arg) {
   uint64_t i = (uint64_t)arg;
-  auto& s = sched::get();
-  s.sleep_for(std::chrono::milliseconds{50});
-  s.exit((void*)(i + 1));
+  sched::sleep_for(std::chrono::milliseconds{50});
+  sched::exit((void*)(i + 1));
   gthread_log_fatal("cannot be here!");
   return NULL;
 }
 
 TEST(gthread_sched, timed_sleepy_threads) {
-  sched_handle threads[k_num_tasks];
-  auto& s = sched::get();
+  sched::handle threads[k_num_tasks];
 
   std::cout << "timing this part" << std::endl;
   auto start = std::chrono::system_clock::now();
   for (int i = 0; i < 3; ++i) {
     std::cout << "spawning " << k_num_tasks << " sleepy threads" << std::endl;
     for (uint64_t i = 0; i < k_num_tasks; ++i) {
-      threads[i] = s.spawn(k_default_attr, sleepy_test_thread, (void*)i);
+      threads[i] = sched::spawn(k_default_attr, sleepy_test_thread, (void*)i);
     }
 
     std::cout << "joining ALL the sleepy threads" << std::endl;
     for (uint64_t i = 0; i < k_num_tasks; ++i) {
       void* ret;
-      s.join(&threads[i], &ret);
+      sched::join(&threads[i], &ret);
       EXPECT_EQ((uint64_t)ret, i + 1);
     }
   }
@@ -82,8 +91,7 @@ static thread_local std::atomic<uint64_t> shared_var;
 void* tls_shared_var_test(void* _) { return (void*)shared_var.fetch_add(1); }
 
 TEST(gthread_sched, no_tls_tasks) {
-  sched_handle threads[k_num_tasks];
-  auto& s = sched::get();
+  sched::handle threads[k_num_tasks];
   std::vector<bool> counter_holes(k_num_tasks, false);
 
   for (int i = 0; i < 3; ++i) {
@@ -91,13 +99,13 @@ TEST(gthread_sched, no_tls_tasks) {
 
     std::cout << "spawning " << k_num_tasks << " threads" << std::endl;
     for (uint64_t i = 0; i < k_num_tasks; ++i) {
-      threads[i] = s.spawn(k_light_attr, tls_shared_var_test, (void*)i);
+      threads[i] = sched::spawn(k_light_attr, tls_shared_var_test, (void*)i);
     }
 
     std::cout << "joining ALL the threads" << std::endl;
     for (uint64_t i = 0; i < k_num_tasks; ++i) {
       uint64_t ret;
-      s.join(&threads[i], (void**)&ret);
+      sched::join(&threads[i], (void**)&ret);
       ASSERT_GE(ret, 0);
       ASSERT_LT(ret, k_num_tasks);
       EXPECT_FALSE(counter_holes[ret]);
@@ -112,8 +120,7 @@ TEST(gthread_sched, no_tls_tasks) {
 }
 
 TEST(gthread_sched, stress_fibers) {
-  sched_handle threads[k_num_stress_tasks];
-  auto& s = sched::get();
+  sched::handle threads[k_num_stress_tasks];
   std::vector<bool> counter_holes(k_num_stress_tasks, false);
 
   for (int i = 0; i < 3; ++i) {
@@ -121,13 +128,13 @@ TEST(gthread_sched, stress_fibers) {
 
     std::cout << "spawning " << k_num_stress_tasks << " threads" << std::endl;
     for (uint64_t i = 0; i < k_num_stress_tasks; ++i) {
-      threads[i] = s.spawn(k_light_attr, tls_shared_var_test, (void*)i);
+      threads[i] = sched::spawn(k_light_attr, tls_shared_var_test, (void*)i);
     }
 
     std::cout << "joining ALL the threads" << std::endl;
     for (uint64_t i = 0; i < k_num_stress_tasks; ++i) {
       uint64_t ret;
-      s.join(&threads[i], (void**)&ret);
+      sched::join(&threads[i], (void**)&ret);
       ASSERT_GE(ret, 0);
       ASSERT_LT(ret, k_num_stress_tasks);
       EXPECT_FALSE(counter_holes[ret]);
@@ -142,43 +149,40 @@ TEST(gthread_sched, stress_fibers) {
 }
 
 TEST(gthread_sched, stress_threads) {
-  sched_handle threads[k_num_stress_tasks];
-  auto& s = sched::get();
+  sched::handle threads[k_num_stress_tasks];
 
   for (int i = 0; i < 3; ++i) {
     std::cout << "spawning " << k_num_stress_tasks << " threads" << std::endl;
     for (uint64_t i = 0; i < k_num_stress_tasks; ++i) {
-      threads[i] = s.spawn(k_default_attr, tls_shared_var_test, (void*)i);
+      threads[i] = sched::spawn(k_default_attr, tls_shared_var_test, (void*)i);
     }
 
     std::cout << "joining ALL the threads" << std::endl;
     for (uint64_t i = 0; i < k_num_stress_tasks; ++i) {
       uint64_t ret;
-      s.join(&threads[i], (void**)&ret);
+      sched::join(&threads[i], (void**)&ret);
       ASSERT_EQ(ret, 0);
     }
   }
 }
 
 void* sleeper(void* _) {
-  auto& s = sched::get();
-  s.sleep_for(std::chrono::milliseconds{5});
+  sched::sleep_for(std::chrono::milliseconds{5});
   return nullptr;
 }
 
 TEST(gthread_sched, sleep_for) {
-  auto& s = sched::get();
   std::cout << "sleeping in main" << std::endl;
-  s.sleep_for(std::chrono::milliseconds{5});
+  sched::sleep_for(std::chrono::milliseconds{5});
   {
     std::cout << "sleeping in k_light_attr task" << std::endl;
-    auto h = s.spawn(k_light_attr, sleeper, nullptr);
-    s.join(&h, nullptr);
+    auto h = sched::spawn(k_light_attr, sleeper, nullptr);
+    sched::join(&h, nullptr);
   }
   {
     std::cout << "sleeping in k_default_attr task" << std::endl;
-    auto h = s.spawn(k_default_attr, sleeper, nullptr);
-    s.join(&h, nullptr);
+    auto h = sched::spawn(k_default_attr, sleeper, nullptr);
+    sched::join(&h, nullptr);
   }
 }
 
@@ -188,20 +192,18 @@ void* exit_quick(void* _) {
 }
 
 TEST(gthread_sched, detach_test_exit_quick) {
-  auto& s = sched::get();
-  auto h = s.spawn(k_light_attr, exit_quick, nullptr);
-  s.sleep_for(std::chrono::milliseconds{5});
-  s.join(&h, nullptr);
+  auto h = sched::spawn(k_light_attr, exit_quick, nullptr);
+  sched::sleep_for(std::chrono::milliseconds{5});
+  sched::join(&h, nullptr);
 }
 
 void* exit_delay(void* _) {
-  sched::get().sleep_for(std::chrono::milliseconds{5});
+  sched::sleep_for(std::chrono::milliseconds{5});
   std::cout << "exiting" << std::endl;
   return nullptr;
 }
 
 TEST(gthread_sched, detach_test_exit_delay) {
-  auto& s = sched::get();
-  auto h = s.spawn(k_light_attr, exit_delay, nullptr);
-  s.join(&h, nullptr);
+  auto h = sched::spawn(k_light_attr, exit_delay, nullptr);
+  sched::join(&h, nullptr);
 }

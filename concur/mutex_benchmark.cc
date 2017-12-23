@@ -4,6 +4,7 @@
 #include <thread>
 
 #include "benchmark/benchmark.h"
+#include "sched/preempt.h"
 
 template <typename Mutex, typename Thread, typename Yield>
 void do_mutex_comparison(benchmark::State& state, Yield& yield) {
@@ -59,10 +60,9 @@ BENCHMARK(bench_gthread_mutex)->UseRealTime();
 
 static void bench_stdlib_mutex(benchmark::State& state) {
   // TODO: remove when task_host works
-  auto& s = gthread::sched::get();
-  s.disable_timer_preemption();
+  gthread::disable_timer_preemption();
   do_mutex_comparison<std::mutex, std::thread>(state, std::this_thread::yield);
-  s.enable_timer_preemption();
+  gthread::enable_timer_preemption();
 }
 
 BENCHMARK(bench_stdlib_mutex)->UseRealTime();

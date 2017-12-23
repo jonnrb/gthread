@@ -21,11 +21,10 @@ bool waiter::park_if(CheckThunk&& check_thunk) {
   }
 
   current->run_state = task::WAITING;
-  auto& s = sched::get();
-  s.yield();
+  sched::yield();
 
   // `swap()` disables preemption
-  s.unlock();
+  sched_node::current()->unlock();
 
   return true;
 }

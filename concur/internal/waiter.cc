@@ -20,11 +20,11 @@ bool waiter::unpark() {
 
   assert(parked->run_state == task::WAITING);
 
-  auto& s = sched::get();
+  auto* node = sched_node::current();
   {
-    std::lock_guard<sched> l(s);
+    std::lock_guard<sched_node> l(*node);
     parked->run_state = task::SUSPENDED;
-    s.runqueue_push(parked);
+    node->schedule(parked);
   }
 
   return true;
@@ -39,9 +39,9 @@ bool waiter::swap() {
     return false;
   }
 
-  auto& s = sched::get();
+  auto* node = sched_node::current();
   {
-    std::lock_guard<sched> l(s);
+    std::lock_guard<sched_node> l(*node);
     current->run_state = task::WAITING;
     parked->switch_to();
   }

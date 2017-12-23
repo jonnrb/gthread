@@ -21,41 +21,28 @@ class alarm {
    * expected to have better than microsecond resolution
    */
   template <typename Duration>
-  static void set_interval(Duration interval) {
-    set_interval_impl(
-        std::chrono::duration_cast<std::chrono::microseconds>(interval));
-  }
+  static void set_interval(Duration interval);
 
   /**
    * clears the interval if previously set
    */
   static void clear_interval();
 
-  /*
-   * resets the interval and returns the elapsed time
-   */
-  static std::chrono::microseconds reset();
-
-  /**
-   * triggers the alarm immediately and on the current stack
-   */
-  static void ring_now();
-
-  using trap = std::function<void(std::chrono::microseconds)>;
-
   /**
    * sets the trap that gets sprung by the alarm
    */
-  static void set_trap(const trap& t);
+  template <typename Function>
+  static void set_trap(Function&& f);
 
  private:
-  static void alarm_handler(int signum);
-
   static void set_interval_impl(std::chrono::microseconds);
 
-  static trap _trap;
-  static std::chrono::microseconds _interval;
+  static void alarm_handler(int signum);
+  static void set_signal();
 
-  static thread_clock::time_point _last_alarm;
+  static std::function<void()> _trap;
+  static std::chrono::microseconds _interval;
 };
 }  // namespace gthread
+
+#include "platform/alarm_impl.h"

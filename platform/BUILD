@@ -17,7 +17,10 @@ cc_library(
 
 cc_library(
     name = "alarm",
-    srcs = ["alarm.cc"],
+    srcs = [
+        "alarm.cc",
+        "alarm_impl.h",
+    ],
     hdrs = ["alarm.h"],
     copts = COPTS,
     linkopts = LINKOPTS,
@@ -32,7 +35,10 @@ cc_test(
     srcs = ["alarm_test.cc"],
     copts = COPTS,
     linkopts = LINKOPTS,
-    deps = [":alarm"],
+    deps = [
+        ":alarm",
+        "@com_google_googletest//:gtest_main",
+    ],
 )
 
 cc_library(

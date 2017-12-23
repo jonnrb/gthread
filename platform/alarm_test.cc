@@ -5,25 +5,20 @@
 
 #include <sched.h>
 
+#include "gtest/gtest.h"
 #include "platform/clock.h"
 
 using namespace gthread;
 
 constexpr std::chrono::microseconds k_usec_interval{5000};
-constexpr std::chrono::microseconds k_usec_interval_big{20000};
 
 static volatile int g_traps = 0;
-static std::chrono::microseconds g_elapsed;
 static thread_clock::time_point g_last;
 
 using float_duration = std::chrono::duration<float>;
 
-void trap(std::chrono::microseconds elapsed) {
+void trap() {
   ++g_traps;
-  g_elapsed = elapsed;
-  std::cout << "elapsed from timer: "
-            << std::chrono::duration_cast<float_duration>(elapsed).count()
-            << "s" << std::endl;
   auto now = thread_clock::now();
   assert((now - g_last).count() >= 0);
   std::cout << "elapsed from process clock: "
@@ -32,7 +27,7 @@ void trap(std::chrono::microseconds elapsed) {
   g_last = now;
 }
 
-int main() {
+TEST(gthread_alarm, several_intervals) {
   // set the trap function
   alarm::set_trap(trap);
 
@@ -54,7 +49,7 @@ int main() {
   std::cout << "elapsed for per interval (process time s): "
             << intervals.count() << std::endl;
 
-  assert(elapsed >= intervals);
+  EXPECT_GE(elapsed, intervals);
 
   // clear the interval
   alarm::clear_interval();
@@ -62,22 +57,5 @@ int main() {
   start = thread_clock::now();
   while ((now = thread_clock::now()) - start < k_usec_interval * 2)
     ;
-  assert(cur_traps == g_traps);
-
-  // early alarm
-  std::cout << "setting interval of " << k_usec_interval_big.count() << " µs "
-            << std::endl;
-  std::cout << "waiting for process clock to elapse "
-            << (k_usec_interval_big / 2).count() << " µs" << std::endl;
-  alarm::set_interval(k_usec_interval_big);
-  start = thread_clock::now();
-  g_traps = 0;
-  while (g_traps < 1) {
-    now = thread_clock::now();
-    if (now - start > k_usec_interval_big / 2) {
-      alarm::ring_now();
-    }
-  }
-  assert(g_elapsed > std::chrono::microseconds{0} &&
-         g_elapsed < k_usec_interval_big);
+  EXPECT_EQ(cur_traps, g_traps);
 }

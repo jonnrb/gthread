@@ -14,11 +14,27 @@
 namespace gthread {
 struct task {
  public:
+  ~task();
+
   /**
    * factory that constructs a task on that task's own stack
    */
   static task* create(const attr& a);
+
+  /**
+   * destructs a task and frees its memory
+   */
   void destroy();
+
+  /**
+   * creates a task object that represents the current execution context
+   *
+   * should only be used to wrap an execution context that is already running.
+   * this MUST be called from any new context that will call `switch_to()` on a
+   * task since `switch_to()` assumes that it can save the current execution
+   * context.
+   */
+  static task create_wrapped();
 
   void reset();
 
@@ -27,7 +43,7 @@ struct task {
    * things primed. it is undefined (like reaaallly undefined) as to what
    * happens when a task is switched to that hasn't been `start()`ed.
    */
-  int start();
+  void start();
 
   /**
    * convenience function to call the task's end handler. will assert that
@@ -36,23 +52,23 @@ struct task {
   void stop(void* return_value);
 
   /**
-   * always returns a pointer to the current task
+   * returns a pointer to the current task
    */
-  static inline task* current();
+  static task* current();
 
   /**
    * suspends the currently running task and switches to `this`
    */
-  int switch_to();
+  void switch_to();
 
-  using time_slice_trap = std::function<task*(task*)>;
-
-  template <typename Duration>
-  static void set_time_slice_trap(const time_slice_trap& trap,
-                                  Duration interval);
+  /**
+   * suspends the currently running task and switches to `this` running
+   * |post_tls_switch_thunk| after possibly switching the tls context
+   */
+  template <typename Thunk>
+  void switch_to(const Thunk& post_tls_switch_thunk);
 
   using end_handler = std::function<void(task*)>;
-
   static void set_end_handler(end_handler handler);
 
   constexpr bool has_tls() const { return _tls != nullptr; }
@@ -68,9 +84,6 @@ struct task {
   size_t _total_stack_size;
 
  public:
-  task* joiner;
-  bool detached;
-
   typedef enum { RUNNING, SUSPENDED, STOPPED, WAITING } run_state_t;
   run_state_t run_state;
 
@@ -79,8 +92,9 @@ struct task {
   void* arg;
   void* return_value;
 
+  task* joiner;
+  bool detached;
   std::chrono::microseconds vruntime;
-
   uint64_t priority_boost;
 
  private:
@@ -88,30 +102,13 @@ struct task {
   task();
 
   task(void* stack, void* stack_begin, size_t total_stack_size, bool alloc_tls);
-  ~task();
 
-  void record_time_slice(std::chrono::microseconds elapsed);
-
-  void reset_timer_and_record_time();
-
-  int switch_to_internal(std::chrono::microseconds* elapsed);
-
-  static void time_slice_trap_base(std::chrono::microseconds elapsed);
-
-  static void init();
-
-  // task representing the initial context of execution
-  static task _root_task;
-  static std::atomic<bool> _is_root_task_init;
+  template <typename Thunk>
+  void switch_to_internal(const Thunk* post_tls_switch_thunk);
 
   static end_handler _end_handler;
-
-  // task switching MUST not be reentrant
-  static std::atomic_flag _lock;
-
-  static bool _timer_enabled;
-  static time_slice_trap _time_slice_trap;
+  static std::atomic_flag _lock;  // locks static variables
 };
 }  // namespace gthread
 
-#include "sched/task_inline.h"
+#include "sched/task_impl.h"

@@ -51,7 +51,7 @@ class g {
   operator bool() { return _handle; }
 
  private:
-  sched_handle _handle;
+  sched::handle _handle;
 };
 
 class self {

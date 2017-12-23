@@ -1,12 +1,4 @@
-/**
- * author: JonNRb <jonbetti@gmail.com>
- * license: MIT
- * file: @gthread//util/log_inline.h
- * info: logging utilities
- */
-
-#ifndef UTIL_LOG_INLINE_H_
-#define UTIL_LOG_INLINE_H_
+#pragma once
 
 #include <iostream>
 
@@ -16,7 +8,5 @@ static inline void gthread_log(std::string message) {
 
 static inline void gthread_log_fatal(std::string message_of_death) {
   std::cerr << message_of_death << std::endl;
-  abort();
+  throw std::runtime_error(message_of_death);
 }
-
-#endif  // UTIL_LOG_INLINE_H_

@@ -1,10 +1,9 @@
-#include "sched/task_freelist.h"
+#include "sched/internal/task_freelist.h"
 
 #include <mutex>
 
-#include "sched/sched.h"
-
 namespace gthread {
+namespace internal {
 namespace {
 template <typename Iterable>
 task* find_task(Iterable* iterable, const attr& a) {
@@ -33,10 +32,13 @@ void insert_task(Iterable* iterable, task* t) {
 }
 }  // namespace
 
+using guard = std::lock_guard<std::mutex>;
+using unique_lock = std::unique_lock<std::mutex>;
+
 task* task_freelist::make_task(const attr& a) {
   task* t = nullptr;
   {
-    std::lock_guard<sched> l(sched::get());
+    guard l(_mu);
     if (_l.size() > 0) {
       t = find_task(&_l, a);
     }
@@ -50,19 +52,29 @@ task* task_freelist::make_task(const attr& a) {
   return t;
 }
 
-template <>
-void task_freelist::return_task<true>(task* t) {
-  if (_l.size() < _max_size) {
-    insert_task(&_l, t);
-    return;
+/**
+ * being in the scheduler means we are on |t|'s stack, so we can't destroy |t|'s
+ * stack here. we pick some other victim.
+ */
+void task_freelist::return_task_from_scheduler(task* t) {
+  unique_lock l(_mu);
+
+  if (_l.size() >= _max_size) {
+    task* victim = _l.front();
+    _l.pop_front();
+
+    // exit critical section to do system call
+    l.unlock();
+    victim->destroy();
+    l.lock();
   }
-  t->destroy();
+
+  insert_task(&_l, t);
 }
 
-template <>
-void task_freelist::return_task<false>(task* t) {
+void task_freelist::return_task(task* t) {
   {
-    std::lock_guard<sched> l(sched::get());
+    guard l(_mu);
     if (_l.size() < _max_size) {
       insert_task(&_l, t);
       return;
@@ -71,4 +83,5 @@ void task_freelist::return_task<false>(task* t) {
 
   t->destroy();
 }
+}  // namespace internal
 }  // namespace gthread
