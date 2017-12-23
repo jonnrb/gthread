@@ -38,8 +38,6 @@ cc_test(
 
 cc_library(
     name = "log",
-    hdrs = [
-        "log.h",
-        "log_inline.h",
-    ],
+    srcs = ["log_impl.h"],
+    hdrs = ["log.h"],
 )

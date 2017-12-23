@@ -2,8 +2,10 @@
 
 #include <string>
 
-static inline void gthread_log(std::string message);
+template <typename... Args>
+void gthread_log(Args&&... message);
 
-static inline void gthread_log_fatal(std::string message_of_death);
+template <typename... Args>
+void gthread_log_fatal(Args&&... message);
 
-#include "util/log_inline.h"
+#include "util/log_impl.h"
