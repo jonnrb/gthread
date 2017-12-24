@@ -48,7 +48,7 @@ namespace sched {
 void yield() {
   auto* node = sched_node::current();
   if (node == nullptr) {
-    std::cout << "awefawefgaehruiaew" << std::endl;
+    gthread_log("yield called with a node to yield to");
     return;
   }
   node->yield();
@@ -73,7 +73,7 @@ handle spawn(const attr& attr, task::entry_t* entry, void* arg) {
   auto* node = sched_node::current();
   assert(node != nullptr);
   {
-    std::lock_guard<sched_node> l(*node);
+    std::lock_guard<decltype(node->interrupt_lock)> l(node->interrupt_lock);
     node->schedule(handle.t);
   }
 
@@ -91,7 +91,7 @@ void join(handle* handle, void** return_value) {
                                        // eventually
 
   {
-    std::unique_lock<sched_node> l(*node);
+    std::unique_lock<decltype(node->interrupt_lock)> l(node->interrupt_lock);
 
     // if the joiner is not `nullptr`, something else is joining, which is
     // undefined behavior
@@ -127,7 +127,7 @@ void detach(handle* handle) {
                                        // eventually
 
   {
-    std::lock_guard<sched_node> l(*node);
+    std::lock_guard<decltype(node->interrupt_lock)> l(node->interrupt_lock);
     if (handle->t->run_state != task::STOPPED) {
       handle->t->detached = true;
       handle->t = nullptr;
@@ -152,7 +152,7 @@ void exit(void* return_value) {
   }
 
   {
-    std::lock_guard<sched_node> l(*node);
+    std::lock_guard<decltype(node->interrupt_lock)> l(node->interrupt_lock);
     current->return_value = return_value;  // save |return_value|
     current->run_state = task::STOPPED;    // deschedule permanently
 

@@ -47,25 +47,17 @@ void sched_node::start() {
 void sched_node::yield() {
   if (!_running.load()) return;
 
+  // if for some reason, a task that was about to switch gets interrupted,
+  // don't switch tasks
+  if (!interrupt_lock.try_lock()) return;
+
   auto* cur = task::current();
 
+  // update virtual runtime of currently running task
   auto now = vruntime_clock::now();
   cur->vruntime +=
       std::chrono::duration_cast<decltype(cur->vruntime)>(now - _last_tick);
   _last_tick = now;
-
-  // if for some reason, a task that was about to switch gets interrupted,
-  // don't switch tasks
-  auto expected = UNLOCKED;
-  if (branch_unexpected(!_interrupt_lock.compare_exchange_strong(
-          expected, LOCKED_IN_SCHED, std::memory_order_acquire))) {
-    if (expected != LOCKED_IN_TASK) {
-      gthread_log_fatal(
-          "scheduler was interrupted by itself! this should be impossible. "
-          "bug???");
-    }
-    return;
-  }
 
   // if the task was in a runnable state when the scheduler was invoked, push it
   // to the runqueue
@@ -81,7 +73,7 @@ void sched_node::yield() {
       };
   task* next_task = _rq.pop(idle_thunk);
 
-  _interrupt_lock.store(UNLOCKED, std::memory_order_release);
+  interrupt_lock.unlock();
 
   if (next_task != cur) {
     next_task->switch_to([this]() { g_current_sched_node = this; });
@@ -92,7 +84,7 @@ void sched_node::yield_for(internal::rq::sleepqueue_clock::duration duration) {
   auto* current = task::current();
 
   {
-    std::lock_guard<sched_node> l(*this);
+    std::lock_guard<spin_lock> l(interrupt_lock);
     current->run_state = task::WAITING;
     _rq.sleep_push(current, duration);
   }
@@ -100,17 +92,16 @@ void sched_node::yield_for(internal::rq::sleepqueue_clock::duration duration) {
   yield();
 }
 
-void sched_node::lock() {
-  auto expected = UNLOCKED;
-  if (!branch_unexpected(_interrupt_lock.compare_exchange_strong(
-          expected, LOCKED_IN_TASK, std::memory_order_acquire))) {
-    gthread_log_fatal("contention on scheduler from uninterruptable code!");
-  }
+bool sched_node::spin_lock::try_lock() {
+  return !_flag.test_and_set(std::memory_order_acquire);
 }
 
-void sched_node::unlock() {
-  _interrupt_lock.store(UNLOCKED, std::memory_order_release);
+void sched_node::spin_lock::lock() {
+  // low level spin utilizing amd64 pause instruction between tries
+  while (!try_lock()) asm("pause");
 }
+
+void sched_node::spin_lock::unlock() { _flag.clear(std::memory_order_release); }
 
 void sched_node::schedule(task* t) {
   // initialize the vruntime if |t| is a new task

@@ -11,8 +11,8 @@ namespace gthread {
 class sched_node {
  public:
   sched_node(std::shared_ptr<internal::task_freelist> task_freelist)
-      : _running(false),
-        _interrupt_lock(UNLOCKED),
+      : interrupt_lock(),
+        _running(false),
         _rq(),
         _task_freelist(task_freelist),
         _host_task(task::create_wrapped()) {}
@@ -48,23 +48,25 @@ class sched_node {
   // TODO
   // void stop();
 
-  /**
-   * prevents preemption of the current task
-   */
-  void lock();
-
-  /**
-   * resumes preemption of the current task
-   */
-  void unlock();
-
   void schedule(task* t);
 
  private:
-  std::atomic<bool> _running;
+  class spin_lock {
+   public:
+    spin_lock() : _flag(false) {}
+    bool try_lock();
+    void lock();
+    void unlock();
 
-  enum interrupt_lock { UNLOCKED = 0, LOCKED_IN_SCHED, LOCKED_IN_TASK };
-  std::atomic<interrupt_lock> _interrupt_lock;
+   private:
+    std::atomic_flag _flag;
+  };
+
+ public:
+  spin_lock interrupt_lock;
+
+ private:
+  std::atomic<bool> _running;
 
   /**
    * runqueue
