@@ -17,6 +17,7 @@ cc_library(
 
 cc_test(
     name = "channel_window_test",
+    timeout = "short",
     srcs = ["channel_window_test.cc"],
     copts = COPTS,
     linkopts = LINKOPTS,
@@ -43,6 +44,7 @@ cc_library(
 
 cc_test(
     name = "ring_buffer_test",
+    timeout = "short",
     srcs = ["ring_buffer_test.cc"],
     copts = COPTS,
     linkopts = LINKOPTS,
@@ -75,6 +77,7 @@ cc_library(
 
 cc_test(
     name = "waiter_test",
+    timeout = "short",
     srcs = ["waiter_test.cc"],
     copts = COPTS,
     linkopts = LINKOPTS,
