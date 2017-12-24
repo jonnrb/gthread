@@ -51,6 +51,11 @@ void yield() {
     gthread_log("yield called with a node to yield to");
     return;
   }
+
+  // XXX: there is a small chance that we are yielding on the wrong node. the
+  // only way this is possible is if the current task was preempted between
+  // getting the current node and yielding to it, in which case, there was a
+  // yield and `yield()` did its job?
   node->yield();
 }
 
@@ -69,12 +74,11 @@ handle spawn(const attr& attr, task::entry_t* entry, void* arg) {
   // this will start the task and immediately return control
   handle.t->start();
 
-  // NOTE: where do we schedule when there are options?
-  auto* node = sched_node::current();
-  assert(node != nullptr);
+  // TODO: where do we schedule when there are options?
+  auto& pmu = preempt_mutex::get();
   {
-    std::lock_guard<decltype(node->interrupt_lock)> l(node->interrupt_lock);
-    node->schedule(handle.t);
+    std::lock_guard<preempt_mutex> l(pmu);
+    pmu.node().schedule(handle.t);
   }
 
   return handle;
@@ -87,11 +91,9 @@ void join(handle* handle, void** return_value) {
   }
 
   auto* current = task::current();
-  auto* node = sched_node::current();  // XXX: we'll need a double checked lock
-                                       // eventually
-
+  auto& pmu = preempt_mutex::get();
   {
-    std::unique_lock<decltype(node->interrupt_lock)> l(node->interrupt_lock);
+    std::unique_lock<preempt_mutex> l(pmu);
 
     // if the joiner is not `nullptr`, something else is joining, which is
     // undefined behavior
@@ -102,7 +104,7 @@ void join(handle* handle, void** return_value) {
       handle->t->joiner = current;
       current->run_state = task::WAITING;
       l.unlock();
-      node->yield();
+      yield();
     }
   }
 
@@ -123,11 +125,9 @@ void detach(handle* handle) {
         "|handle| must be specified and must be a valid thread");
   }
 
-  auto* node = sched_node::current();  // XXX: we'll need a double checked lock
-                                       // eventually
-
+  auto& pmu = preempt_mutex::get();
   {
-    std::lock_guard<decltype(node->interrupt_lock)> l(node->interrupt_lock);
+    std::lock_guard<preempt_mutex> l(pmu);
     if (handle->t->run_state != task::STOPPED) {
       handle->t->detached = true;
       handle->t = nullptr;
@@ -143,25 +143,24 @@ void detach(handle* handle) {
 
 void exit(void* return_value) {
   auto* current = task::current();
-  auto* node = sched_node::current();  // XXX: we'll need a double checked lock
-                                       // eventually
 
   // indicative that the current task is the root task. abort reallly hard.
   if (branch_unexpected(current->entry == nullptr)) {
     gthread_log_fatal("cannot exit from the root task!");
   }
 
+  auto& pmu = preempt_mutex::get();
   {
-    std::lock_guard<decltype(node->interrupt_lock)> l(node->interrupt_lock);
+    std::lock_guard<preempt_mutex> l(pmu);
     current->return_value = return_value;  // save |return_value|
     current->run_state = task::STOPPED;    // deschedule permanently
 
     if (current->joiner != nullptr) {
-      node->schedule(current->joiner);
+      pmu.node().schedule(current->joiner);
     }
   }
 
-  node->yield();  // deschedule
+  yield();  // deschedule
 
   // impossible to be here
   gthread_log_fatal("how did I get here?");

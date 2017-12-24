@@ -27,6 +27,17 @@ cc_library(
     ],
 )
 
+cc_binary(
+    name = "sched_benchmark",
+    srcs = ["sched_benchmark.cc"],
+    copts = COPTS,
+    linkopts = LINKOPTS,
+    deps = [
+        ":sched",
+        "@jonnrb_bazel_googlebenchmark//:benchmark",
+    ],
+)
+
 cc_test(
     name = "sched_test",
     timeout = "short",
@@ -103,16 +114,10 @@ cc_library(
     name = "sched_node",
     srcs = ["sched_node.cc"],
     hdrs = ["sched_node.h"],
+    copts = COPTS,
+    linkopts = LINKOPTS,
     deps = [
         "//sched/internal:rq",
         "//sched/internal:task_freelist",
     ],
-)
-
-cc_test(
-    name = "std_thread_test",
-    timeout = "short",
-    srcs = ["std_thread_test.cc"],
-    copts = COPTS,
-    linkopts = ["-lpthread"] + LINKOPTS,
 )

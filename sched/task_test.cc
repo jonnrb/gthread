@@ -18,7 +18,9 @@ void* thread(void* arg) {
 
 TEST(gthread_task, lots_of_switch_to) {
   task* tasks[k_num_stress_tasks] = {nullptr};
-  task root = task::create_wrapped();
+  task root;
+  root.wrap_current();
+
   for (int i = 0; i < k_num_stress_tasks; ++i) {
     tasks[i] = task::create(k_default_attr);
     tasks[i]->entry = thread;
@@ -35,7 +37,9 @@ TEST(gthread_task, lots_of_switch_to) {
 
 TEST(gthread_task, lots_of_switch_to_no_tls) {
   task* tasks[k_num_stress_tasks] = {nullptr};
-  task root = task::create_wrapped();
+  task root{};
+  root.wrap_current();
+
   for (int i = 0; i < k_num_stress_tasks; ++i) {
     tasks[i] = task::create(k_light_attr);
     tasks[i]->entry = thread;

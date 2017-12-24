@@ -8,16 +8,15 @@
 namespace gthread {
 namespace {
 thread_local sched_node* g_current_sched_node = nullptr;
-}
-
-using guard = std::lock_guard<sched_node>;
+}  // namespace
 
 sched_node* sched_node::current() { return g_current_sched_node; }
 
-void sched_node::start_async() {
+void sched_node::start_async() mt_no_analysis {
   g_current_sched_node = this;
 
   _last_tick = vruntime_clock::now();
+  _host_task.wrap_current();
 
   bool expected = false;
   if (!_running.compare_exchange_strong(expected, true)) {
@@ -25,13 +24,14 @@ void sched_node::start_async() {
   }
 }
 
-void sched_node::start() {
+void sched_node::start() mt_no_analysis {
+  _last_tick = vruntime_clock::now();
+  _host_task.wrap_current();
+
   bool expected = false;
   if (!_running.compare_exchange_strong(expected, true)) {
     gthread_log_fatal("sched_node was already running");
   }
-
-  _last_tick = vruntime_clock::now();
 
   yield();  // will not resume until stopped
 
@@ -44,36 +44,65 @@ void sched_node::start() {
   }
 }
 
+class mt_scoped_capability try_lock_guard {
+ public:
+  try_lock_guard(sched_node::spin_lock& t) mt_acquire(t) : _t(t), _succ(false) {
+    _succ = _t.try_lock();
+  }
+
+  ~try_lock_guard() mt_release() {
+    if (_succ) _t.unlock();
+  }
+
+  void lock() mt_acquire(_t) { _t.lock(); }
+
+  void unlock() mt_release(_t) { _t.unlock(); }
+
+  operator bool() const { return _succ; }
+
+ private:
+  sched_node::spin_lock& _t;
+  bool _succ;
+};
+
 void sched_node::yield() {
   if (!_running.load()) return;
 
-  // if for some reason, a task that was about to switch gets interrupted,
-  // don't switch tasks
-  if (!interrupt_lock.try_lock()) return;
+  task* next_task;
+  task* cur;
+  {
+    try_lock_guard l(_spin_lock);
 
-  auto* cur = task::current();
+    // BUG: this *could* be bad if a task uses `yield()` to deschedule itself,
+    // but another execution context running concurrently locks `_spin_lock`...
+    if (!l) return;
 
-  // update virtual runtime of currently running task
-  auto now = vruntime_clock::now();
-  cur->vruntime +=
-      std::chrono::duration_cast<decltype(cur->vruntime)>(now - _last_tick);
-  _last_tick = now;
+    if (current() != this) return;  // well, that was awkward
 
-  // if the task was in a runnable state when the scheduler was invoked, push it
-  // to the runqueue
-  if (cur->run_state == task::RUNNING) {
-    _rq.push(cur);
-  } else if (cur->run_state == task::STOPPED && cur->detached) {
-    _task_freelist->return_task_from_scheduler(cur);
+    cur = task::current();
+
+    // update virtual runtime of currently running task
+    auto now = vruntime_clock::now();
+    cur->vruntime +=
+        std::chrono::duration_cast<decltype(cur->vruntime)>(now - _last_tick);
+    _last_tick = now;
+
+    // if the task was in a runnable state when the scheduler was invoked, push
+    // it to the runqueue
+    if (cur->run_state == task::RUNNING) {
+      _rq.push(cur);
+    } else if (cur->run_state == task::STOPPED && cur->detached) {
+      _task_freelist->return_task_from_scheduler(cur);
+    }
+
+    next_task =
+        _rq.pop([&l](internal::rq::sleepqueue_clock::time_point wake_time)
+                    mt_no_analysis {
+                      l.unlock();
+                      std::this_thread::sleep_until(wake_time);
+                      l.lock();
+                    });
   }
-
-  static const std::function<void(internal::rq::sleepqueue_clock::time_point)>
-      idle_thunk = [](internal::rq::sleepqueue_clock::time_point wake_time) {
-        std::this_thread::sleep_until(wake_time);
-      };
-  task* next_task = _rq.pop(idle_thunk);
-
-  interrupt_lock.unlock();
 
   if (next_task != cur) {
     next_task->switch_to([this]() { g_current_sched_node = this; });
@@ -84,7 +113,7 @@ void sched_node::yield_for(internal::rq::sleepqueue_clock::duration duration) {
   auto* current = task::current();
 
   {
-    std::lock_guard<spin_lock> l(interrupt_lock);
+    std::lock_guard<spin_lock> l(_spin_lock);
     current->run_state = task::WAITING;
     _rq.sleep_push(current, duration);
   }
@@ -93,17 +122,28 @@ void sched_node::yield_for(internal::rq::sleepqueue_clock::duration duration) {
 }
 
 bool sched_node::spin_lock::try_lock() {
-  return !_flag.test_and_set(std::memory_order_acquire);
+  bool expected = false;
+  return _flag.compare_exchange_strong(expected, true,
+                                       std::memory_order_acquire);
 }
 
 void sched_node::spin_lock::lock() {
   // low level spin utilizing amd64 pause instruction between tries
-  while (!try_lock()) asm("pause");
+  bool expected = false;
+  while (
+      !_flag.compare_exchange_weak(expected, true, std::memory_order_acquire)) {
+    asm("pause");
+    expected = false;
+  }
 }
 
-void sched_node::spin_lock::unlock() { _flag.clear(std::memory_order_release); }
+void sched_node::spin_lock::unlock() {
+  _flag.store(false, std::memory_order_release);
+}
 
 void sched_node::schedule(task* t) {
+  std::lock_guard<spin_lock> l(_spin_lock);
+
   // initialize the vruntime if |t| is a new task
   if (t->vruntime == std::chrono::microseconds{0}) {
     t->vruntime = _rq.min_vruntime();

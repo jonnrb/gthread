@@ -26,3 +26,12 @@ void gthread_log_fatal(Args&&... args) {
   gthread_recursive_write(ss, std::forward<Args>(args)...);
   throw std::runtime_error(ss.str());
 }
+
+template <typename... Args>
+void gthread_log_dfatal(Args&&... args) {
+#ifdef NDEBUG
+  gthread_log(std::forward<Args>(args)...);
+#else
+  gthread_log_fatal(std::forward<Args>(args)...);
+#endif
+}

@@ -28,7 +28,6 @@ void task::destroy() {
   }
 }
 
-// wrapped task constructor
 task::task()
     : _tls{nullptr},
       _ctx{0},
@@ -42,7 +41,8 @@ task::task()
       joiner{nullptr},
       detached{false},
       vruntime{0},
-      priority_boost{0} {}
+      priority_boost{0},
+      no_preempt_flag{false} {}
 
 namespace {
 static void* sixteen_byte_align(void* p) {
@@ -64,7 +64,8 @@ task::task(void* stack, void* stack_begin, size_t total_stack_size,
       joiner{nullptr},
       detached{false},
       vruntime{0},
-      priority_boost{0} {
+      priority_boost{0},
+      no_preempt_flag{false} {
   if (alloc_tls) {
     void* tls_begin = (void*)((char*)_stack_begin - tls::postfix_bytes());
     _tls = new (tls_begin) tls();
@@ -134,15 +135,11 @@ void task::switch_to() { switch_to_internal<void()>(nullptr); }
 
 void task::set_end_handler(end_handler handler) { _end_handler = handler; }
 
-task task::create_wrapped() {
-  task t{};
-
+void task::wrap_current() {
   // most of struct is zero-initialized
-  t._tls = tls::current();
-  t.run_state = RUNNING;
+  _tls = tls::current();
+  run_state = RUNNING;
 
-  t._tls->set_thread(&t);
-
-  return t;
+  _tls->set_thread(this);
 }
 }  // namespace gthread

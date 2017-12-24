@@ -14,17 +14,18 @@ bool waiter::park() {
 bool waiter::unpark() {
   auto* parked = _waiter.load();
   if (parked == nullptr || parked->run_state != task::WAITING ||
-      !_waiter.compare_exchange_strong(parked, nullptr)) {
+      !_waiter.compare_exchange_strong(parked, nullptr,
+                                       std::memory_order_release)) {
     return false;
   }
 
   assert(parked->run_state == task::WAITING);
 
-  auto* node = sched_node::current();
+  auto& pmu = preempt_mutex::get();
   {
-    std::lock_guard<sched_node> l(*node);
+    std::lock_guard<preempt_mutex> l(pmu);
     parked->run_state = task::SUSPENDED;
-    node->schedule(parked);
+    pmu.node().schedule(parked);
   }
 
   return true;
@@ -35,13 +36,13 @@ bool waiter::swap() {
   auto* current = task::current();
 
   if (parked == nullptr || parked->run_state != task::WAITING ||
-      !_waiter.compare_exchange_strong(parked, current)) {
+      !_waiter.compare_exchange_strong(parked, current,
+                                       std::memory_order_seq_cst)) {
     return false;
   }
 
-  auto* node = sched_node::current();
   {
-    std::lock_guard<sched_node> l(*node);
+    std::lock_guard<preempt_mutex> l(preempt_mutex::get());
     current->run_state = task::WAITING;
     parked->switch_to();
   }

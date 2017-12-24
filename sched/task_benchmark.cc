@@ -9,7 +9,9 @@ static void* mirror(void* arg) {
 }
 
 static void benchmark_task_switch_to_no_tls(benchmark::State& state) {
-  auto root_task = gthread::task::create_wrapped();
+  gthread::task root_task{};
+  root_task.wrap_current();
+
   auto* t = gthread::task::create(gthread::k_light_attr);
   t->entry = mirror;
   t->arg = &root_task;
@@ -25,7 +27,9 @@ static void benchmark_task_switch_to_no_tls(benchmark::State& state) {
 BENCHMARK(benchmark_task_switch_to_no_tls);
 
 static void benchmark_task_switch_to_with_tls(benchmark::State& state) {
-  auto root_task = gthread::task::create_wrapped();
+  gthread::task root_task{};
+  root_task.wrap_current();
+
   auto* t = gthread::task::create(gthread::k_default_attr);
   t->entry = mirror;
   t->arg = &root_task;

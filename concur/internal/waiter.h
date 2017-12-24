@@ -2,6 +2,7 @@
 
 #include <atomic>
 
+#include "sched/preempt.h"
 #include "sched/task.h"
 
 namespace gthread {
@@ -14,7 +15,8 @@ class waiter {
   waiter() : _waiter(nullptr) {}
 
   /**
-   * returns true if there is a parked exeuction context
+   * returns true if there is a parked exeuction context (or one is in the
+   * process of parking)
    */
   operator bool() { return _waiter.load() != nullptr; }
 
@@ -30,7 +32,7 @@ class waiter {
    * the process of parking on this waiter. if |check_thunk| returns false or
    * the current context cannot be parked, this will return false.
    */
-  template<typename CheckThunk>
+  template <typename CheckThunk>
   bool park_if(CheckThunk&& check_thunk);
 
   /**

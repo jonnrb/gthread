@@ -14,6 +14,12 @@
 namespace gthread {
 struct task {
  public:
+  /**
+   * default constructor should only be followed by call to `wrap_current()`.
+   * to make a new task, `create()` should be called.
+   */
+  task();
+
   ~task();
 
   /**
@@ -27,14 +33,12 @@ struct task {
   void destroy();
 
   /**
-   * creates a task object that represents the current execution context
-   *
    * should only be used to wrap an execution context that is already running.
    * this MUST be called from any new context that will call `switch_to()` on a
    * task since `switch_to()` assumes that it can save the current execution
    * context.
    */
-  static task create_wrapped();
+  void wrap_current();
 
   void reset();
 
@@ -95,19 +99,25 @@ struct task {
   task* joiner;
   bool detached;
   std::chrono::microseconds vruntime;
-  uint64_t priority_boost;
+  uint64_t priority_boost;  // TODO: remove
+
+  /**
+   * signifies to the preemption alarm to not preempt this task for the time
+   * being
+   *
+   * NOTE: also set to true when the task IS swapped out to ensure correctness
+   * (no execution context other than the one represented by this `task` can
+   * set this flag)
+   */
+  std::atomic<bool> no_preempt_flag;
 
  private:
-  // default constructor only for root task
-  task();
-
   task(void* stack, void* stack_begin, size_t total_stack_size, bool alloc_tls);
 
   template <typename Thunk>
   void switch_to_internal(const Thunk* post_tls_switch_thunk);
 
   static end_handler _end_handler;
-  static std::atomic_flag _lock;  // locks static variables
 };
 }  // namespace gthread
 
