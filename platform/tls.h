@@ -71,6 +71,9 @@ class tls {
    * change the current context's tls to use |tls|
    */
   void use();
+
+ private:
+  uint8_t* after() { return reinterpret_cast<uint8_t*>(this) + sizeof(tls); }
 };
 }  // namespace gthread
 
