@@ -19,11 +19,11 @@ TEST(gthread_waiter, quick_switch) {
 }
 
 TEST(gthread_waiter, ping_pong) {
+  constexpr auto k_ping_pong = 1E6;
   gthread::internal::waiter w;
 
   gthread::g([&w]() {
-    for (int i = 0; i < 10; ++i) {
-      std::cout << "ping" << std::endl;
+    for (int i = 0; i < k_ping_pong; ++i) {
       while (!w.swap()) {
       }
     }
@@ -34,8 +34,7 @@ TEST(gthread_waiter, ping_pong) {
   gthread::g([&w]() {
     while (!w.park()) {
     }
-    for (int i = 0; i < 10; ++i) {
-      std::cout << "pong" << std::endl;
+    for (int i = 0; i < k_ping_pong; ++i) {
       while (!w.swap()) {
       }
     }
