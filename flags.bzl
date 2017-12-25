@@ -1,7 +1,8 @@
 COPTS = [
-    "-D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS",
-    "-Werror=thread-safety-analysis",
-    "-flto",
+    "-D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS",  # for llvm
+    #"-Werror=thread-safety-analysis",
+    #"-flto",
+    "-pedantic",
 ]
 
 LINKOPTS = [

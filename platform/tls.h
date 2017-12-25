@@ -71,13 +71,6 @@ class tls {
    * change the current context's tls to use |tls|
    */
   void use();
-
- private:
-  /**
-   * currently everything is implemented by platforms with very special bytes
-   * hanging off this pointer
-   */
-  char _after[0];
 };
 }  // namespace gthread
 

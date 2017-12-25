@@ -61,16 +61,16 @@ size_t get_pthread_slots_offset() {
 
 tls::tls() {
   size_t pthread_t_size = get_pthread_slots_offset();
-  memcpy(_after, *g_pthread_self_slot, pthread_t_size);
-  memset(_after + pthread_t_size, 0, k_num_slots * sizeof(void*));
+  memcpy(this, *g_pthread_self_slot, pthread_t_size);
+  memset((char*)this + pthread_t_size, 0, k_num_slots * sizeof(void*));
 
   // set the user tcb to be this tls block
-  void** tls_slots = (void**)(_after + pthread_t_size);
-  tls_slots[0] = _after;
+  void** tls_slots = (void**)((char*)this + pthread_t_size);
+  tls_slots[0] = this;
 }
 
 tls::~tls() {
-  void** tls_slots = (void**)(_after + get_pthread_slots_offset());
+  void** tls_slots = (void**)((char*)this + get_pthread_slots_offset());
 
   // TODO(jonnrb): do we have to free the low slots?
   for (int i = k_num_copied_slots; i < k_num_slots; ++i) {
@@ -81,12 +81,11 @@ tls::~tls() {
 size_t tls::prefix_bytes() { return 0; }
 
 size_t tls::postfix_bytes() {
-  return offsetof(tls, _after) + k_num_slots * sizeof(void*) +
-         get_pthread_slots_offset();
+  return k_num_slots * sizeof(void*) + get_pthread_slots_offset();
 }
 
 void tls::reset() {
-  void** tls_slots = (void**)(_after + get_pthread_slots_offset());
+  void** tls_slots = (void**)((char*)this + get_pthread_slots_offset());
 
   // TODO(jonnrb): do we have to free the low slots?
   for (int i = k_num_copied_slots; i < k_num_slots; ++i) {
@@ -102,17 +101,17 @@ tls* tls::current() {
 }
 
 void tls::set_thread(void* thread) {
-  void** tls_slots = (void**)(_after + get_pthread_slots_offset());
+  void** tls_slots = (void**)((char*)this + get_pthread_slots_offset());
   tls_slots[k_thread_slot_a] = thread;
 }
 
 void* tls::get_thread() {
-  void** tls_slots = (void**)(_after + get_pthread_slots_offset());
+  void** tls_slots = (void**)((char*)this + get_pthread_slots_offset());
   return tls_slots[k_thread_slot_a];
 }
 
 void tls::use() {
-  void** tls_slots = (void**)(_after + get_pthread_slots_offset());
+  void** tls_slots = (void**)((char*)this + get_pthread_slots_offset());
   _thread_set_tsd_base((void*)tls_slots);
 }
 
