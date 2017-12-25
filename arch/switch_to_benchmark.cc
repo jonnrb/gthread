@@ -1,6 +1,9 @@
 #include "arch/switch_to.h"
 
 #include <ucontext.h>
+#include <condition_variable>
+#include <csetjmp>
+#include <thread>
 
 #include "benchmark/benchmark.h"
 #include "platform/memory.h"
@@ -61,5 +64,58 @@ static void bench_ucontext_swapcontext(benchmark::State& state) {
 }
 
 BENCHMARK(bench_ucontext_swapcontext);
+
+std::jmp_buf jtest_func_buf;
+std::jmp_buf main_buf;
+
+static void jtest_func() {
+  if (setjmp(jtest_func_buf)) {
+    longjmp(main_buf, 1);
+  }
+}
+
+static void bench_setjmp_longjmp(benchmark::State& state) {
+  if (setjmp(main_buf) == 0) {
+    jtest_func();
+  }
+
+  for (auto _ : state) {
+    if (setjmp(main_buf) == 0) {
+      longjmp(jtest_func_buf, 1);
+    }
+  }
+
+  if (setjmp(main_buf) == 0) {
+    longjmp(jtest_func_buf, 0);
+  }
+}
+
+BENCHMARK(bench_setjmp_longjmp);
+
+static void bench_mutex_condition(benchmark::State& state) {
+  std::mutex mu;
+  std::condition_variable cv;
+  bool done_flag = false;
+
+  std::thread bg([&mu, &cv, &done_flag]() {
+    while (!done_flag) {
+      std::unique_lock<std::mutex> l(mu);
+      cv.notify_one();
+      cv.wait(l);
+    }
+  });
+
+  for (auto _ : state) {
+    std::unique_lock<std::mutex> l(mu);
+    cv.notify_one();
+    cv.wait(l);
+  }
+
+  done_flag = true;
+  cv.notify_one();
+  bg.join();
+}
+
+BENCHMARK(bench_mutex_condition);
 
 BENCHMARK_MAIN()
