@@ -68,6 +68,6 @@ class self {
   inline static void sleep_for(
       const std::chrono::duration<Rep, Period>& sleep_duration);
 };
-};  // namespace gthread
+}  // namespace gthread
 
 #include "gthread_impl.h"

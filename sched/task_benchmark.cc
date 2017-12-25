@@ -99,4 +99,4 @@ static void benchmark_task_reset_with_tls(benchmark::State& state) {
 
 BENCHMARK(benchmark_task_reset_with_tls);
 
-BENCHMARK_MAIN();
+BENCHMARK_MAIN()

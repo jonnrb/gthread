@@ -22,6 +22,6 @@ auto make_channel();
  */
 template <typename T, size_t Size>
 auto make_buffered_channel();
-};  // namespace gthread
+}  // namespace gthread
 
 #include "concur/channel_impl.h"

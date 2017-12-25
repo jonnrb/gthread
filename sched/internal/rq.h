@@ -42,7 +42,7 @@ class rq {
 
   std::atomic<std::chrono::microseconds> _min_vruntime;
 };
-};  // namespace internal
-};  // namespace gthread
+}  // namespace internal
+}  // namespace gthread
 
 #include "sched/internal/rq_impl.h"

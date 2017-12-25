@@ -67,4 +67,4 @@ static void bench_stdlib_mutex(benchmark::State& state) {
 
 BENCHMARK(bench_stdlib_mutex)->UseRealTime();
 
-BENCHMARK_MAIN();
+BENCHMARK_MAIN()

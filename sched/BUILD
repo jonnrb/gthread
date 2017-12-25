@@ -31,7 +31,7 @@ cc_binary(
     name = "sched_benchmark",
     srcs = ["sched_benchmark.cc"],
     copts = COPTS,
-    linkopts = LINKOPTS,
+    linkopts = LINKOPTS + ["-lpthread"],
     deps = [
         ":sched",
         "@jonnrb_bazel_googlebenchmark//:benchmark",
@@ -91,7 +91,7 @@ cc_binary(
     name = "task_benchmark",
     srcs = ["task_benchmark.cc"],
     copts = COPTS,
-    linkopts = LINKOPTS,
+    linkopts = LINKOPTS + ["-lpthread"],
     deps = [
         ":task",
         "@jonnrb_bazel_googlebenchmark//:benchmark",

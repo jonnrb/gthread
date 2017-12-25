@@ -38,4 +38,4 @@ extern void gthread_switch_to(gthread_saved_ctx_t* from,
 extern void gthread_switch_to_and_spawn(
     gthread_saved_ctx_t* self_ctx, void* stack, void (*entry)(void*),
     void* arg) asm("gthread_switch_to_and_spawn");
-};
+}

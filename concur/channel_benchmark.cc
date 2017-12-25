@@ -91,4 +91,4 @@ static void bench_buffered_channel_sending_ints_4096(benchmark::State& state) {
 
 BENCHMARK(bench_buffered_channel_sending_ints_4096);
 
-BENCHMARK_MAIN();
+BENCHMARK_MAIN()

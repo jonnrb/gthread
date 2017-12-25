@@ -109,7 +109,7 @@ static void gthread_task_entry(void* arg) {
   cur->run_state = task::RUNNING;
   cur->stop(cur->entry(cur->arg));
 }
-};
+}
 
 void task::start() {
   assert(branch_unexpected(run_state == STOPPED));

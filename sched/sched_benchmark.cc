@@ -68,4 +68,4 @@ static void benchmark_sched_light_attr(benchmark::State& state) {
 
 BENCHMARK(benchmark_sched_light_attr)->Range(1 << 3, 1 << 11);
 
-BENCHMARK_MAIN();
+BENCHMARK_MAIN()

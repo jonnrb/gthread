@@ -62,4 +62,4 @@ static void bench_ucontext_swapcontext(benchmark::State& state) {
 
 BENCHMARK(bench_ucontext_swapcontext);
 
-BENCHMARK_MAIN();
+BENCHMARK_MAIN()

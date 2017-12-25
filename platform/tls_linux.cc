@@ -136,13 +136,13 @@ tls_image* find_tls_images() {
 }  // namespace
 
 tls::tls() {
-  tcbhead* tcb = (tcbhead*)_after;
+  tcbhead* tcb = (tcbhead*)this;
   tcb->self = tcb;
 
   dtv* thread_vector = new dtv[k_num_slots + 2];
   tcb->thread_vector = thread_vector;
   thread_vector[0].head.num_modules = k_num_slots;
-  thread_vector[0].head.base = _after - prefix_bytes();
+  thread_vector[0].head.base = (char*)this - prefix_bytes();
   thread_vector[1].pointer.v = (void*)tcb;
   thread_vector[1].pointer.is_static = false;
   for (int i = 0; i < k_num_slots; ++i) {
@@ -151,7 +151,7 @@ tls::tls() {
   }
 
   tls_image* images = find_tls_images();
-  char* image_base = _after;
+  char* image_base = (char*)this;
   int module = 0;
   for (int i = 0; i < k_num_slots; ++i) {
     if (images[i].data == NULL) continue;
@@ -174,7 +174,7 @@ tls::tls() {
 }
 
 tls::~tls() {
-  dtv* thread_vector = ((tcbhead*)_after)->thread_vector;
+  dtv* thread_vector = ((tcbhead*)this)->thread_vector;
   for (int i = 0; i < k_num_slots; ++i) {
     if (!thread_vector[i + 2].pointer.is_static &&
         thread_vector[i + 2].pointer.v != TLS_DTV_UNALLOCATED) {
@@ -195,11 +195,11 @@ size_t tls::prefix_bytes() {
   return static_images_size;
 }
 
-size_t tls::postfix_bytes() { return offsetof(tls, _after) + sizeof(tcbhead); }
+size_t tls::postfix_bytes() { return sizeof(tcbhead); }
 
 void tls::reset() {
   // free dynamically allocated modules
-  dtv* thread_vector = ((tcbhead*)_after)->thread_vector;
+  dtv* thread_vector = ((tcbhead*)this)->thread_vector;
   for (int i = 0; i < k_num_slots; ++i) {
     if (thread_vector[i + 2].pointer.v != TLS_DTV_UNALLOCATED &&
         !thread_vector[i + 2].pointer.is_static) {
@@ -213,9 +213,9 @@ void tls::reset() {
 
   // zero-initialize data not in the image
   char* old_base = (char*)thread_vector[0].head.base;
-  memset(old_base, '\0', _after - old_base);
+  memset(old_base, '\0', (char*)this - old_base);
 
-  char* image_base = _after;
+  char* image_base = (char*)this;
   int module = 0;
   for (int i = 0; image_base > old_base && i < k_num_slots; ++i) {
     if (images[i].data == nullptr) continue;
@@ -232,24 +232,24 @@ void tls::reset() {
     thread_vector[module + 1].pointer.v = image_base;
   }
 
-  ((tcbhead*)_after)->did_ctype_init = 0;
+  ((tcbhead*)this)->did_ctype_init = 0;
 }
 
-void tls::set_thread(void* thread) { ((tcbhead*)_after)->thread = thread; }
+void tls::set_thread(void* thread) { ((tcbhead*)this)->thread = thread; }
 
-void* tls::get_thread() { return ((tcbhead*)_after)->thread; }
+void* tls::get_thread() { return ((tcbhead*)this)->thread; }
 
 tls* tls::current() {
   tcbhead* cur = nullptr;
   get_tcb(&cur);
-  return (tls*)((char*)cur - offsetof(tls, _after));
+  return (tls*)cur;
 }
 
 void tls::use() {
-  set_tcb((tcbhead*)_after);
-  if (branch_unexpected(!((tcbhead*)_after)->did_ctype_init)) {
+  set_tcb((tcbhead*)this);
+  if (branch_unexpected(!((tcbhead*)this)->did_ctype_init)) {
     __ctype_init();
-    ((tcbhead*)_after)->did_ctype_init = 1;
+    ((tcbhead*)this)->did_ctype_init = 1;
   }
 }
 

@@ -24,4 +24,4 @@ class thread_clock {
   static time_point now() noexcept;
   static duration resolution() noexcept;
 };
-};  // namespace gthread
+}  // namespace gthread
