@@ -55,7 +55,7 @@ task::task(void* stack, void* stack_begin, size_t total_stack_size,
            bool alloc_tls)
     : _ctx{0},
       _stack{stack},
-      _stack_begin{sixteen_byte_align(stack_begin)},
+      _stack_begin{stack_begin},
       _total_stack_size{total_stack_size},
       run_state{STOPPED},
       entry{nullptr},
@@ -74,6 +74,7 @@ task::task(void* stack, void* stack_begin, size_t total_stack_size,
   } else {
     _tls = nullptr;
   }
+  _stack_begin = sixteen_byte_align(_stack_begin);
 }
 
 task::~task() {
