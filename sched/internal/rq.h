@@ -19,7 +19,7 @@ class rq {
   template <typename Thunk>
   task* pop(const Thunk& idle_thunk);
 
-  constexpr std::chrono::microseconds min_vruntime() const {
+  std::chrono::microseconds min_vruntime() const {
     return _min_vruntime.load();
   }
 
