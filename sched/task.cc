@@ -92,10 +92,14 @@ void task::reset() {
   }
 
   run_state = STOPPED;
+  entry = nullptr;
+  arg = nullptr;
   return_value = nullptr;
   joiner = nullptr;
+  detached = false;
   vruntime = std::chrono::microseconds{0};
   priority_boost = 0;
+  no_preempt_flag.store(false);
 }
 
 extern "C" {
