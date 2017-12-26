@@ -75,6 +75,18 @@ cc_library(
     deps = ["//sched"],
 )
 
+cc_binary(
+    name = "waiter_benchmark",
+    srcs = ["waiter_benchmark.cc"],
+    copts = COPTS,
+    linkopts = LINKOPTS,
+    deps = [
+        ":waiter",
+        "//:gthread",
+        "@jonnrb_bazel_googlebenchmark//:benchmark",
+    ],
+)
+
 cc_test(
     name = "waiter_test",
     timeout = "short",
