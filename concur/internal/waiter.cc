@@ -22,11 +22,9 @@ bool waiter::unpark() {
   assert(parked->run_state == task::WAITING);
 
   auto& pmu = preempt_mutex::get();
-  {
-    std::lock_guard<preempt_mutex> l(pmu);
-    parked->run_state = task::SUSPENDED;
-    pmu.node().schedule(parked);
-  }
+  std::lock_guard<preempt_mutex> l(pmu);
+  parked->run_state = task::SUSPENDED;
+  pmu.node().schedule(parked);
 
   return true;
 }
@@ -41,11 +39,9 @@ bool waiter::swap() {
     return false;
   }
 
-  {
-    std::lock_guard<preempt_mutex> l(preempt_mutex::get());
-    current->run_state = task::WAITING;
-    parked->switch_to();
-  }
+  std::lock_guard<preempt_mutex> l(preempt_mutex::get());
+  current->run_state = task::WAITING;
+  parked->switch_to();
 
   return true;
 }

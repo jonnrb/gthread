@@ -27,7 +27,7 @@ int mutex::lock() {
     // put the thread on the waitqueue
     auto& waiter = _waitqueue.emplace_back();
     l.unlock();
-    bool succ = waiter.park();
+    bool succ[[maybe_unused]] = waiter.park();
     assert(succ);
     l.lock();
 
@@ -69,5 +69,4 @@ int mutex::unlock() {
   self::yield();
   return 0;
 }
-
 }  // namespace gthread
