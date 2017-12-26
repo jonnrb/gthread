@@ -16,26 +16,18 @@ void enable_timer_preemption() {
      * each kernel-managed thread
      */
     alarm::set_trap([]() mt_no_analysis {
-      auto* node = sched_node::current();
-      if (node == nullptr) return;
+      // if there is no `sched_node` on the current kernel-managed thread,
+      // there is nothing to do
+      if (sched_node::current() == nullptr) return;
 
+      // check if the current execution context does not wish to be preempted
       auto& mu = preempt_mutex::get();
       if (static_cast<bool>(mu)) return;
 
-      auto* cur = task::current();
-
-      auto expected = false;
-      auto succ = cur->no_preempt_flag.compare_exchange_strong(
-          expected, true, std::memory_order_acquire);
-      assert(succ);
-
-      node = sched_node::current();
-      node->yield();
-
-      expected = true;
-      succ = cur->no_preempt_flag.compare_exchange_strong(
-          expected, false, std::memory_order_release);
-      assert(succ);
+      // apply the preempt lock to prevent trampling (and assert that no other
+      // concurrent execution context sets the `no_preempt_flag`)
+      std::lock_guard<preempt_mutex> l(mu);
+      mu.node().yield();
     });
   }
   alarm::set_interval(preempt_interval);
@@ -51,7 +43,7 @@ preempt_mutex& preempt_mutex::get() {
 void preempt_mutex::lock() {
   auto* cur = task::current();
   auto expected = false;
-  auto succ = cur->no_preempt_flag.compare_exchange_strong(
+  auto succ[[maybe_unused]] = cur->no_preempt_flag.compare_exchange_strong(
       expected, true, std::memory_order_acquire);
   assert(succ);
 }
@@ -59,7 +51,7 @@ void preempt_mutex::lock() {
 void preempt_mutex::unlock() {
   auto* cur = task::current();
   auto expected = true;
-  auto succ = cur->no_preempt_flag.compare_exchange_strong(
+  auto succ[[maybe_unused]] = cur->no_preempt_flag.compare_exchange_strong(
       expected, false, std::memory_order_release);
   assert(succ);
 }

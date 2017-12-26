@@ -69,9 +69,8 @@ class sched_node {
    private:
     std::atomic<bool> _flag;
   };
-
+  using guard = std::lock_guard<spin_lock>;
   spin_lock _spin_lock;
-  friend class try_lock_guard;
 
   std::atomic<bool> _running;
 

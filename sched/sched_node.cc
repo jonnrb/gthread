@@ -44,38 +44,13 @@ void sched_node::start() mt_no_analysis {
   }
 }
 
-class mt_scoped_capability try_lock_guard {
- public:
-  try_lock_guard(sched_node::spin_lock& t) mt_acquire(t) : _t(t), _succ(false) {
-    _succ = _t.try_lock();
-  }
-
-  ~try_lock_guard() mt_release() {
-    if (_succ) _t.unlock();
-  }
-
-  void lock() mt_acquire(_t) { _t.lock(); }
-
-  void unlock() mt_release(_t) { _t.unlock(); }
-
-  operator bool() const { return _succ; }
-
- private:
-  sched_node::spin_lock& _t;
-  bool _succ;
-};
-
 void sched_node::yield() {
   if (!_running.load()) return;
 
   task* next_task;
   task* cur;
   {
-    try_lock_guard l(_spin_lock);
-
-    // BUG: this *could* be bad if a task uses `yield()` to deschedule itself,
-    // but another execution context running concurrently locks `_spin_lock`...
-    if (!l) return;
+    guard l(_spin_lock);
 
     if (current() != this) return;  // well, that was awkward
 
@@ -96,11 +71,11 @@ void sched_node::yield() {
     }
 
     next_task =
-        _rq.pop([&l](internal::rq::sleepqueue_clock::time_point wake_time)
+        _rq.pop([this](internal::rq::sleepqueue_clock::time_point wake_time)
                     mt_no_analysis {
-                      l.unlock();
+                      _spin_lock.unlock();
                       std::this_thread::sleep_until(wake_time);
-                      l.lock();
+                      _spin_lock.lock();
                     });
   }
 
@@ -113,7 +88,7 @@ void sched_node::yield_for(internal::rq::sleepqueue_clock::duration duration) {
   auto* current = task::current();
 
   {
-    std::lock_guard<spin_lock> l(_spin_lock);
+    guard l(_spin_lock);
     current->run_state = task::WAITING;
     _rq.sleep_push(current, duration);
   }
@@ -128,7 +103,7 @@ bool sched_node::spin_lock::try_lock() {
 }
 
 void sched_node::spin_lock::lock() {
-  // low level spin utilizing amd64 pause instruction between tries
+  // low level spin utilizing pause instruction between tries
   bool expected = false;
   while (
       !_flag.compare_exchange_weak(expected, true, std::memory_order_acquire)) {
@@ -142,7 +117,7 @@ void sched_node::spin_lock::unlock() {
 }
 
 void sched_node::schedule(task* t) {
-  std::lock_guard<spin_lock> l(_spin_lock);
+  guard l(_spin_lock);
 
   // initialize the vruntime if |t| is a new task
   if (t->vruntime == std::chrono::microseconds{0}) {

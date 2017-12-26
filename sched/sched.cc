@@ -52,11 +52,9 @@ void yield() {
     return;
   }
 
-  // XXX: there is a small chance that we are yielding on the wrong node. the
-  // only way this is possible is if the current task was preempted between
-  // getting the current node and yielding to it, in which case, there was a
-  // yield and `yield()` did its job?
-  node->yield();
+  auto& pmu = preempt_mutex::get();
+  std::lock_guard<preempt_mutex> l(pmu);
+  pmu.node().yield();
 }
 
 handle spawn(const attr& attr, task::entry_t* entry, void* arg) {
