@@ -1,16 +1,9 @@
 #include "sched/sched.h"
 
-#include <atomic>
 #include <cassert>
-#include <cerrno>
 #include <cinttypes>
-#include <iostream>
 #include <mutex>
-#include <set>
-#include <thread>
 
-#include "platform/clock.h"
-#include "platform/memory.h"
 #include "sched/preempt.h"
 #include "util/compiler.h"
 #include "util/log.h"
@@ -74,10 +67,8 @@ handle spawn(const attr& attr, task::entry_t* entry, void* arg) {
 
   // TODO: where do we schedule when there are options?
   auto& pmu = preempt_mutex::get();
-  {
-    std::lock_guard<preempt_mutex> l(pmu);
-    pmu.node().schedule(handle.t);
-  }
+  std::lock_guard<preempt_mutex> l(pmu);
+  pmu.node().schedule(handle.t);
 
   return handle;
 }
@@ -93,8 +84,6 @@ void join(handle* handle, void** return_value) {
   {
     std::unique_lock<preempt_mutex> l(pmu);
 
-    // if the joiner is not `nullptr`, something else is joining, which is
-    // undefined behavior
     if (branch_unexpected(handle->t->joiner != nullptr)) {
       throw std::logic_error("a thread can only be joined from one place");
     }
@@ -126,6 +115,7 @@ void detach(handle* handle) {
   auto& pmu = preempt_mutex::get();
   {
     std::lock_guard<preempt_mutex> l(pmu);
+    // TODO: fix race here for smp case
     if (handle->t->run_state != task::STOPPED) {
       handle->t->detached = true;
       handle->t = nullptr;
@@ -148,20 +138,15 @@ void exit(void* return_value) {
   }
 
   auto& pmu = preempt_mutex::get();
-  {
-    std::lock_guard<preempt_mutex> l(pmu);
-    current->return_value = return_value;  // save |return_value|
-    current->run_state = task::STOPPED;    // deschedule permanently
+  std::lock_guard<preempt_mutex> l(pmu);
+  current->return_value = return_value;  // save |return_value|
+  current->run_state = task::STOPPED;    // deschedule permanently
 
-    if (current->joiner != nullptr) {
-      pmu.node().schedule(current->joiner);
-    }
+  if (current->joiner != nullptr) {
+    pmu.node().schedule(current->joiner);
   }
 
-  yield();  // deschedule
-
-  // impossible to be here
-  gthread_log_fatal("how did I get here?");
+  pmu.node().yield();  // deschedule
 }
 }  // namespace sched
 }  // namespace gthread
