@@ -39,9 +39,10 @@ bool waiter::swap() {
     return false;
   }
 
-  std::lock_guard<preempt_mutex> l(preempt_mutex::get());
+  auto& pmu = preempt_mutex::get();
+  std::lock_guard<preempt_mutex> l(pmu);
   current->run_state = task::WAITING;
-  parked->switch_to();
+  pmu.node().switch_to(parked);
 
   return true;
 }

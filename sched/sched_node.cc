@@ -25,6 +25,8 @@ void sched_node::start_async() mt_no_analysis {
 }
 
 void sched_node::start() mt_no_analysis {
+  g_current_sched_node = this;
+
   _last_tick = vruntime_clock::now();
   _host_task.wrap_current();
 
@@ -33,6 +35,7 @@ void sched_node::start() mt_no_analysis {
     gthread_log_fatal("sched_node was already running");
   }
 
+  _host_task.run_state = task::WAITING;
   yield();  // will not resume until stopped
 
   if (_running.load()) {
@@ -44,42 +47,54 @@ void sched_node::start() mt_no_analysis {
   }
 }
 
+template <typename T>
+class unlock_guard {
+  T& _t;
+
+ public:
+  unlock_guard(T& t) : _t(t) { _t.unlock(); }
+  ~unlock_guard() { _t.lock(); }
+};
+
+task* sched_node::get_next_task(task* cur) {
+  // update virtual runtime of currently running task
+  cur->vruntime += std::chrono::duration_cast<decltype(cur->vruntime)>(
+      vruntime_clock::now() - _last_tick);
+
+  // if the task was in a runnable state when the scheduler was invoked, push
+  // it to the runqueue
+  if (cur->run_state == task::RUNNING) {
+    _rq.push(cur);
+  } else if (cur->run_state == task::STOPPED && cur->detached) {
+    _deferred = cur;  // defer `return_task()` to avoid freeing this stack
+  }
+
+  // while idling, unlock `_spin_lock` and sleep the kernel-managed thread
+  auto* next_task = _rq.pop([this](auto&& wake_time) mt_no_analysis {
+    unlock_guard<spin_lock> u(_spin_lock);
+    std::this_thread::sleep_until(wake_time);
+  });
+
+  _last_tick = vruntime_clock::now();
+  return next_task;
+}
+
 void sched_node::yield() {
   if (!_running.load()) return;
 
-  task* next_task;
-  task* cur;
-  {
-    guard l(_spin_lock);
+  guard l(_spin_lock);
 
-    if (current() != this) return;  // well, that was awkward
-
-    cur = task::current();
-
-    // update virtual runtime of currently running task
-    cur->vruntime += std::chrono::duration_cast<decltype(cur->vruntime)>(
-        vruntime_clock::now() - _last_tick);
-
-    // if the task was in a runnable state when the scheduler was invoked, push
-    // it to the runqueue
-    if (cur->run_state == task::RUNNING) {
-      _rq.push(cur);
-    } else if (cur->run_state == task::STOPPED && cur->detached) {
-      _task_freelist->return_task_from_scheduler(cur);
-    }
-
-    next_task =
-        _rq.pop([this](internal::rq::sleepqueue_clock::time_point wake_time)
-                    mt_no_analysis {
-                      _spin_lock.unlock();
-                      std::this_thread::sleep_until(wake_time);
-                      _spin_lock.lock();
-                    });
-
-    _last_tick = vruntime_clock::now();
+  // if we deferred returning a task, do it now
+  if (_deferred != nullptr) {
+    _task_freelist->return_task(_deferred);
+    _deferred = nullptr;
   }
 
+  auto* cur = task::current();
+  auto* next_task = get_next_task(cur);
+
   if (next_task != cur) {
+    unlock_guard<spin_lock> u(_spin_lock);
     next_task->switch_to([this]() { g_current_sched_node = this; });
   }
 }
@@ -125,5 +140,18 @@ void sched_node::schedule(task* t) {
   }
 
   _rq.push(t);
+}
+
+void sched_node::switch_to(task* t) {
+  {
+    std::lock_guard<spin_lock> l(_spin_lock);
+    auto now = vruntime_clock::now();
+    auto* cur = task::current();
+    cur->vruntime +=
+        std::chrono::duration_cast<decltype(cur->vruntime)>(now - _last_tick);
+    _last_tick = now;
+  }
+
+  t->switch_to([this]() { g_current_sched_node = this; });
 }
 }  // namespace gthread

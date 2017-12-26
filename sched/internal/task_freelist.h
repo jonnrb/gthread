@@ -16,8 +16,6 @@ class task_freelist {
 
   void return_task(task* t);
 
-  void return_task_from_scheduler(task* t);
-
  private:
   std::mutex _mu;
   std::list<task*> _l;

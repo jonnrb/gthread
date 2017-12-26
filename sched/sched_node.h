@@ -14,6 +14,7 @@ class sched_node {
   sched_node(std::shared_ptr<internal::task_freelist> task_freelist)
       : _spin_lock(),
         _running(false),
+        _deferred(nullptr),
         _rq(),
         _task_freelist(task_freelist),
         _host_task() {}
@@ -47,6 +48,8 @@ class sched_node {
 
   void schedule(task* t) mt_locks_excluded(_spin_lock);
 
+  void switch_to(task* t) mt_locks_excluded(_spin_lock);
+
   /**
    * returns the sched_node hosting the current execution context (or nullptr)
    *
@@ -56,9 +59,12 @@ class sched_node {
 
  private:
   /**
-   * this is unlike the adaptive spin lock in the concur module in that there
-   * will be no backoff
+   * pushes |current| to the runqueue (if running) and pops the next eligible
+   * task, possibly waiting until its sleep timer has expired
    */
+  task* get_next_task(task* current) mt_locks_required(_spin_lock);
+
+  // NOTE: no backoff and no fallback
   class mt_capability("mutex") spin_lock {
    public:
     spin_lock() : _flag(false) {}
@@ -74,18 +80,15 @@ class sched_node {
 
   std::atomic<bool> _running;
 
-  /**
-   * runqueue
-   */
+  // task was detached and stopped, but we couldn't return it yet because we are
+  // running on its stack (written by `get_next_task()` and read by `yield()`)
+  task* _deferred mt_guarded_by(_spin_lock);
+
   internal::rq _rq mt_guarded_by(_spin_lock);
 
   using vruntime_clock = thread_clock;
   vruntime_clock::time_point _last_tick mt_guarded_by(_spin_lock);
 
-  /**
-   * place to return finished tasks to (ideally this shouldn't be done here
-   * in the first place...)
-   */
   std::shared_ptr<internal::task_freelist> _task_freelist;
 
   task _host_task;

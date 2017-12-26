@@ -52,26 +52,6 @@ task* task_freelist::make_task(const attr& a) {
   return t;
 }
 
-/**
- * being in the scheduler means we are on |t|'s stack, so we can't destroy |t|'s
- * stack here. we pick some other victim.
- */
-void task_freelist::return_task_from_scheduler(task* t) {
-  unique_lock l(_mu);
-
-  if (_l.size() >= _max_size) {
-    task* victim = _l.front();
-    _l.pop_front();
-
-    // exit critical section to do system call
-    l.unlock();
-    victim->destroy();
-    l.lock();
-  }
-
-  insert_task(&_l, t);
-}
-
 void task_freelist::return_task(task* t) {
   {
     guard l(_mu);
