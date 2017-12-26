@@ -79,7 +79,7 @@ cc_binary(
     name = "waiter_benchmark",
     srcs = ["waiter_benchmark.cc"],
     copts = COPTS,
-    linkopts = LINKOPTS,
+    linkopts = LINKOPTS + ["-lpthread"],
     deps = [
         ":waiter",
         "//:gthread",

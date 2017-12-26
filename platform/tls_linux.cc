@@ -151,7 +151,7 @@ tls::tls() {
   }
 
   tls_image* images = find_tls_images();
-  char* image_base = after();
+  auto* image_base = after();
   int module = 0;
   for (int i = 0; i < k_num_slots; ++i) {
     if (images[i].data == NULL) continue;
@@ -212,10 +212,10 @@ void tls::reset() {
   tls_image* images = find_tls_images();
 
   // zero-initialize data not in the image
-  char* old_base = (char*)thread_vector[0].head.base;
+  auto* old_base = (uint8_t*)thread_vector[0].head.base;
   memset(old_base, '\0', after() - old_base);
 
-  char* image_base = after();
+  auto* image_base = after();
   int module = 0;
   for (int i = 0; image_base > old_base && i < k_num_slots; ++i) {
     if (images[i].data == nullptr) continue;
