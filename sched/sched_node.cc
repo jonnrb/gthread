@@ -57,10 +57,8 @@ void sched_node::yield() {
     cur = task::current();
 
     // update virtual runtime of currently running task
-    auto now = vruntime_clock::now();
-    cur->vruntime +=
-        std::chrono::duration_cast<decltype(cur->vruntime)>(now - _last_tick);
-    _last_tick = now;
+    cur->vruntime += std::chrono::duration_cast<decltype(cur->vruntime)>(
+        vruntime_clock::now() - _last_tick);
 
     // if the task was in a runnable state when the scheduler was invoked, push
     // it to the runqueue
@@ -77,6 +75,8 @@ void sched_node::yield() {
                       std::this_thread::sleep_until(wake_time);
                       _spin_lock.lock();
                     });
+
+    _last_tick = vruntime_clock::now();
   }
 
   if (next_task != cur) {
