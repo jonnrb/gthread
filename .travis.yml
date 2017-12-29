@@ -1,0 +1,30 @@
+dist: trusty
+
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+    packages:
+      - wget
+      - pkg-config
+      - gcc-7
+      - g++-7
+
+before_install:
+  - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-7 60
+  - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-7 60
+
+  - wget https://github.com/bazelbuild/bazel/releases/download/0.9.0/bazel_0.9.0-linux-x86_64.deb
+  - wget https://github.com/bazelbuild/bazel/releases/download/0.9.0/bazel_0.9.0-linux-x86_64.deb.sha256
+  - sha256sum -c bazel_0.9.0-linux-x86_64.deb.sha256
+  - sudo dpkg -i bazel_0.9.0-linux-x86_64.deb
+
+  - cd ..
+  - git clone --depth=1 --recursive https://github.com/jonnrb/bazel_googlebenchmark
+  - git clone --depth=1 https://github.com/abseil/abseil-cpp
+  - git clone --depth=1 https://github.com/google/googletest
+  - cd -
+
+script:
+  - bazel build //... --verbose_failures --sandbox_debug --color=no --curses=no
+
