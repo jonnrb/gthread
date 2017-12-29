@@ -57,7 +57,7 @@ struct tcbhead {
 // should be enough slots i hope. it is dangerous if the runtime calls a
 // `realloc()` on the `dtv` right now, but i can't forsee more than 16
 // modules being loaded at a time.
-constexpr int k_num_slots = 16;
+constexpr int k_num_slots = 32;
 
 int get_tcb(tcbhead** tcb) { return syscall(SYS_arch_prctl, ARCH_GET_FS, tcb); }
 
@@ -152,18 +152,16 @@ tls::tls() {
 
   tls_image* images = find_tls_images();
   auto* image_base = after();
-  int module = 0;
   for (int i = 0; i < k_num_slots; ++i) {
     if (images[i].data == NULL) continue;
-    ++module;
 
     // this data ordering *seems* to work and models gnu and musl libcs
     image_base -= images[i].reserve;
     memcpy(image_base + images[i].mem_offset,
            (char*)images[i].data + images[i].mem_offset, images[i].image_size);
 
-    thread_vector[module + 1].pointer.is_static = true;
-    thread_vector[module + 1].pointer.v = image_base;
+    thread_vector[i + 1].pointer.is_static = true;
+    thread_vector[i + 1].pointer.v = image_base;
   }
 
   tcb->sysinfo = magic_pointers.sysinfo;
