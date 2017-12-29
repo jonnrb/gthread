@@ -3,7 +3,8 @@
 #include <mutex>
 #include <thread>
 
-#include "benchmark/benchmark.h"
+#include <benchmark/benchmark.h>
+
 #include "sched/preempt.h"
 
 template <typename Mutex, typename Thread, typename Yield>

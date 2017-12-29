@@ -1,6 +1,7 @@
 #include "concur/channel.h"
 
-#include "benchmark/benchmark.h"
+#include <benchmark/benchmark.h>
+
 #include "sched/preempt.h"
 
 static void bench_channel_sending_ints(benchmark::State& state) {

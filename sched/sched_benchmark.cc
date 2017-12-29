@@ -3,7 +3,7 @@
 #include <iostream>
 #include <thread>
 
-#include "benchmark/benchmark.h"
+#include <benchmark/benchmark.h>
 
 static void benchmark_std_thread(benchmark::State& state) {
   std::vector<std::thread> threads(state.range(0));

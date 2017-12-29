@@ -1,6 +1,6 @@
 #include "sched/task.h"
 
-#include "benchmark/benchmark.h"
+#include <benchmark/benchmark.h>
 
 static void* mirror(void* arg) {
   auto* t = (gthread::task*)arg;

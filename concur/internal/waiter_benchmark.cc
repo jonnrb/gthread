@@ -1,6 +1,7 @@
 #include "concur/internal/waiter.h"
 
-#include "benchmark/benchmark.h"
+#include <benchmark/benchmark.h>
+
 #include "gthread.h"
 
 static void benchmark_waiter(benchmark::State& state) {

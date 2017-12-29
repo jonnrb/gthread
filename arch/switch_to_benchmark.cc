@@ -5,7 +5,8 @@
 #include <csetjmp>
 #include <thread>
 
-#include "benchmark/benchmark.h"
+#include <benchmark/benchmark.h>
+
 #include "platform/memory.h"
 
 static gthread_saved_ctx_t main_ctx;
