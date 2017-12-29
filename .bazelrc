@@ -1,1 +1,1 @@
-build --cxxopt='-std=c++1z'
+build --cxxopt='-std=c++17'
