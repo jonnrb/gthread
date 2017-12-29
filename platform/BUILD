@@ -2,6 +2,18 @@ load("//:flags.bzl", "COPTS", "LINKOPTS")
 
 package(default_visibility = ["//:__subpackages__"])
 
+config_setting(
+    name = "linux",
+    values = {"cpu": "k8"},
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "macos",
+    values = {"cpu": "darwin"},
+    visibility = ["//visibility:public"],
+)
+
 cc_library(
     name = "platform",
     copts = COPTS,
@@ -67,8 +79,8 @@ cc_test(
 cc_library(
     name = "memory",
     srcs = select({
-        "@bazel_tools//src:darwin": ["memory_macos.cc"],
-        "//conditions:default": ["memory_linux.cc"],
+        ":macos": ["memory_macos.cc"],
+        ":linux": ["memory_linux.cc"],
     }) + [
         "memory_inline.h",
     ],
@@ -119,11 +131,11 @@ cc_test(
 cc_library(
     name = "tls",
     srcs = select({
-        "@bazel_tools//src:darwin": [
+        ":macos": [
             "tls_macos.cc",
             "tls_impl_macos.h",
         ],
-        "//conditions:default": [
+        ":linux": [
             "tls_impl_linux.h",
             "tls_linux.cc",
         ],
